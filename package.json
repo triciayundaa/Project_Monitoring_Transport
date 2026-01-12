@@ -1,0 +1,24 @@
+{
+  "name": "project-app-monitoring-transport",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "backend": "node index.js",
+    "frontend": "npm.cmd run dev --prefix frontend",
+    "dev": "concurrently \"npm.cmd run backend\" \"npm.cmd run frontend\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "ejs": "^3.1.10",
+    "express": "^5.2.1",
+    "mysql2": "^3.16.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
