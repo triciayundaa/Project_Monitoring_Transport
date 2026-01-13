@@ -4,6 +4,7 @@ const cors = require('cors');
 const initDb = require('./src/config/initDb'); 
 const authRoutes = require('./src/routes/authRoutes');
 const keberangkatanRoutes = require('./src/routes/keberangkatanRoutes');
+const jadwalRoutes = require('./src/routes/jadwalRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -21,6 +22,7 @@ initDb()
 // Gunakan awalan /api untuk membedakan jalur API dengan jalur frontend
 app.use('/api/auth', authRoutes);
 app.use('/api/keberangkatan', keberangkatanRoutes); 
+app.use('/api/jadwal', jadwalRoutes);
 
 app.get('/', (req, res) => {
     res.send('Server & Database Monitoring Transportasi Aktif!');

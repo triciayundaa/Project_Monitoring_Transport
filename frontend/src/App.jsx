@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import KeberangkatanTruk from "./pages/KeberangkatanTruk";
+import ManajemenJadwal from "./pages/ManajemenJadwal";
 
 // Fungsi untuk mengecek apakah user sudah login
 const ProtectedRoute = ({ children }) => {
@@ -77,6 +78,16 @@ function App() {
               <Dashboard />
             </AdminRoute>
           } 
+        />
+
+        {/* Manajemen Jadwal (Admin) */}
+        <Route
+          path="/manajemen-jadwal"
+          element={
+            <AdminRoute>
+              <ManajemenJadwal />
+            </AdminRoute>
+          }
         />
 
         {/* Halaman Keberangkatan Truk (Hanya untuk Personil) */}

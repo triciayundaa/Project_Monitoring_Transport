@@ -21,18 +21,7 @@ const initDb = async () => {
       );
     `;
 
-    // ================= JADWAL SHIFT =================
-    const createJadwalShiftTable = `
-      CREATE TABLE IF NOT EXISTS jadwal_shift (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        email_user VARCHAR(100),
-        shift_id INT,
-        tanggal DATE,
-        FOREIGN KEY (email_user) REFERENCES users(email),
-        FOREIGN KEY (shift_id) REFERENCES shift(id),
-        UNIQUE (email_user, tanggal)
-      );
-    `;
+    // (removed old jadwal_shift mapping table) - using jadwal_shift as main schedule table below
 
     // ================= VENDOR =================
     const createVendorTable = `
@@ -92,14 +81,29 @@ const initDb = async () => {
       );
     `;
 
+    // ================= JADWAL (Harian) =================
+    // Use `jadwal_shift` as the single jadwal table where each tanggal stores shifts
+    const createJadwalTable = `
+      CREATE TABLE IF NOT EXISTS jadwal_shift (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tanggal DATE NOT NULL,
+        shift1 VARCHAR(100),
+        shift2 VARCHAR(100),
+        shift3 VARCHAR(100),
+        libur VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_tanggal (tanggal)
+      );
+    `;
+
     // ================= EKSEKUSI =================
     await db.query(createUsersTable);
     await db.query(createShiftTable);
-    await db.query(createJadwalShiftTable);
     await db.query(createVendorTable);
     await db.query(createKegiatanTable);
     await db.query(createKendaraanTable);
     await db.query(createKeberangkatanTable);
+    await db.query(createJadwalTable);
 
     console.log("✅ Semua tabel database berhasil dibuat");
   } catch (err) {

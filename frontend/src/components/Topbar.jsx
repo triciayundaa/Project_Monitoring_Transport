@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-const Topbar = ({ onToggleSidebar }) => {
+const Topbar = ({ onToggleSidebar, title = 'Dashboard' }) => {
     const [role, setRole] = useState('Guest');
 
     useEffect(() => {
@@ -33,10 +33,10 @@ const Topbar = ({ onToggleSidebar }) => {
                 </button>
             </div>
 
-            {/* BAGIAN TENGAH: Judul Dashboard (Presisi di Tengah) */}
+            {/* BAGIAN TENGAH: Judul halaman (Presisi di Tengah) */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <h1 className="text-xl md:text-2xl font-extrabold text-red-600 tracking-wider uppercase pointer-events-auto">
-                    Dashboard
+                    {title}
                 </h1>
             </div>
 

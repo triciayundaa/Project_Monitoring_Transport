@@ -1,17 +1,19 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import logoSemen from '../assets/logo-semen-padang.png';
 
 const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
     const navigate = useNavigate();
 
+    const location = useLocation();
+
     const menuItems = [
-        { name: 'Beranda', icon: 'fas fa-tachometer-alt', active: true },
-        { name: 'Manajemen Kegiatan', icon: 'fas fa-th-large' },
-        { name: 'Manajemen Kendaraan', icon: 'fas fa-truck' },
-        { name: 'Laporan', icon: 'fas fa-file-alt' },
-        { name: 'Manajemen Pengguna', icon: 'fas fa-users' },
-        { name: 'Manajemen Jadwal', icon: 'fas fa-calendar-alt' },
+        { name: 'Beranda', icon: 'fas fa-tachometer-alt', path: '/dashboard' },
+        { name: 'Manajemen Kegiatan', icon: 'fas fa-th-large', path: '/manajemen-kegiatan' },
+        { name: 'Manajemen Kendaraan', icon: 'fas fa-truck', path: '/manajemen-kendaraan' },
+        { name: 'Laporan', icon: 'fas fa-file-alt', path: '/laporan' },
+        { name: 'Manajemen Pengguna', icon: 'fas fa-users', path: '/manajemen-pengguna' },
+        { name: 'Manajemen Jadwal', icon: 'fas fa-calendar-alt', path: '/manajemen-jadwal' },
     ];
 
     const handleLogout = () => {
@@ -46,19 +48,23 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
                 </div>
 
                 <nav className="mt-4 flex-grow px-4 space-y-2 overflow-y-auto">
-                    {menuItems.map((item, index) => (
-                        <div
-                            key={index}
-                            className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                                item.active 
-                                ? 'bg-red-600 text-white shadow-lg shadow-red-200' 
-                                : 'text-red-600 hover:bg-red-50 font-medium'
-                            }`}
-                        >
-                            <i className={`${item.icon} w-5 text-center`}></i>
-                            <span className="text-sm whitespace-nowrap">{item.name}</span>
-                        </div>
-                    ))}
+                    {menuItems.map((item, index) => {
+                        const isActive = location.pathname === item.path;
+                        return (
+                            <div
+                                key={index}
+                                onClick={() => { navigate(item.path); onClose(); }}
+                                className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                                    isActive
+                                    ? 'bg-red-600 text-white shadow-lg shadow-red-200' 
+                                    : 'text-red-600 hover:bg-red-50 font-medium'
+                                }`}
+                            >
+                                <i className={`${item.icon} w-5 text-center`}></i>
+                                <span className="text-sm whitespace-nowrap">{item.name}</span>
+                            </div>
+                        );
+                    })}
                 </nav>
 
                 <div className="p-4 border-t border-gray-100 bg-white">
