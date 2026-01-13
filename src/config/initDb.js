@@ -2,7 +2,7 @@ const db = require('./db');
 
 const initDb = async () => {
     try {
-        // 1. Definisikan Query Tabel Users
+        // 1. Tabel Users
         const createUsersTable = `
             CREATE TABLE IF NOT EXISTS users (
                 email VARCHAR(100) PRIMARY KEY,
@@ -13,21 +13,47 @@ const initDb = async () => {
             );
         `;
 
-        // 2. Definisikan Query Tabel Kendaraan
-        const createVehiclesTable = `
-            CREATE TABLE IF NOT EXISTS kendaraan (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                plat_nomor VARCHAR(20) NOT NULL,
-                jenis_kendaraan VARCHAR(50),
-                status ENUM('aktif', 'non-aktif') DEFAULT 'aktif'
+        // 2. Tabel Kegiatan (Master Data)
+        const createActivitiesTable = `
+            CREATE TABLE IF NOT EXISTS kegiatan (
+                no_po VARCHAR(50) PRIMARY KEY,
+                vendor VARCHAR(100) NOT NULL,
+                transporter VARCHAR(100) NOT NULL,
+                nama_kapal VARCHAR(100),
+                material VARCHAR(100),
+                incoterm VARCHAR(20),
+                no_bl VARCHAR(50),
+                quantity DECIMAL(10,2),
+                total_truk INT DEFAULT 0,
+                status ENUM('Waiting', 'On Progress', 'Completed') DEFAULT 'Waiting',
+                tanggal_mulai DATE NOT NULL,
+                tanggal_selesai DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `;
 
-        // 3. Jalankan Query secara berurutan
+        // 3. Tabel Kendaraan (Detail Data - Child dari Kegiatan)
+        const createVehiclesTable = `
+            CREATE TABLE kendaraan (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    no_po VARCHAR(50),
+    nopol VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (no_po) REFERENCES kegiatan(no_po) ON DELETE CASCADE
+);`;
+
+        // Jalankan Query secara berurutan
         await db.query(createUsersTable);
-        console.log("✅ Berhasil Tersambung!!!");
+        
+        // Penting: Tabel 'kegiatan' harus dibuat sebelum 'kendaraan' 
+        // karena ada Foreign Key (Hubungan Relasi)
+        await db.query(createActivitiesTable); 
+        await db.query(createVehiclesTable);
+        
+        console.log("✅ Database & Semua Tabel Berhasil Diinisialisasi!");
         
     } catch (err) {
+        // Menampilkan pesan error yang lebih spesifik jika query gagal
         console.error("❌ Gagal inisialisasi database:", err.message);
     }
 };

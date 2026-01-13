@@ -9,6 +9,9 @@ import bgGudang from '../assets/bg-gudang.jpeg';
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false); // State untuk show/hide password
+    const [showSuccessModal, setShowSuccessModal] = useState(false); // State untuk pop-up sukses
+    const [userName, setUserName] = useState(''); // State untuk menyimpan nama user buat pop-up
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
@@ -20,13 +23,19 @@ const Login = () => {
                 password 
             });
             
-            alert("Selamat Datang " + response.data.user.nama);
-            
-            // Simpan data user ke localStorage agar bisa dipakai di halaman lain
+            // Simpan data user ke localStorage
             localStorage.setItem('user', JSON.stringify(response.data.user));
             
-            // Pindah ke halaman dashboard
-            navigate('/dashboard'); 
+            // Set nama dan tampilkan pop-up sukses
+            setUserName(response.data.user.nama);
+            setShowSuccessModal(true);
+
+            // Redirect otomatis ke dashboard setelah 3 detik
+            setTimeout(() => {
+                setShowSuccessModal(false);
+                navigate('/dashboard');
+            }, 3000);
+
         } catch (err) {
             alert(err.response?.data?.message || "Email atau Password Salah!");
         }
@@ -34,6 +43,19 @@ const Login = () => {
 
     return (
         <div className="flex min-h-screen bg-gray-100">
+            {/* POP-UP SUKSES LOGIN */}
+            {showSuccessModal && (
+                <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] p-12 w-full max-w-lg shadow-2xl flex flex-col items-center text-center animate-in fade-in zoom-in duration-300">
+                        <div className="w-48 h-48 bg-red-100 rounded-full flex items-center justify-center mb-8 shadow-inner">
+                            <i className="fas fa-check text-red-600 text-8xl font-black"></i>
+                        </div>
+                        <h2 className="text-2xl font-black text-gray-800 uppercase mb-2 tracking-tighter">Login Berhasil</h2>
+                        <p className="text-gray-500 font-medium">Selamat Datang, <span className="text-red-600 font-bold">{userName}</span></p>
+                    </div>
+                </div>
+            )}
+
             {/* SISI KIRI: FORM LOGIN */}
             <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 md:px-16 lg:px-24 bg-white shadow-xl z-10">
                 <div className="mb-10">
@@ -60,14 +82,24 @@ const Login = () => {
 
                     <div>
                         <label className="block text-gray-700 font-bold mb-2">Password</label>
-                        <input 
-                            type="password" 
-                            placeholder="Masukkan password anda"
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
-                            value={password} 
-                            onChange={(e) => setPassword(e.target.value)} 
-                            required
-                        />
+                        <div className="relative">
+                            <input 
+                                type={showPassword ? "text" : "password"} 
+                                placeholder="Masukkan password anda"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
+                                value={password} 
+                                onChange={(e) => setPassword(e.target.value)} 
+                                required
+                            />
+                            {/* IKON MATA */}
+                            <button 
+                                type="button"
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-600 transition-colors"
+                                onClick={() => setShowPassword(!showPassword)}
+                            >
+                                <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-between text-sm">
@@ -75,7 +107,6 @@ const Login = () => {
                             <input type="checkbox" className="mr-2 accent-red-600 w-4 h-4" /> 
                             Remember Me
                         </label>
-                        
                     </div>
 
                     <button 
@@ -96,9 +127,7 @@ const Login = () => {
                 className="hidden lg:block lg:w-1/2 bg-cover bg-center relative" 
                 style={{ backgroundImage: `url(${bgGudang})` }}
             >
-                {/* Overlay gelap agar teks/gambar kiri lebih menonjol */}
                 <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-black/40"></div>
-                
                 <div className="absolute bottom-12 left-12 text-white">
                     <h3 className="text-4xl font-bold">Excellence in Quality</h3>
                     <p className="text-lg opacity-90">Membangun Negeri dengan Kebanggaan.</p>

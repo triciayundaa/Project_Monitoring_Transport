@@ -1,7 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-
+import VehicleList from "./pages/VehicleManagement/VehicleList";
+import VehicleDetail from "./pages/VehicleManagement/VehicleDetail";
+import UserList from "./pages/UserList";
 // Fungsi untuk mengecek apakah user sudah login
 const ProtectedRoute = ({ children }) => {
   const user = localStorage.getItem("user");
@@ -15,27 +17,18 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   return (
     <Router>
-      <Routes>
-        {/* Jalur Utama: Jika akses root (/), arahkan ke Login atau Dashboard */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
-
-        {/* Halaman Login */}
-        <Route path="/login" element={<Login />} />
-
-        {/* Halaman Dashboard (Diproteksi) */}
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
-
-        {/* Route Otomatis: Jika user mengetik alamat yang salah, arahkan ke Login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Router>
+            <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/vehicle-management" element={<ProtectedRoute><VehicleList /></ProtectedRoute>} />
+                <Route path="/vehicle-management/:noPo" element={<ProtectedRoute><VehicleDetail /></ProtectedRoute>} />
+                
+                {/* Pastikan path ini sesuai dengan yang ada di Sidebar.jsx */}
+                <Route path="/manajemen-pengguna" element={<ProtectedRoute><UserList /></ProtectedRoute>} />
+                
+                <Route path="/" element={<Navigate to="/login" />} />
+            </Routes>
+        </Router>
   );
 }
 
