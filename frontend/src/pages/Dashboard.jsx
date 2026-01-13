@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { 
@@ -7,8 +8,30 @@ import {
 } from 'recharts';
 
 const Dashboard = () => {
+    const navigate = useNavigate();
     // Set default true agar saat pertama buka di desktop langsung muncul
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    // Double check: Pastikan hanya admin yang bisa akses dashboard ini
+    useEffect(() => {
+        const user = localStorage.getItem('user');
+        if (user) {
+            try {
+                const userData = JSON.parse(user);
+                const userRole = String(userData.role || '').toLowerCase().trim();
+                
+                if (userRole !== 'admin') {
+                    console.log('⚠️ Non-admin user detected in Dashboard - Redirecting to /keberangkatan-truk');
+                    navigate('/keberangkatan-truk', { replace: true });
+                }
+            } catch (error) {
+                console.error('Error parsing user data:', error);
+                navigate('/login', { replace: true });
+            }
+        } else {
+            navigate('/login', { replace: true });
+        }
+    }, [navigate]);
 
     const stats = [
         { label: 'Total Kegiatan', value: 60, color: 'bg-red-50', icon: 'fas fa-chart-line', iconColor: 'text-red-500' },

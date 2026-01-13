@@ -14,19 +14,54 @@ const Login = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
+            // Clear localStorage dulu untuk menghindari data lama
+            localStorage.removeItem('user');
+            
             // Memanggil API Backend
             const response = await axios.post('http://localhost:3000/api/auth/login', { 
                 email, 
                 password 
             });
             
-            alert("Selamat Datang " + response.data.user.nama);
+            // Simpan data user ke localStorage
+            const userData = response.data.user;
+            localStorage.setItem('user', JSON.stringify(userData));
             
-            // Simpan data user ke localStorage agar bisa dipakai di halaman lain
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            // Ambil role dari response
+            const userRole = userData.role;
             
-            // Pindah ke halaman dashboard
-            navigate('/dashboard'); 
+            // Debug: Log untuk melihat data yang diterima
+            console.log('=== DEBUG LOGIN ===');
+            console.log('Full response:', response.data);
+            console.log('User object:', userData);
+            console.log('Role (raw):', userRole);
+            console.log('Role type:', typeof userRole);
+            console.log('===================');
+            
+            // Normalize role untuk pengecekan (case-insensitive, trim spasi)
+            const normalizedRole = String(userRole || '').toLowerCase().trim();
+            
+            // Redirect berdasarkan role - WAJIB sesuai dengan role
+            if (normalizedRole === 'admin') {
+                console.log('✅ Admin detected - Redirecting to /dashboard');
+                alert("Selamat Datang " + userData.nama);
+                navigate('/dashboard', { replace: true });
+            } else if (normalizedRole === 'personil') {
+                console.log('✅ Personil detected - Redirecting to /keberangkatan-truk');
+                alert("Selamat Datang " + userData.nama);
+                navigate('/keberangkatan-truk', { replace: true });
+            } else {
+                // Fallback jika role tidak dikenali
+                console.error('❌ Role tidak dikenali!', {
+                    original: userRole,
+                    normalized: normalizedRole,
+                    type: typeof userRole,
+                    fullUser: userData
+                });
+                localStorage.removeItem('user'); // Clear jika role tidak valid
+                alert(`Role tidak dikenali: "${userRole}". Silakan hubungi administrator.\n\nPastikan role di database adalah 'admin' atau 'personil' (huruf kecil, tanpa spasi).`);
+                return;
+            } 
         } catch (err) {
             alert(err.response?.data?.message || "Email atau Password Salah!");
         }

@@ -40,18 +40,9 @@ const Topbar = ({ onToggleSidebar }) => {
                 </h1>
             </div>
 
-            {/* BAGIAN KANAN: Menampilkan Role Dinamis */}
+            {/* BAGIAN KANAN: Kosongkan atau hanya tampilkan untuk admin */}
             <div className="flex items-center z-10">
-                <div className="flex flex-col items-end">
-                    <span className="text-sm md:text-base font-bold text-gray-500 tracking-widest uppercase">
-                        {role}
-                    </span>
-                    {/* Opsional: Indikator Online kecil di bawah nama role */}
-                    <span className="flex items-center text-[10px] text-green-500 font-medium">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
-                        Online
-                    </span>
-                </div>
+                {/* Dashboard ini khusus untuk admin, jadi bagian kanan dikosongkan */}
             </div>
             
         </div>
