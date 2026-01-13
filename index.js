@@ -1,9 +1,12 @@
 const express = require('express');
 const cors = require('cors');
-// Baris 3 & 4 harus seperti ini:
+require('dotenv').config();
+
+// --- Import Config & Routes ---
 const initDb = require('./src/config/initDb'); 
 const authRoutes = require('./src/routes/authRoutes');
-require('dotenv').config();
+const keberangkatanRoutes = require('./src/routes/keberangkatanRoutes');
+const kegiatanRoutes = require('./src/routes/kegiatanRoutes');
 
 const app = express();
 
@@ -17,13 +20,17 @@ initDb()
   .catch(err => console.error("❌ Database Inisialisasi Gagal:", err));
 
 // --- Routes ---
-// Gunakan awalan /api untuk membedakan jalur API dengan jalur frontend
-app.use('/api/auth', authRoutes); 
+// Gunakan awalan /api untuk membedakan jalur API dengan frontend
+app.use('/api/auth', authRoutes);
+app.use('/api/kegiatan', kegiatanRoutes);
+app.use('/api/keberangkatan', keberangkatanRoutes);
 
+// --- Route Default ---
 app.get('/', (req, res) => {
     res.send('Server & Database Monitoring Transportasi Aktif!');
 });
 
+// --- Start Server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server berjalan di http://localhost:${PORT}`);

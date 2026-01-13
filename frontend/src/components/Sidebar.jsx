@@ -1,18 +1,28 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import logoSemen from '../assets/logo-semen-padang.png';
 
 const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
     const navigate = useNavigate();
+    const location = useLocation();
 
     const menuItems = [
-        { name: 'Beranda', icon: 'fas fa-tachometer-alt', active: true },
-        { name: 'Manajemen Kegiatan', icon: 'fas fa-th-large' },
-        { name: 'Manajemen Kendaraan', icon: 'fas fa-truck' },
-        { name: 'Laporan', icon: 'fas fa-file-alt' },
-        { name: 'Manajemen Pengguna', icon: 'fas fa-users' },
-        { name: 'Manajemen Jadwal', icon: 'fas fa-calendar-alt' },
+        { name: 'Beranda', icon: 'fas fa-tachometer-alt', path: '/dashboard' },
+        { name: 'Manajemen Kegiatan', icon: 'fas fa-th-large', path: '/kegiatan' },
+        { name: 'Manajemen Kendaraan', icon: 'fas fa-truck', path: '/kendaraan' },
+        { name: 'Laporan', icon: 'fas fa-file-alt', path: '/laporan' },
+        { name: 'Manajemen Pengguna', icon: 'fas fa-users', path: '/users' },
+        { name: 'Manajemen Jadwal', icon: 'fas fa-calendar-alt', path: '/jadwal' },
     ];
+
+    // ✅ FUNGSI UNTUK CEK APAKAH MENU AKTIF
+    const isActive = (path) => {
+        if (path === '/dashboard') {
+            return location.pathname === path;
+        }
+        // Untuk menu lain, cek apakah pathname dimulai dengan path tersebut
+        return location.pathname.startsWith(path);
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('user');
@@ -26,14 +36,15 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
                 isOpen ? 'w-64 opacity-100' : 'w-0 opacity-0 border-none'
             }`}
         >
-            {/* Wrapper dengan lebar statis agar konten tidak bergerak saat Sidebar mengecil */}
             <div className="w-64 h-full flex flex-col">
+                
+                {/* HEADER */}
                 <div className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                            <img src={logoSemen} alt="Logo" className="h-10" />
-                            <span className="font-bold text-red-700 text-xs uppercase">PT Semen Padang</span>
-                        </div>
+                    <div className="flex items-center space-x-2">
+                        <img src={logoSemen} alt="Logo" className="h-10" />
+                        <span className="font-bold text-red-700 text-xs uppercase">
+                            PT Semen Padang
+                        </span>
                     </div>
 
                     <div className="mt-8 flex flex-col items-center">
@@ -45,29 +56,37 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
                     </div>
                 </div>
 
+                {/* MENU */}
                 <nav className="mt-4 flex-grow px-4 space-y-2 overflow-y-auto">
                     {menuItems.map((item, index) => (
                         <div
                             key={index}
+                            onClick={() => {
+                                navigate(item.path);
+                                onClose();
+                            }}
                             className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                                item.active 
-                                ? 'bg-red-600 text-white shadow-lg shadow-red-200' 
-                                : 'text-red-600 hover:bg-red-50 font-medium'
+                                isActive(item.path)
+                                    ? 'bg-red-600 text-white shadow-lg shadow-red-200'
+                                    : 'text-red-600 hover:bg-red-50 font-medium'
                             }`}
                         >
                             <i className={`${item.icon} w-5 text-center`}></i>
-                            <span className="text-sm whitespace-nowrap">{item.name}</span>
+                            <span className="text-sm whitespace-nowrap">
+                                {item.name}
+                            </span>
                         </div>
                     ))}
                 </nav>
 
+                {/* LOGOUT */}
                 <div className="p-4 border-t border-gray-100 bg-white">
-                    <button 
+                    <button
                         onClick={handleLogout}
-                        className="flex items-center justify-center space-x-3 text-red-600 font-bold p-3 hover:bg-red-50 w-full rounded-lg border border-transparent hover:border-red-100 transition-all"
+                        className="flex items-center justify-center space-x-3 text-red-600 font-bold p-3 hover:bg-red-50 w-full rounded-lg transition-all"
                     >
                         <i className="fas fa-sign-out-alt"></i>
-                        <span className="whitespace-nowrap">LogOut</span>
+                        <span>LogOut</span>
                     </button>
                 </div>
             </div>
