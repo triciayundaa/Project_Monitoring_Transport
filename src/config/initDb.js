@@ -34,7 +34,7 @@ const initDb = async () => {
 
         // 3. Tabel Kendaraan (Detail Data - Child dari Kegiatan)
         const createVehiclesTable = `
-            CREATE TABLE kendaraan (
+            CREATE TABLE IF NOT EXISTS kendaraan (
     id INT AUTO_INCREMENT PRIMARY KEY,
     no_po VARCHAR(50),
     nopol VARCHAR(20) NOT NULL,
@@ -43,7 +43,7 @@ const initDb = async () => {
 );`;
 
 const createReportTable = `
-CREATE TABLE laporan (
+CREATE TABLE IF NOT EXISTS laporan (
     id INT AUTO_INCREMENT PRIMARY KEY,
     judul VARCHAR(255) NOT NULL,
     tipe_laporan ENUM('Mingguan', 'Bulanan', 'Inventaris', 'Lainnya') DEFAULT 'Lainnya',
@@ -60,6 +60,7 @@ CREATE TABLE laporan (
         // karena ada Foreign Key (Hubungan Relasi)
         await db.query(createActivitiesTable); 
         await db.query(createVehiclesTable);
+        await db.query(createReportTable);
         
         console.log("✅ Database & Semua Tabel Berhasil Diinisialisasi!");
         
