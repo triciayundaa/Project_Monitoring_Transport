@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // Ditambahkan useState dan useEffect
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logoSemen from '../assets/logo-semen-padang.png';
 
@@ -6,7 +6,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Tambahkan State untuk menampung data profil pengguna
+    // State untuk menampung data profil pengguna
     const [userProfile, setUserProfile] = useState({
         nama: 'Admin',
         email: 'admin@mail.com'
@@ -31,7 +31,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
     const menuItems = [
         { name: 'Beranda', icon: 'fas fa-tachometer-alt', path: '/dashboard' },
         { name: 'Manajemen Kegiatan', icon: 'fas fa-th-large', path: '/manajemen-kegiatan' },
-        { name: 'Manajemen Kendaraan', icon: 'fas fa-truck', path: '/vehicle-management' },
+        { name: 'Manajemen Kendaraan', icon: 'fas fa-truck', path: '/manajemen-kendaraan' }, 
         { name: 'Laporan', icon: 'fas fa-file-alt', path: '/laporan' },
         { name: 'Manajemen Pengguna', icon: 'fas fa-users', path: '/manajemen-pengguna' },
         { name: 'Manajemen Jadwal', icon: 'fas fa-calendar-alt', path: '/manajemen-jadwal' },
@@ -82,6 +82,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
                                 key={index}
                                 onClick={() => {
                                     navigate(item.path);
+                                    // Hanya tutup sidebar otomatis jika layar kecil (mobile/tablet)
                                     if (window.innerWidth < 1024) onClose();
                                 }}
                                 className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${

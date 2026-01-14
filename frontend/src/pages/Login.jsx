@@ -17,26 +17,48 @@ const Login = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
+            // Clear localStorage dulu untuk menghindari data lama
+            localStorage.removeItem('user');
+            
             // Memanggil API Backend
             const response = await axios.post('http://localhost:3000/api/auth/login', { 
                 email, 
                 password 
             });
             
-            // Simpan data user ke localStorage
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            const userData = response.data.user;
             
-            // Set nama dan tampilkan pop-up sukses
-            setUserName(response.data.user.nama);
+            // Simpan data user ke localStorage
+            localStorage.setItem('user', JSON.stringify(userData));
+            
+            // --- GABUNGAN LOGIKA DI SINI ---
+            
+            // 1. Set nama dan Tampilkan Modal Sukses (Fitur dari HEAD - Lebih Bagus)
+            setUserName(userData.nama);
             setShowSuccessModal(true);
 
-            // Redirect otomatis ke dashboard setelah 3 detik
+            // 2. Redirect Berdasarkan Role dengan Delay (Fitur dari Fathiya)
             setTimeout(() => {
-                setShowSuccessModal(false);
-                navigate('/dashboard');
-            }, 3000);
+                setShowSuccessModal(false); // Tutup modal
+
+                const normalizedRole = String(userData.role || '').toLowerCase().trim();
+
+                if (normalizedRole === 'admin') {
+                    // Jika Admin -> Ke Dashboard
+                    navigate('/dashboard', { replace: true });
+                } else if (normalizedRole === 'personil') {
+                    // Jika Personil -> Ke Halaman Truk (Sesuai kodingan Fathiya)
+                    // Catatan: Pastikan route '/keberangkatan-truk' sudah ada di App.jsx
+                    navigate('/keberangkatan-truk', { replace: true });
+                } else {
+                    // Fallback jika role aneh
+                    alert("Role tidak dikenali. Silakan hubungi admin.");
+                    localStorage.removeItem('user');
+                }
+            }, 2000); // Delay 2 detik agar user sempat baca tulisan "Login Berhasil"
 
         } catch (err) {
+            console.error(err);
             alert(err.response?.data?.message || "Email atau Password Salah!");
         }
     };
@@ -52,6 +74,7 @@ const Login = () => {
                         </div>
                         <h2 className="text-2xl font-black text-gray-800 uppercase mb-2 tracking-tighter">Login Berhasil</h2>
                         <p className="text-gray-500 font-medium">Selamat Datang, <span className="text-red-600 font-bold">{userName}</span></p>
+                        <p className="text-xs text-gray-400 mt-4">Mengalihkan halaman...</p>
                     </div>
                 </div>
             )}

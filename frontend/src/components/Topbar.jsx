@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 
-// Tambahkan { title } sebagai props
 const Topbar = ({ onToggleSidebar, title = "Dashboard" }) => { 
     const [role, setRole] = useState('Guest');
 
@@ -21,6 +20,7 @@ const Topbar = ({ onToggleSidebar, title = "Dashboard" }) => {
     return (
         <div className="bg-white h-16 flex items-center justify-between border-b border-gray-200 shadow-sm px-4 md:px-6 relative">
             
+            {/* BAGIAN KIRI: Tombol Toggle Sidebar */}
             <div className="flex items-center z-10">
                 <button 
                     onClick={onToggleSidebar} 
@@ -31,13 +31,14 @@ const Topbar = ({ onToggleSidebar, title = "Dashboard" }) => {
                 </button>
             </div>
 
-            {/* Bagian Tengah: Judul sekarang menggunakan variabel {title} */}
+            {/* BAGIAN TENGAH: Judul Halaman (Presisi di Tengah) */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <h1 className="text-xl md:text-2xl font-extrabold text-red-600 tracking-wider uppercase pointer-events-auto">
                     {title}
                 </h1>
             </div>
 
+            {/* BAGIAN KANAN: Menampilkan Role & Status Online */}
             <div className="flex items-center z-10">
                 <div className="flex flex-col items-end">
                     <span className="text-sm md:text-base font-bold text-gray-500 tracking-widest uppercase">

@@ -2,17 +2,19 @@ const db = require('../config/db');
 
 // backend/controllers/vehicleController.js
 
-// backend/controllers/vehicleController.js
-
+// 1. GET TRANSPORTERS (Daftar Transporter beserta Jumlah Kendaraan)
 exports.getTransporters = async (req, res) => {
     try {
+        // Query disesuaikan dengan relasi baru: Kegiatan -> Vendor <- Kendaraan
+        // Kita hitung jumlah kendaraan berdasarkan vendor yang sama
         const query = `
             SELECT 
                 k.no_po, 
                 k.transporter, 
                 COUNT(ken.id) AS totalVehicles 
             FROM kegiatan k
-            LEFT JOIN kendaraan ken ON k.no_po = ken.no_po
+            LEFT JOIN vendor v ON k.vendor_id = v.id
+            LEFT JOIN kendaraan ken ON v.id = ken.vendor_id
             GROUP BY k.no_po, k.transporter
         `;
         
@@ -27,74 +29,85 @@ exports.getTransporters = async (req, res) => {
     }
 };
 
-// --- FUNGSI LAINNYA ---
+// 2. GET VEHICLES BY PO (Detail Kendaraan berdasarkan No PO)
 exports.getVehiclesByPo = async (req, res) => {
     const { no_po } = req.params;
     try {
-        const [vehicles] = await db.query('SELECT * FROM kendaraan WHERE no_po = ?', [no_po]);
-        const [kegiatan] = await db.query('SELECT transporter FROM kegiatan WHERE no_po = ?', [no_po]);
+        // 1. Cari Vendor ID dari Kegiatan berdasarkan No PO
+        const [kegiatan] = await db.query('SELECT vendor_id, transporter FROM kegiatan WHERE no_po = ?', [no_po]);
+        
+        if (kegiatan.length === 0) {
+            return res.status(404).json({ message: 'Kegiatan tidak ditemukan' });
+        }
+
+        const vendorId = kegiatan[0].vendor_id;
+        const transporterName = kegiatan[0].transporter;
+
+        // 2. Ambil Kendaraan berdasarkan Vendor ID
+        // Perhatikan: Kolom 'plat_nomor' adalah nama baru untuk 'nopol'
+        const [vehicles] = await db.query('SELECT id, plat_nomor as nopol, status FROM kendaraan WHERE vendor_id = ?', [vendorId]);
         
         res.json({
-            transporter: kegiatan[0]?.transporter || '',
+            transporter: transporterName,
             vehicles: vehicles
         });
     } catch (error) {
+        console.error("Error getVehiclesByPo:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
+// 3. ADD VEHICLE (Tambah Kendaraan Baru)
 exports.addVehicle = async (req, res) => {
-    const { no_po, nopol } = req.body;
+    const { no_po, nopol } = req.body; // Frontend lama mengirim 'nopol' dan 'no_po'
+    
     if (!no_po || !nopol) {
         return res.status(400).json({ message: 'No PO dan Nopol harus diisi' });
     }
+
     try {
-        await db.query('INSERT INTO kendaraan (no_po, nopol) VALUES (?, ?)', [no_po, nopol]);
-        res.status(201).json({ message: 'Nopol berhasil ditambahkan' });
+        // 1. Cari Vendor ID dari No PO
+        const [kegiatan] = await db.query('SELECT vendor_id FROM kegiatan WHERE no_po = ? LIMIT 1', [no_po]);
+        
+        if (kegiatan.length === 0) {
+            return res.status(404).json({ message: 'No PO tidak valid / Kegiatan tidak ditemukan' });
+        }
+
+        const vendorId = kegiatan[0].vendor_id;
+
+        // 2. Insert ke Tabel Kendaraan (gunakan kolom baru: 'plat_nomor')
+        await db.query('INSERT INTO kendaraan (vendor_id, plat_nomor, status) VALUES (?, ?, ?)', [vendorId, nopol, 'aktif']);
+        
+        res.status(201).json({ message: 'Kendaraan berhasil ditambahkan' });
     } catch (error) {
+        console.error("Error addVehicle:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
+// 4. DELETE VEHICLE (Hapus Kendaraan)
 exports.deleteVehicle = async (req, res) => {
     const { id } = req.params;
     try {
         await db.query('DELETE FROM kendaraan WHERE id = ?', [id]);
-        res.json({ message: 'Nopol berhasil dihapus' });
+        res.json({ message: 'Kendaraan berhasil dihapus' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 }; 
 
-const saveAllVehicles = async () => {
-    try {
-        setLoading(true);
-        // Kirim semua nopol sekaligus ke database
-        await Promise.all(
-            tempNopolList.map(nopol => 
-                axios.post('http://localhost:3000/api/vehicles/add', { no_po: noPo, nopol: nopol })
-            )
-        );
-        setIsModalOpen(false); // Tutup modal input
-        setIsSuccessModalOpen(true); // Munculkan pop-up centang sukses (Gambar 2)
-        fetchVehicleData(); // Update tabel di halaman detail
-    } catch (error) {
-        alert("Terjadi kesalahan saat menyimpan data.");
-    } finally {
-        setLoading(false);
-    }
-};
-
+// 5. UPDATE VEHICLE (Edit Nopol)
 exports.updateVehicle = async (req, res) => {
-    const { id } = req.params; // Mengambil ID dari URL
-    const { nopol } = req.body; // Mengambil Nopol baru dari body request
+    const { id } = req.params; 
+    const { nopol } = req.body; 
 
     if (!nopol) {
         return res.status(400).json({ message: 'Nopol baru harus diisi' });
     }
 
     try {
-        const query = 'UPDATE kendaraan SET nopol = ? WHERE id = ?';
+        // Gunakan nama kolom baru 'plat_nomor'
+        const query = 'UPDATE kendaraan SET plat_nomor = ? WHERE id = ?';
         const [result] = await db.query(query, [nopol, id]);
 
         if (result.affectedRows === 0) {
