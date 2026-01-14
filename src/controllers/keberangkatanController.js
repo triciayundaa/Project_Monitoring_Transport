@@ -18,7 +18,7 @@ const detectUserShift = (jadwalRow, namaPersonil) => {
     return null; // Tidak ada jadwal
 };
 
-// 1. API BARU: Untuk mengecek status shift user hari ini (Dipakai di Header Frontend)
+// 1. API BARU: Cek status shift user hari ini
 const cekStatusShiftUser = async (req, res) => {
     const { email, tanggal } = req.query;
 
@@ -47,7 +47,7 @@ const cekStatusShiftUser = async (req, res) => {
     }
 };
 
-// 2. CEK PO (Tidak Berubah)
+// 2. CEK PO
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
@@ -66,7 +66,7 @@ const cekPO = async (req, res) => {
     }
 };
 
-// 3. SIMPAN DATA (Perbaikan Validasi)
+// 3. SIMPAN DATA
 const simpanKeberangkatan = async (req, res) => {
     const { kegiatan_id, no_polisi, email_user, tanggal, no_seri_pengantar, foto_truk, foto_surat } = req.body;
 
@@ -80,7 +80,7 @@ const simpanKeberangkatan = async (req, res) => {
         const [jadwalHarian] = await db.query('SELECT * FROM jadwal_shift WHERE tanggal = ?', [tanggal]);
         if (jadwalHarian.length === 0) return res.status(403).json({ status: 'Error', message: 'Jadwal tanggal ini belum tersedia.' });
 
-        // C. Deteksi Shift (Pakai Helper yang lebih ketat)
+        // C. Deteksi Shift
         const userShiftName = detectUserShift(jadwalHarian[0], namaPersonil);
 
         if (!userShiftName) return res.status(403).json({ status: 'Error', message: `Nama Anda (${namaPersonil}) tidak terdaftar di jadwal hari ini.` });
@@ -98,7 +98,6 @@ const simpanKeberangkatan = async (req, res) => {
             if (currentHour >= rule.start && currentHour < rule.end) isValidTime = true;
         }
 
-        // DEBUGGING DI SERVER CONSOLE (Cek ini di terminal VS Code kalau masih lolos)
         console.log(`[VALIDASI] User: ${namaPersonil}, Shift: ${userShiftName}, Jam: ${currentHour}, Valid: ${isValidTime}`);
 
         if (!isValidTime) {
@@ -119,8 +118,8 @@ const simpanKeberangkatan = async (req, res) => {
         // F. Simpan
         const [result] = await db.query(
             `INSERT INTO keberangkatan_truk 
-             (kegiatan_id, kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (kegiatan_id, kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Valid')`, // Default Status Valid
             [kegiatan_id, kendaraan_id, email_user, finalShiftId, tanggal, no_seri_pengantar, foto_truk, foto_surat]
         );
 
@@ -132,12 +131,10 @@ const simpanKeberangkatan = async (req, res) => {
     }
 };
 
-// ... (getKeberangkatanByDate dan hapusKeberangkatan biarkan sama) ...
-// Ambil data keberangkatan (Filter Tanggal & User)
+// 4. GET DATA (Filter Tanggal & User)
 const getKeberangkatanByDate = async (req, res) => {
-    const { tanggal, email_user } = req.query; // Ambil email dari parameter
+    const { tanggal, email_user } = req.query;
 
-    // Validasi input
     if (!tanggal || !email_user) {
         return res.status(400).json({ 
             status: 'Error', 
@@ -162,9 +159,9 @@ const getKeberangkatanByDate = async (req, res) => {
              LEFT JOIN kendaraan kd ON kt.kendaraan_id = kd.id
              LEFT JOIN users u ON kt.email_user = u.email
              LEFT JOIN shift s ON kt.shift_id = s.id
-             WHERE kt.tanggal = ? AND kt.email_user = ?  -- FILTER TAMBAHAN DI SINI
+             WHERE kt.tanggal = ? AND kt.email_user = ? 
              ORDER BY kt.created_at DESC`,
-            [tanggal, email_user] // Masukkan parameter ke query
+            [tanggal, email_user]
         );
 
         res.status(200).json({
@@ -179,6 +176,7 @@ const getKeberangkatanByDate = async (req, res) => {
     }
 };
 
+// 5. HAPUS DATA
 const hapusKeberangkatan = async (req, res) => {
     const { id } = req.params;
     try {
@@ -188,10 +186,33 @@ const hapusKeberangkatan = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
+// 6. VERIFIKASI KEBERANGKATAN (Fitur Baru dari Olivia)
+const verifikasiKeberangkatan = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!['Valid', 'Tolak'].includes(status)) {
+            return res.status(400).json({ message: 'Status tidak valid' });
+        }
+
+        await db.query(
+            'UPDATE keberangkatan_truk SET status = ? WHERE id = ?',
+            [status, id]
+        );
+
+        res.json({ message: 'Status berhasil diperbarui' });
+    } catch (err) {
+        console.error('VERIFIKASI ERROR:', err);
+        res.status(500).json({ message: err.sqlMessage || err.message });
+    }
+};
+
 module.exports = {
-    cekStatusShiftUser, // <--- JANGAN LUPA EXPORT INI
+    cekStatusShiftUser,
     cekPO,
     simpanKeberangkatan,
     getKeberangkatanByDate,
-    hapusKeberangkatan
+    hapusKeberangkatan,
+    verifikasiKeberangkatan // <--- Fitur baru ditambahkan ke export
 };

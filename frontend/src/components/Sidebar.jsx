@@ -6,13 +6,13 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // State untuk menampung data profil pengguna
+    // --- [DARI HEAD] State Profil Pengguna ---
     const [userProfile, setUserProfile] = useState({
         nama: 'Admin',
         email: 'admin@mail.com'
     });
 
-    // Ambil data dari localStorage saat komponen pertama kali dimuat
+    // --- [DARI HEAD] Ambil data User dari LocalStorage ---
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
@@ -28,6 +28,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
         }
     }, []);
 
+    // --- [DARI HEAD] Menu Items (Sesuai App.jsx) ---
     const menuItems = [
         { name: 'Beranda', icon: 'fas fa-tachometer-alt', path: '/dashboard' },
         { name: 'Manajemen Kegiatan', icon: 'fas fa-th-large', path: '/manajemen-kegiatan' },
@@ -36,6 +37,12 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
         { name: 'Manajemen Pengguna', icon: 'fas fa-users', path: '/manajemen-pengguna' },
         { name: 'Manajemen Jadwal', icon: 'fas fa-calendar-alt', path: '/manajemen-jadwal' },
     ];
+
+    // Helper untuk cek menu aktif (Gabungan Logika)
+    const checkActive = (path) => {
+        if (path === '/dashboard') return location.pathname === path;
+        return location.pathname.startsWith(path);
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('user');
@@ -50,12 +57,14 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
             }`}
         >
             <div className="w-64 h-full flex flex-col">
+                
+                {/* HEADER & PROFIL (Fitur HEAD) */}
                 <div className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                            <img src={logoSemen} alt="Logo" className="h-10" />
-                            <span className="font-bold text-red-700 text-xs uppercase">PT Semen Padang</span>
-                        </div>
+                    <div className="flex items-center space-x-2">
+                        <img src={logoSemen} alt="Logo" className="h-10" />
+                        <span className="font-bold text-red-700 text-xs uppercase">
+                            PT Semen Padang
+                        </span>
                     </div>
 
                     <div className="mt-8 flex flex-col items-center">
@@ -73,16 +82,18 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
                     </div>
                 </div>
 
+                {/* MENU NAVIGATION */}
                 <nav className="mt-4 flex-grow px-4 space-y-2 overflow-y-auto">
                     {menuItems.map((item, index) => {
-                        const isActive = location.pathname === item.path;
+                        const isActive = checkActive(item.path);
 
                         return (
                             <div
                                 key={index}
                                 onClick={() => {
                                     navigate(item.path);
-                                    // Hanya tutup sidebar otomatis jika layar kecil (mobile/tablet)
+                                    // Logika Pintar HEAD: Hanya tutup sidebar otomatis jika layar kecil (mobile/tablet)
+                                    // Agar di Laptop tidak capek buka-tutup sidebar terus
                                     if (window.innerWidth < 1024) onClose();
                                 }}
                                 className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
@@ -98,10 +109,11 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
                     })}
                 </nav>
 
+                {/* LOGOUT */}
                 <div className="p-4 border-t border-gray-100 bg-white">
-                    <button 
+                    <button
                         onClick={handleLogout}
-                        className="flex items-center justify-center space-x-3 text-red-600 font-bold p-3 hover:bg-red-50 w-full rounded-lg border border-transparent hover:border-red-100 transition-all"
+                        className="flex items-center justify-center space-x-3 text-red-600 font-bold p-3 hover:bg-red-50 w-full rounded-lg transition-all"
                     >
                         <i className="fas fa-sign-out-alt"></i>
                         <span className="whitespace-nowrap uppercase text-sm tracking-wider">LogOut</span>

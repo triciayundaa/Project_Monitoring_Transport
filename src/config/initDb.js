@@ -34,7 +34,7 @@ const initDb = async () => {
     const createKegiatanTable = `
       CREATE TABLE IF NOT EXISTS kegiatan (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        no_po VARCHAR(50) UNIQUE,  -- Saya tambahkan UNIQUE agar bisa dicari by PO
+        no_po VARCHAR(50) UNIQUE,  -- UNIQUE agar bisa dicari by PO
         vendor_id INT,
         transporter VARCHAR(100),
         nama_kapal VARCHAR(100),
@@ -42,7 +42,6 @@ const initDb = async () => {
         incoterm VARCHAR(20),
         no_bl VARCHAR(50),
         quantity DECIMAL(10,2),    -- Pakai DECIMAL agar presisi
-        total_truk INT DEFAULT 0,
         status ENUM('Waiting', 'On Progress', 'Completed') DEFAULT 'Waiting',
         tanggal_mulai DATE,
         tanggal_selesai DATE,
@@ -75,6 +74,7 @@ const initDb = async () => {
         no_seri_pengantar VARCHAR(50),
         foto_truk LONGTEXT,   -- Support Upload Foto Base64
         foto_surat LONGTEXT,  -- Support Upload Foto Base64
+        status ENUM('Valid', 'Tolak') DEFAULT 'Valid', -- Tambahan Status Validasi
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (kegiatan_id) REFERENCES kegiatan(id),
         FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(id),
@@ -97,7 +97,7 @@ const initDb = async () => {
       );
     `;
 
-    // ================= 8. LAPORAN (Dari Branch HEAD - Agar Fitur Laporan Aman) =================
+    // ================= 8. LAPORAN (Fitur Laporan) =================
     const createReportTable = `
       CREATE TABLE IF NOT EXISTS laporan (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -117,13 +117,13 @@ const initDb = async () => {
     await db.query(createKendaraanTable);
     await db.query(createKeberangkatanTable);
     await db.query(createJadwalTable);
-    await db.query(createReportTable); // Jangan lupa eksekusi laporan
+    await db.query(createReportTable);
 
     console.log("✅ Semua tabel database berhasil dibuat (Struktur Baru + Laporan)");
 
-    // ================= SEEDING DATA AWAL (Opsional tapi Penting) =================
+    // ================= SEEDING DATA AWAL (Opsional) =================
     
-    // 1. Buat User Default (Admin & Personil)
+    // 1. Buat User Default
     const [cekUser] = await db.query("SELECT * FROM users WHERE email = 'admin1234@gmail.com'");
     if (cekUser.length === 0) {
         console.log("⚙️  Membuat user default...");

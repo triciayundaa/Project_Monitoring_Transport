@@ -2,18 +2,20 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 
-// Import Halaman dari HEAD (Fitur Lama/Fitur Lain)
+// --- IMPORT FITUR BARU (OLIVIA) ---
+import DaftarKegiatan from "./pages/DaftarKegiatan";
+import DetailKegiatan from "./pages/DetailKegiatan";
+
+// --- IMPORT FITUR LAMA/HEAD (Fathiya & Trici) ---
 import VehicleList from "./pages/VehicleManagement/VehicleList";
 import VehicleDetail from "./pages/VehicleManagement/VehicleDetail";
 import UserList from "./pages/UserList";
 import LaporanList from "./pages/Laporan/LaporanList";
 import LaporanDetail from "./pages/Laporan/LaporanDetail";
-
-// Import Halaman dari FATHIYA (Fitur Baru)
 import KeberangkatanTruk from "./pages/KeberangkatanTruk";
 import ManajemenJadwal from "./pages/ManajemenJadwal";
 
-// --- PROTECTED ROUTES ---
+// --- PROTECTED ROUTES (LOGIKA KEAMANAN DARI HEAD) ---
 
 // 1. Cek Login Saja (Bisa Admin/Personil)
 const ProtectedRoute = ({ children }) => {
@@ -66,25 +68,30 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* JALUR UTAMA */}
+        {/* --- JALUR UTAMA --- */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
 
         {/* --- HALAMAN ADMIN --- */}
         <Route path="/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
         
-        {/* Manajemen Kendaraan (Saya asumsikan ini fitur Admin, sesuaikan path dengan Sidebar.jsx) */}
+        {/* 1. Manajemen Kegiatan (Fitur Baru Olivia) */}
+        {/* Path disesuaikan dengan Sidebar: /manajemen-kegiatan */}
+        <Route path="/manajemen-kegiatan" element={<AdminRoute><DaftarKegiatan /></AdminRoute>} />
+        <Route path="/manajemen-kegiatan/detail/:no_po" element={<AdminRoute><DetailKegiatan /></AdminRoute>} />
+
+        {/* 2. Manajemen Kendaraan */}
         <Route path="/manajemen-kendaraan" element={<AdminRoute><VehicleList /></AdminRoute>} />
         <Route path="/vehicle-management/:noPo" element={<AdminRoute><VehicleDetail /></AdminRoute>} />
         
-        {/* Manajemen Pengguna */}
+        {/* 3. Manajemen Pengguna */}
         <Route path="/manajemen-pengguna" element={<AdminRoute><UserList /></AdminRoute>} />
         
-        {/* Laporan */}
+        {/* 4. Laporan */}
         <Route path="/laporan" element={<AdminRoute><LaporanList /></AdminRoute>} />
         <Route path="/laporan/detail/:id" element={<AdminRoute><LaporanDetail /></AdminRoute>} />
 
-        {/* Manajemen Jadwal (Fitur Baru Fathiya) */}
+        {/* 5. Manajemen Jadwal */}
         <Route path="/manajemen-jadwal" element={<AdminRoute><ManajemenJadwal /></AdminRoute>} />
 
 
@@ -92,7 +99,7 @@ function App() {
         <Route path="/keberangkatan-truk" element={<PersonilRoute><KeberangkatanTruk /></PersonilRoute>} />
 
 
-        {/* ROUTE NOT FOUND */}
+        {/* --- FALLBACK (Jika halaman tidak ditemukan) --- */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>

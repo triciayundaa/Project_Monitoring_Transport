@@ -1,18 +1,20 @@
 const express = require('express');
 const cors = require('cors');
 const initDb = require('./src/config/initDb'); 
+require('dotenv').config();
+
+// --- IMPORT ROUTES ---
 const authRoutes = require('./src/routes/authRoutes');
 
-// --- IMPORT DARI HEAD (Fitur Lama) ---
+// 1. Dari HEAD (Fitur Lama/Fathiya/Trici)
 const vehicleRoutes = require('./src/routes/vehicleRoutes'); 
 const userRoutes = require('./src/routes/userRoutes');
-
-// --- IMPORT DARI FATHIYA (Fitur Baru) ---
-const keberangkatanRoutes = require('./src/routes/keberangkatanRoutes');
 const jadwalRoutes = require('./src/routes/jadwalRoutes');
-// Jika Anda punya file laporanRoutes, jangan lupa import di sini juga
+const laporanRoutes = require('./src/routes/laporanRoutes'); // Pastikan file ini ada, jika tidak, hapus baris ini
 
-require('dotenv').config();
+// 2. Dari OLIVIA (Fitur Baru)
+const keberangkatanRoutes = require('./src/routes/keberangkatanRoutes');
+const kegiatanRoutes = require('./src/routes/kegiatanRoutes'); // <--- INI YANG BARU DITAMBAHKAN
 
 const app = express();
 
@@ -27,16 +29,20 @@ initDb()
 
 // --- DAFTAR ROUTES API ---
 
-// 1. Auth (Login)
+// 1. Auth
 app.use('/api/auth', authRoutes); 
 
-// 2. Manajemen Users & Vehicles (Dari HEAD)
+// 2. Manajemen Users & Vehicles & Laporan
 app.use('/api/users', userRoutes);
 app.use('/api/vehicles', vehicleRoutes); 
+app.use('/api/laporan', laporanRoutes); // Pastikan route ini ada jika Anda punya fitur laporan
 
-// 3. Keberangkatan & Jadwal (Dari Fathiya)
+// 3. Keberangkatan & Jadwal
 app.use('/api/keberangkatan', keberangkatanRoutes);
 app.use('/api/jadwal', jadwalRoutes);
+
+// 4. Kegiatan (PO) - Fitur Olivia
+app.use('/api/kegiatan', kegiatanRoutes);
 
 // --- Root Route ---
 app.get('/', (req, res) => {
