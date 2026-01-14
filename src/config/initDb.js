@@ -42,6 +42,17 @@ const initDb = async () => {
     FOREIGN KEY (no_po) REFERENCES kegiatan(no_po) ON DELETE CASCADE
 );`;
 
+const createReportTable = `
+CREATE TABLE laporan (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    judul VARCHAR(255) NOT NULL,
+    tipe_laporan ENUM('Mingguan', 'Bulanan', 'Inventaris', 'Lainnya') DEFAULT 'Lainnya',
+    file_path VARCHAR(255) NOT NULL,
+    dibuat_oleh VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);`;
+
+
         // Jalankan Query secara berurutan
         await db.query(createUsersTable);
         

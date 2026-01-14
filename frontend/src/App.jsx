@@ -4,6 +4,10 @@ import Dashboard from "./pages/Dashboard";
 import VehicleList from "./pages/VehicleManagement/VehicleList";
 import VehicleDetail from "./pages/VehicleManagement/VehicleDetail";
 import UserList from "./pages/UserList";
+import LaporanList from "./pages/Laporan/LaporanList";
+import LaporanDetail from "./pages/Laporan/LaporanDetail";
+
+
 // Fungsi untuk mengecek apakah user sudah login
 const ProtectedRoute = ({ children }) => {
   const user = localStorage.getItem("user");
@@ -27,6 +31,8 @@ function App() {
                 <Route path="/manajemen-pengguna" element={<ProtectedRoute><UserList /></ProtectedRoute>} />
                 
                 <Route path="/" element={<Navigate to="/login" />} />
+                <Route path="/laporan" element={<ProtectedRoute><LaporanList /></ProtectedRoute>} />
+<Route path="/laporan/detail/:id" element={<ProtectedRoute><LaporanDetail /></ProtectedRoute>} />
             </Routes>
         </Router>
   );
