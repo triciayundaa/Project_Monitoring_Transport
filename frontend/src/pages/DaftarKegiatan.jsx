@@ -101,12 +101,40 @@ const DaftarKegiatan = () => {
     }, [searchQuery, statusFilter, startDate, endDate, data]);
 
     /* =======================
-       DELETE
+       DELETE with server-side verification
     ======================= */
     const handleDelete = async (no_po) => {
-        if (confirm('Hapus kegiatan ini?')) {
-            await fetch(`${API}/${no_po}`, { method: 'DELETE' });
-            loadData();
+        try {
+            // fetch latest detail to ensure status/truk count haven't changed
+            const detailRes = await fetch(`${API}/${no_po}`);
+            if (!detailRes.ok) {
+                alert('Gagal memeriksa status kegiatan sebelum menghapus');
+                return;
+            }
+            const detailJson = await detailRes.json();
+            const currentStatus = detailJson.kegiatan?.status;
+            const totalTruk = detailJson.statistik?.total_truk || 0;
+
+            if (currentStatus === 'On Progress' || currentStatus === 'Completed' || Number(totalTruk) > 0) {
+                const runningMsg = Number(totalTruk) > 0
+                    ? `Kegiatan ini sudah berjalan (ada ${totalTruk} truk) dan tidak dapat dihapus.`
+                    : `Kegiatan dengan status ${currentStatus} tidak dapat dihapus.`;
+                alert(runningMsg);
+                return;
+            }
+
+            if (!confirm('Hapus kegiatan ini?')) return;
+
+            const delRes = await fetch(`${API}/${no_po}`, { method: 'DELETE' });
+            if (!delRes.ok) {
+                const text = await delRes.text();
+                alert('Gagal menghapus kegiatan: ' + text);
+                return;
+            }
+            await loadData();
+        } catch (err) {
+            console.error(err);
+            alert('Terjadi kesalahan saat menghapus kegiatan');
         }
     };
 
@@ -290,8 +318,18 @@ const DaftarKegiatan = () => {
                                                         </button>
 
                                                     <button
-                                                        onClick={() => handleDelete(item.no_po)}
-                                                        className="p-2 rounded hover:bg-red-100 text-red-600"
+                                                        onClick={() => {
+                                                            if (item.status === 'On Progress' || item.status === 'Completed') {
+                                                                const runningMsg = item.total_truk && Number(item.total_truk) > 0
+                                                                    ? `Kegiatan ini sudah berjalan (ada ${item.total_truk} truk) dan tidak dapat dihapus.`
+                                                                    : 'Kegiatan ini sedang berjalan dan tidak dapat dihapus.';
+                                                                alert(runningMsg);
+                                                                return;
+                                                            }
+                                                            handleDelete(item.no_po);
+                                                        }}
+                                                        className={`p-2 rounded ${item.status === 'On Progress' || item.status === 'Completed' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-red-100 text-red-600'}`}
+                                                        title={item.status === 'On Progress' || item.status === 'Completed' ? 'Tidak dapat dihapus' : 'Hapus kegiatan'}
                                                     >
                                                         <Trash2 size={16} />
                                                     </button>

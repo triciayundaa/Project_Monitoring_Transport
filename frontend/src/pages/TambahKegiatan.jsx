@@ -21,6 +21,7 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data }) => {
   });
 
   const [errors, setErrors] = useState({});
+  const [disableNoPo, setDisableNoPo] = useState(false);
 
   // 🔥 Auto isi saat EDIT
   useEffect(() => {
@@ -37,6 +38,11 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data }) => {
         tanggal_mulai: data.tanggal_mulai?.substring(0,10) || '',
         tanggal_selesai: data.tanggal_selesai?.substring(0,10) || '',
       });
+
+      // 🔥 Jika sudah ada truk, disable no_po
+      if (data.total_truk && Number(data.total_truk) > 0) {
+        setDisableNoPo(true);
+      }
     }
   }, [mode, data]);
 
@@ -64,23 +70,28 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data }) => {
 
     const url =
       mode === 'edit'
-        ? `${API}/${data.old_no_po}`   // PO LAMA (kunci update)
+        ? `${API}/${data.no_po}`   // PO lama kunci update
         : API;
 
     const method = mode === 'edit' ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
 
-    if (res.ok) {
-      onSuccess();
-      onClose();
-    } else {
-      const err = await res.json();
-      alert(err.message || 'Gagal menyimpan');
+      if (res.ok) {
+        onSuccess();
+        onClose();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Gagal menyimpan');
+      }
+    } catch (err) {
+      console.error('ERROR SIMPAN:', err);
+      alert('Terjadi error saat menyimpan data');
     }
   };
 
@@ -96,47 +107,81 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data }) => {
         </div>
 
         <div className="grid grid-cols-2 gap-4 text-sm">
+
           {[
             ['no_po','Nomor PO'],['vendor','Nama Vendor'],['transporter','Transporter'],
             ['nama_kapal','Nama Kapal'],['incoterm','Incoterm'],['no_bl','Nomor BL']
           ].map(([name,label])=>(
             <div key={name}>
               <label>{label}</label>
-              <input name={name} value={form[name]} onChange={handleChange}
-                className={`${inputStyle} ${errors[name] && 'border border-red-500'}`} />
+              <input 
+                name={name} 
+                value={form[name]} 
+                onChange={handleChange}
+                className={`${inputStyle} ${errors[name] && 'border border-red-500'}`}
+                disabled={name === 'no_po' && disableNoPo}  // 🔥 disable no_po jika truk ada
+              />
               {errors[name] && <p className="text-red-500 text-xs">{errors[name]}</p>}
+              {name === 'no_po' && disableNoPo && (
+                <p className="text-xs text-gray-500 mt-1">Tidak bisa diubah karena sudah ada truk</p>
+              )}
             </div>
           ))}
 
           <div className="col-span-2">
             <label>Material</label>
-            <textarea name="material" value={form.material} onChange={handleChange}
-              rows="2" className={inputStyle} />
+            <textarea 
+              name="material" 
+              value={form.material} 
+              onChange={handleChange}
+              rows="2" 
+              className={inputStyle} 
+            />
           </div>
 
           <div className="col-span-2">
             <label>Quantity (ton)</label>
-            <input type="number" name="quantity" value={form.quantity}
-              onChange={handleChange} className={inputStyle} />
+            <input 
+              type="number" 
+              name="quantity" 
+              value={form.quantity}
+              onChange={handleChange} 
+              className={inputStyle} 
+            />
           </div>
 
           <div>
             <label>Tanggal Mulai</label>
-            <input type="date" name="tanggal_mulai" value={form.tanggal_mulai}
-              onChange={handleChange} className={inputStyle} />
+            <input 
+              type="date" 
+              name="tanggal_mulai" 
+              value={form.tanggal_mulai}
+              onChange={handleChange} 
+              className={inputStyle} 
+            />
+            {errors.tanggal_mulai && <p className="text-red-500 text-xs">{errors.tanggal_mulai}</p>}
           </div>
 
           <div>
             <label>Tanggal Selesai</label>
-            <input type="date" name="tanggal_selesai" value={form.tanggal_selesai}
-              onChange={handleChange} className={inputStyle} />
+            <input 
+              type="date" 
+              name="tanggal_selesai" 
+              value={form.tanggal_selesai}
+              onChange={handleChange} 
+              className={inputStyle} 
+            />
+            {errors.tanggal_selesai && <p className="text-red-500 text-xs">{errors.tanggal_selesai}</p>}
           </div>
+
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
           <button onClick={onClose} className="px-5 py-2 border rounded-lg">Batal</button>
-          <button onClick={handleSubmit}
-            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+          <button 
+            onClick={handleSubmit}
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
             {mode === 'edit' ? 'Update' : 'Simpan'}
           </button>
         </div>

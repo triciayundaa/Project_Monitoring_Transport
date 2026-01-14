@@ -32,29 +32,32 @@ const Topbar = ({ onToggleSidebar }) => {
     }, []);
 
     return (
-        <div className="bg-white h-16 flex items-center justify-between border-b shadow px-4 relative">
+        <div className="bg-white h-12 md:h-16 flex items-center justify-between border-b shadow px-3 md:px-4">
 
-            {/* Hamburger */}
-            <button
-                onClick={onToggleSidebar}
-                className="text-red-600 p-2 hover:bg-red-50 rounded"
-            >
-                <i className="fas fa-bars text-xl"></i>
-            </button>
+            {/* Left: Hamburger */}
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={onToggleSidebar}
+                    className="text-red-600 p-2 hover:bg-red-50 rounded"
+                    aria-label="Toggle sidebar"
+                >
+                    <i className="fas fa-bars text-lg md:text-xl"></i>
+                </button>
+            </div>
 
-            {/* Title */}
-            <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-                <h1 className="text-2xl font-extrabold text-red-600 uppercase">
+            {/* Center: Title */}
+            <div className="flex-1 flex justify-center">
+                <h1 className="text-lg md:text-2xl font-extrabold text-red-600 uppercase truncate max-w-[60vw] text-center">
                     {getTitle()}
                 </h1>
             </div>
 
-            {/* Role */}
-            <div className="text-right">
-                <div className="text-sm font-bold text-gray-500 uppercase">{role}</div>
-                <div className="text-[10px] text-green-500 flex items-center justify-end gap-1">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                    Online
+            {/* Right: Role / status (compact on small screens) */}
+            <div className="text-right flex flex-col items-end md:items-end">
+                <div className="text-xs md:text-sm font-bold text-gray-500 uppercase hidden md:block">{role}</div>
+                <div className="text-[10px] md:text-[11px] text-green-500 flex items-center justify-end gap-1">
+                    <span className="w-2 h-2 bg-green-500 rounded-full" />
+                    <span className="hidden sm:inline">Online</span>
                 </div>
             </div>
 
