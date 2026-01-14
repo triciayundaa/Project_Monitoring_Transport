@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
+import * as XLSX from 'xlsx'; // --- [BARU] Import Library Excel
 
 const personOptions = [null, 'Personil A', 'Personil B', 'Personil C', 'Personil D'];
 
@@ -99,7 +100,7 @@ const ManajemenJadwal = () => {
 
     // Auto-save per cell ke server
     axios.patch('http://localhost:3000/api/jadwal/day', { date: dateKey, slots: oldRow })
-         .catch(err => console.error("Auto-save failed", err));
+          .catch(err => console.error("Auto-save failed", err));
   };
 
   const handleSaveAll = async () => {
@@ -136,6 +137,44 @@ const ManajemenJadwal = () => {
       }
   };
 
+  // --- [BARU] Fungsi Download Excel ---
+  const handleDownloadExcel = () => {
+    // 1. Ambil data bulan ini
+    const currentDays = generateMonthDays(year, month);
+    const monthData = schedules[monthKey] || {};
+
+    // 2. Format data agar rapi di Excel
+    const dataToExport = currentDays.map(dateObj => {
+        const dateKey = formatDateKey(dateObj);
+        // Ambil row data, jika kosong default ke array null
+        const row = monthData[dateKey] || [null, null, null, null];
+        
+        return {
+            'Hari': dateObj.toLocaleDateString('id-ID', { weekday: 'long' }),
+            'Tanggal': dateKey,
+            'Shift 1': row[0] || '-',
+            'Shift 2': row[1] || '-',
+            'Shift 3': row[2] || '-',
+            'Libur': row[3] || '-'
+        };
+    });
+
+    // 3. Buat Workbook dan Worksheet
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    
+    // (Opsional) Atur lebar kolom
+    const wscols = [{wch:10}, {wch:15}, {wch:20}, {wch:20}, {wch:20}, {wch:20}];
+    worksheet['!cols'] = wscols;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Jadwal Shift");
+
+    // 4. Download File
+    const namaBulan = new Date(year, month, 1).toLocaleString('id-ID', { month: 'long' });
+    XLSX.writeFile(workbook, `Jadwal_Transport_${namaBulan}_${year}.xlsx`);
+  };
+  // ------------------------------------
+
   const formatMonthName = (y, m) => {
     return new Date(y, m, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
   };
@@ -157,7 +196,13 @@ const ManajemenJadwal = () => {
                 <button onClick={handleNext} className="px-3 py-1 hover:bg-gray-100 rounded">▶</button>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 justify-center">
+                 {/* --- [BARU] Tombol Download --- */}
+                <button onClick={handleDownloadExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow flex items-center gap-2">
+                   <i className="fas fa-file-excel"></i> Download Excel
+                </button>
+                {/* ------------------------------- */}
+
                 <button onClick={handleGenerate} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded shadow">
                     Generate Jadwal
                 </button>
