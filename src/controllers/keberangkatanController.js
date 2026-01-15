@@ -115,7 +115,7 @@ const simpanKeberangkatan = async (req, res) => {
         if (kendaraan.length === 0) return res.status(404).json({ status: 'Error', message: 'Nomor polisi tidak terdaftar' });
         const kendaraan_id = kendaraan[0].id;
 
-        // F. Simpan
+        // F. Simpan Data Truk
         const [result] = await db.query(
             `INSERT INTO keberangkatan_truk 
              (kegiatan_id, kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, status) 
@@ -123,7 +123,27 @@ const simpanKeberangkatan = async (req, res) => {
             [kegiatan_id, kendaraan_id, email_user, finalShiftId, tanggal, no_seri_pengantar, foto_truk, foto_surat]
         );
 
-        res.status(200).json({ status: 'Success', message: 'Data berhasil disimpan', data: { id: result.insertId } });
+        // ✅ G. AUTO-UPDATE STATUS KEGIATAN MENJADI "On Progress"
+        // Cek status kegiatan saat ini
+        const [kegiatanStatus] = await db.query(
+            'SELECT status FROM kegiatan WHERE id = ?',
+            [kegiatan_id]
+        );
+
+        // Jika status masih "Waiting", ubah menjadi "On Progress"
+        if (kegiatanStatus.length > 0 && kegiatanStatus[0].status === 'Waiting') {
+            await db.query(
+                'UPDATE kegiatan SET status = ? WHERE id = ?',
+                ['On Progress', kegiatan_id]
+            );
+            console.log(`✅ Status kegiatan ID ${kegiatan_id} otomatis diubah menjadi "On Progress"`);
+        }
+
+        res.status(200).json({ 
+            status: 'Success', 
+            message: 'Data berhasil disimpan', 
+            data: { id: result.insertId } 
+        });
 
     } catch (error) {
         console.error(error);
@@ -179,11 +199,47 @@ const getKeberangkatanByDate = async (req, res) => {
 // 5. HAPUS DATA
 const hapusKeberangkatan = async (req, res) => {
     const { id } = req.params;
+    
     try {
+        // A. Ambil kegiatan_id sebelum menghapus
+        const [trukData] = await db.query(
+            'SELECT kegiatan_id FROM keberangkatan_truk WHERE id = ?',
+            [id]
+        );
+
+        if (trukData.length === 0) {
+            return res.status(404).json({ message: 'Data tidak ditemukan' });
+        }
+
+        const kegiatan_id = trukData[0].kegiatan_id;
+
+        // B. Hapus truk
         const [result] = await db.query('DELETE FROM keberangkatan_truk WHERE id = ?', [id]);
-        if (result.affectedRows === 0) return res.status(404).json({ message: 'Data tidak ditemukan' });
-        res.status(200).json({ status: 'Success', message: 'Data berhasil dihapus' });
-    } catch (error) { res.status(500).json({ message: error.message }); }
+
+        // ✅ C. AUTO-UPDATE STATUS KEGIATAN KEMBALI KE "Waiting" JIKA TIDAK ADA TRUK
+        // Hitung sisa truk untuk kegiatan ini
+        const [sisaTruk] = await db.query(
+            'SELECT COUNT(*) as total FROM keberangkatan_truk WHERE kegiatan_id = ?',
+            [kegiatan_id]
+        );
+
+        // Jika tidak ada truk lagi, ubah status menjadi "Waiting"
+        if (sisaTruk[0].total === 0) {
+            await db.query(
+                'UPDATE kegiatan SET status = ? WHERE id = ? AND status = ?',
+                ['Waiting', kegiatan_id, 'On Progress']
+            );
+            console.log(`✅ Status kegiatan ID ${kegiatan_id} dikembalikan ke "Waiting" (tidak ada truk)`);
+        }
+
+        res.status(200).json({ 
+            status: 'Success', 
+            message: 'Data berhasil dihapus' 
+        });
+
+    } catch (error) { 
+        res.status(500).json({ message: error.message }); 
+    }
 };
 
 // 6. VERIFIKASI KEBERANGKATAN (Fitur Baru dari Olivia)
@@ -214,5 +270,5 @@ module.exports = {
     simpanKeberangkatan,
     getKeberangkatanByDate,
     hapusKeberangkatan,
-    verifikasiKeberangkatan // <--- Fitur baru ditambahkan ke export
+    verifikasiKeberangkatan
 };

@@ -41,7 +41,7 @@ const initDb = async () => {
         material VARCHAR(100),
         incoterm VARCHAR(20),
         no_bl VARCHAR(50),
-        quantity DECIMAL(10,2),    -- Pakai DECIMAL agar presisi
+        quantity DECIMAL(10,4),    -- Pakai DECIMAL agar presisi
         status ENUM('Waiting', 'On Progress', 'Completed') DEFAULT 'Waiting',
         tanggal_mulai DATE,
         tanggal_selesai DATE,

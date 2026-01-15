@@ -277,7 +277,8 @@ const DaftarKegiatan = () => {
                                             <td className="px-4 py-3">{item.material}</td>
                                             <td className="px-4 py-3">{item.incoterm || '-'}</td>
                                             <td className="px-4 py-3">{item.no_bl || '-'}</td>
-                                            <td className="px-4 py-3">{item.quantity} ton</td>
+                                            <td className="px-4 py-3">{parseFloat(item.quantity)} ton</td>
+
 
                                             <td className="px-4 py-3">
                                                 <span

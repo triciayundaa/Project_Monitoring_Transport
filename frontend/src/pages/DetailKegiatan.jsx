@@ -344,7 +344,9 @@ const DetailKegiatan = () => {
             isEditing={isEditing}
             isSavingEdits={isSavingEdits}
             kegiatanStatus={kegiatan?.status}
+            totalTruk={statistik?.total_truk}   // <-- INI YANG KURANG
           />
+
 
           {/* Action Buttons removed — Edit moved into FilterBar */}
 
@@ -360,14 +362,22 @@ const DetailKegiatan = () => {
 
           {/* Toggle complete button (right aligned) */}
           <div className="flex justify-end mt-4">
-            <button
-              onClick={handleToggleComplete}
-              disabled={isUpdatingComplete}
-              className={`px-4 py-2 rounded-lg disabled:opacity-60 ${kegiatan.status === 'Completed' ? 'bg-gray-500 hover:bg-gray-600 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-            >
-              {kegiatan.status === 'Completed' ? 'Batalkan Kegiatan Selesai' : 'Tandai Kegiatan Selesai'}
-            </button>
-          </div>
+  {/** Tombol disabled jika truk kosong atau status Waiting */}
+          <button
+            onClick={handleToggleComplete}
+            disabled={!statistik.total_truk || kegiatan.status === 'Waiting' || isUpdatingComplete}
+            className={`px-4 py-2 rounded-lg disabled:opacity-60 ${
+              kegiatan.status === 'Completed'
+                ? 'bg-gray-500 hover:bg-gray-600 text-white'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
+          >
+            {kegiatan.status === 'Completed'
+              ? 'Batalkan Kegiatan Selesai'
+              : 'Tandai Kegiatan Selesai'}
+          </button>
+        </div>
+
 
         </div>
       </div>
@@ -490,7 +500,7 @@ const StatistikCards = ({ statistik }) => (
   </div>
 );
 
-const FilterBar = ({ shifts, searchQuery, setSearchQuery, statusFilter, setStatusFilter, selectedDate, setSelectedDate, handleToggleEdit, isEditing, isSavingEdits, kegiatanStatus }) => (
+const FilterBar = ({ shifts, searchQuery, setSearchQuery, statusFilter, setStatusFilter, selectedDate, setSelectedDate, handleToggleEdit, isEditing, isSavingEdits, kegiatanStatus, totalTruk }) => (
   <div className="bg-gray-100 rounded-xl p-3 mb-6 w-full flex flex-col md:flex-row gap-3 items-start md:items-center">
     <div className="relative flex-1 min-w-0">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -503,10 +513,22 @@ const FilterBar = ({ shifts, searchQuery, setSearchQuery, statusFilter, setStatu
     <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-full md:w-36 lg:w-40 px-3 py-2 bg-white rounded-lg border-0 focus:ring-2 focus:ring-red-300 text-sm" />
     <div className="w-full md:w-auto md:ml-auto flex justify-end">
       <button
-        onClick={() => { if (!kegiatanStatus || kegiatanStatus !== 'Completed') handleToggleEdit(); }}
-        disabled={isSavingEdits || (kegiatanStatus === 'Completed')}
-        className={`px-3 py-2 rounded-lg transition text-sm self-end md:self-auto ${kegiatanStatus === 'Completed' ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-        title={kegiatanStatus === 'Completed' ? 'Kegiatan telah selesai — tidak bisa edit' : ''}
+        onClick={handleToggleEdit}
+        disabled={!totalTruk || kegiatanStatus === 'Waiting' || isSavingEdits || kegiatanStatus === 'Completed'}
+        className={`px-3 py-2 rounded-lg transition text-sm self-end md:self-auto ${
+          !totalTruk || kegiatanStatus === 'Waiting' || kegiatanStatus === 'Completed'
+            ? 'bg-gray-400 text-white cursor-not-allowed'
+            : 'bg-blue-600 text-white hover:bg-blue-700'
+        }`}
+        title={
+          !totalTruk
+            ? 'Belum ada truk — tidak bisa edit'
+            : kegiatanStatus === 'Waiting'
+            ? 'Kegiatan masih Waiting — tidak bisa edit'
+            : kegiatanStatus === 'Completed'
+            ? 'Kegiatan sudah selesai — tidak bisa edit'
+            : ''
+        }
       >
         {isEditing ? (isSavingEdits ? 'Menyimpan...' : 'Selesai Edit') : 'Edit Status'}
       </button>

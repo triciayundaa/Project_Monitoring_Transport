@@ -147,10 +147,19 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                         ></textarea>
                     </div>
 
-                    {/* Quantity */}
-                    <div className="grid grid-cols-1">
-                        <InputGroup label="Quantity (ton)" name="quantity" type="number" value={formData.quantity} onChange={handleChange} />
-                    </div>
+                  {/* Quantity */}
+                <div className="grid grid-cols-1">
+                    <InputGroup 
+                        label="Quantity (ton)" 
+                        name="quantity" 
+                        type="number"
+                        value={formData.quantity !== '' ? parseFloat(formData.quantity) : ''}
+                        onChange={handleChange} 
+                        min={0}          
+                        step={0.01}      
+                    />
+                </div>
+
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* TANGGAL MULAI */}
