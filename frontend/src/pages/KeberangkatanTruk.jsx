@@ -105,6 +105,22 @@ const KeberangkatanTruk = () => {
     };
 
     const handleInputDataBaru = () => {
+        // --- 1. VALIDASI TANGGAL BERLALU (KODINGAN BARU) ---
+        // Kita buat tanggal hari ini menjadi format YYYY-MM-DD string agar bisa dibandingkan
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const todayString = `${year}-${month}-${day}`;
+
+        // Bandingkan string tanggal (misal: "2023-10-01" < "2023-10-02")
+        if (selectedDate < todayString) {
+            setWarningMessage('Anda tidak dapat menginput data pada tanggal yang sudah berlalu.');
+            setShowModalWarning(true);
+            return;
+        }
+        // ----------------------------------------------------
+
         // --- VALIDASI SHIFT & JAM (FRONTEND) ---
         if (currentShiftLabel === 'Libur') {
             setWarningMessage('Anda tidak dapat menginput data karena jadwal Anda hari ini LIBUR.');
@@ -162,7 +178,18 @@ const KeberangkatanTruk = () => {
             });
 
             if (response.data.status === 'Success') {
-                setPoData(response.data.data);
+                const dataPO = response.data.data;
+
+                // --- KODINGAN BARU: CEK STATUS COMPLETED ---
+                // Pastikan backend Anda mengirimkan field 'status' di response data
+                if (dataPO.status === 'Completed') {
+                    setWarningMessage(`Nomor PO ${dataPO.no_po} sudah berstatus COMPLETED (Selesai). Anda tidak dapat menginput data baru.`);
+                    setShowModalWarning(true); // Menggunakan modal warning yang sudah kita buat sebelumnya
+                    return; // Hentikan proses, jangan buka form input
+                }
+                // -------------------------------------------
+
+                setPoData(dataPO);
                 setShowModalPO(false);
                 setShowModalForm(true);
             }
@@ -180,33 +207,43 @@ const KeberangkatanTruk = () => {
 
     const handleCapturePhoto = async (field) => {
         try {
+            // --- SETTING KAMERA BELAKANG ---
+            // Kita gunakan 'facingMode: "environment"' agar default ke kamera belakang.
+            // Jika di Laptop/PC tidak ada kamera belakang, dia akan otomatis pakai webcam biasa.
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
+                video: { 
+                    facingMode: { ideal: "environment" } 
+                }
             });
+            // -------------------------------
 
             const video = document.createElement('video');
             video.srcObject = stream;
             video.autoplay = true;
-            video.playsInline = true;
+            video.playsInline = true; // Penting untuk iOS agar tidak fullscreen otomatis
             video.style.width = '100%';
-            video.style.maxHeight = '400px';
-            video.style.objectFit = 'cover';
+            video.style.height = '100%';
+            video.style.objectFit = 'cover'; // Agar tampilan penuh rapi
 
+            // Buat Modal Kamera Fullscreen sederhana
             const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center z-[70] p-4';
+            modal.className = 'fixed inset-0 bg-black z-[100] flex flex-col';
+            
             modal.innerHTML = `
-                <div class="bg-white rounded-lg p-4 max-w-md w-full">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 text-center">Ambil Foto</h3>
-                    <div id="camera-preview" class="mb-4 rounded-lg overflow-hidden bg-black flex items-center justify-center" style="min-height: 300px;"></div>
-                    <div class="flex gap-3">
-                        <button id="capture-btn" type="button" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors">
-                            Ambil Foto
-                        </button>
-                        <button id="cancel-btn" type="button" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors">
-                            Batal
-                        </button>
-                    </div>
+                <div class="relative flex-1 bg-black overflow-hidden flex items-center justify-center">
+                    <div id="camera-preview" class="w-full h-full flex items-center justify-center"></div>
+                    
+                    <div class="absolute inset-0 border-2 border-white/30 pointer-events-none"></div>
                 </div>
+
+                <div class="bg-black p-6 flex justify-between items-center gap-4">
+                    <button id="cancel-btn" type="button" class="text-white font-semibold py-3 px-6 rounded-full border border-white/50 hover:bg-white/10 transition-colors">
+                        Batal
+                    </button>
+                    
+                    <button id="capture-btn" type="button" class="w-16 h-16 bg-white rounded-full border-4 border-gray-300 active:scale-95 transition-transform shadow-lg"></button>
+                    
+                    <div class="w-[88px]"></div> </div>
             `;
             document.body.appendChild(modal);
 
@@ -214,28 +251,41 @@ const KeberangkatanTruk = () => {
             previewDiv.appendChild(video);
 
             const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-
+            
+            // Tunggu video siap untuk mendapatkan resolusi asli
             video.addEventListener('loadedmetadata', () => {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
             });
 
+            // Action Ambil Foto
             modal.querySelector('#capture-btn').addEventListener('click', () => {
-                ctx.drawImage(video, 0, 0);
-                const imageData = canvas.toDataURL('image/jpeg', 0.8);
+                const ctx = canvas.getContext('2d');
+                // Gambar video ke canvas
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Konversi ke base64 (format gambar)
+                const imageData = canvas.toDataURL('image/jpeg', 0.8); // Kualitas 0.8 (80%) agar tidak terlalu berat
+                
+                // Matikan kamera
                 stream.getTracks().forEach(track => track.stop());
+                
+                // Simpan ke State Form
                 setFormData(prev => ({ ...prev, [field]: imageData }));
+                
+                // Tutup Modal
                 document.body.removeChild(modal);
             });
 
+            // Action Batal
             modal.querySelector('#cancel-btn').addEventListener('click', () => {
                 stream.getTracks().forEach(track => track.stop());
                 document.body.removeChild(modal);
             });
 
         } catch (error) {
-            alert('Gagal akses kamera: ' + error.message);
+            console.error(error);
+            alert('Gagal membuka kamera. Pastikan izin kamera diberikan. Error: ' + error.message);
         }
     };
 

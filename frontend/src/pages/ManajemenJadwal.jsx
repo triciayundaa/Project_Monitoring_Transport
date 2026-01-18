@@ -4,19 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
-import * as XLSX from 'xlsx'; // --- [BARU] Import Library Excel
-
-const personOptions = [null, 'Personil A', 'Personil B', 'Personil C', 'Personil D'];
-
-const badgeColor = (person) => {
-  switch (person) {
-    case 'Personil A': return 'bg-purple-500 text-white';
-    case 'Personil B': return 'bg-green-500 text-white';
-    case 'Personil C': return 'bg-red-500 text-white';
-    case 'Personil D': return 'bg-gray-500 text-white';
-    default: return 'text-red-600 font-semibold';
-  }
-};
+import * as XLSX from 'xlsx'; 
 
 // Helper: Generate list of Date objects for current month
 const generateMonthDays = (year, month) => {
@@ -29,7 +17,7 @@ const generateMonthDays = (year, month) => {
   return days;
 };
 
-// Helper PENTING: Format Date object ke String 'YYYY-MM-DD' Lokal (Bukan UTC)
+// Helper Format Date
 const formatDateKey = (dateObj) => {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -48,34 +36,70 @@ const ManajemenJadwal = () => {
   const [schedules, setSchedules] = useState({}); 
   const [isEditing, setIsEditing] = useState(false);
 
-  // Key untuk API (YYYY-MM)
+  // STATE: Data Personil Dinamis
+  const [personOptions, setPersonOptions] = useState([]);
+
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
   
+  // --- FUNGSI WARNA (DIPERBAIKI) ---
+  // Mencocokkan nama dengan urutan di database untuk mempertahankan warna lama
+  const getBadgeColor = (name) => {
+    if (!name) return 'text-red-600 font-semibold'; // Kosong/Libur
+    
+    // Cari urutan nama ini di daftar personil
+    // Index 0 (dulu Personil A) -> Ungu
+    // Index 1 (dulu Personil B) -> Hijau
+    // Index 2 (dulu Personil C) -> Merah
+    // Index 3 (dulu Personil D) -> Abu-abu
+    const index = personOptions.indexOf(name);
+
+    // Kita kurangi 1 karena index 0 di personOptions itu 'null' (pilihan kosong)
+    // Jadi Personil pertama ada di index 1 array personOptions
+    const realIndex = index - 1; 
+
+    switch (realIndex) {
+        case 0: return 'bg-purple-500 text-white'; // Pengganti Personil A
+        case 1: return 'bg-green-500 text-white';  // Pengganti Personil B
+        case 2: return 'bg-red-500 text-white';    // Pengganti Personil C
+        case 3: return 'bg-gray-500 text-white';   // Pengganti Personil D
+        default: return 'bg-blue-500 text-white';  // Jika ada personil ke-5 dst
+    }
+  };
+
   // 1. Load Data
   useEffect(() => {
-    const load = async () => {
+    const loadData = async () => {
       try {
-        console.log("Fetching for:", monthKey);
-        const res = await axios.get(`http://localhost:3000/api/jadwal?month=${monthKey}`);
-        if (res.data.status === 'Success') {
-          setSchedules(prev => ({ ...prev, [monthKey]: res.data.data }));
+        // A. Ambil Personil Terbaru dari Database (Agar "Adit" muncul)
+        const resUsers = await axios.get('http://localhost:3000/api/users');
+        if (resUsers.data) {
+            const personils = resUsers.data
+                .filter(u => u.role === 'personil') 
+                .map(u => u.nama)
+                .sort(); // Sort abjad agar urutan warna konsisten
+            setPersonOptions([null, ...personils]); 
+        }
+
+        // B. Ambil Jadwal
+        console.log("Fetching schedule for:", monthKey);
+        const resJadwal = await axios.get(`http://localhost:3000/api/jadwal?month=${monthKey}`);
+        if (resJadwal.data.status === 'Success') {
+          setSchedules(prev => ({ ...prev, [monthKey]: resJadwal.data.data }));
         } else {
-            setSchedules(prev => ({ ...prev, [monthKey]: {} }));
+          setSchedules(prev => ({ ...prev, [monthKey]: {} }));
         }
       } catch (err) {
         console.error("Fetch error:", err);
         setSchedules(prev => ({ ...prev, [monthKey]: {} }));
       }
     };
-    load();
+    loadData();
   }, [monthKey]);
 
   const days = generateMonthDays(year, month);
 
-  // 2. Ensure Data Array Exists for UI
   const ensureDayArray = (dateKey) => {
     const monthData = schedules[monthKey] || {};
-    // Hanya inisialisasi visual, jangan set state terus menerus (infinite loop)
     return monthData[dateKey] || [null, null, null, null];
   };
 
@@ -92,13 +116,8 @@ const ManajemenJadwal = () => {
     const monthData = { ...(schedules[monthKey] || {}) };
     const oldRow = monthData[dateKey] ? [...monthData[dateKey]] : [null, null, null, null];
     oldRow[personIndex] = value;
-    
     monthData[dateKey] = oldRow;
-    
-    // Update Local State
     setSchedules(prev => ({ ...prev, [monthKey]: monthData }));
-
-    // Auto-save per cell ke server
     axios.patch('http://localhost:3000/api/jadwal/day', { date: dateKey, slots: oldRow })
           .catch(err => console.error("Auto-save failed", err));
   };
@@ -137,18 +156,12 @@ const ManajemenJadwal = () => {
       }
   };
 
-  // --- [BARU] Fungsi Download Excel ---
   const handleDownloadExcel = () => {
-    // 1. Ambil data bulan ini
     const currentDays = generateMonthDays(year, month);
     const monthData = schedules[monthKey] || {};
-
-    // 2. Format data agar rapi di Excel
     const dataToExport = currentDays.map(dateObj => {
         const dateKey = formatDateKey(dateObj);
-        // Ambil row data, jika kosong default ke array null
         const row = monthData[dateKey] || [null, null, null, null];
-        
         return {
             'Hari': dateObj.toLocaleDateString('id-ID', { weekday: 'long' }),
             'Tanggal': dateKey,
@@ -158,22 +171,14 @@ const ManajemenJadwal = () => {
             'Libur': row[3] || '-'
         };
     });
-
-    // 3. Buat Workbook dan Worksheet
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    
-    // (Opsional) Atur lebar kolom
     const wscols = [{wch:10}, {wch:15}, {wch:20}, {wch:20}, {wch:20}, {wch:20}];
     worksheet['!cols'] = wscols;
-
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Jadwal Shift");
-
-    // 4. Download File
     const namaBulan = new Date(year, month, 1).toLocaleString('id-ID', { month: 'long' });
     XLSX.writeFile(workbook, `Jadwal_Transport_${namaBulan}_${year}.xlsx`);
   };
-  // ------------------------------------
 
   const formatMonthName = (y, m) => {
     return new Date(y, m, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
@@ -197,12 +202,9 @@ const ManajemenJadwal = () => {
               </div>
 
               <div className="flex flex-wrap gap-2 justify-center">
-                 {/* --- [BARU] Tombol Download --- */}
                 <button onClick={handleDownloadExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow flex items-center gap-2">
                    <i className="fas fa-file-excel"></i> Download Excel
                 </button>
-                {/* ------------------------------- */}
-
                 <button onClick={handleGenerate} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded shadow">
                     Generate Jadwal
                 </button>
@@ -238,9 +240,8 @@ const ManajemenJadwal = () => {
                   <tbody>
                     {days.map(d => {
                       const dayName = d.toLocaleDateString('id-ID', { weekday: 'long' });
-                      // PENTING: Gunakan format YYYY-MM-DD lokal
                       const dateKey = formatDateKey(d);
-                      const row = ensureDayArray(dateKey); // Ambil data dari state
+                      const row = ensureDayArray(dateKey); 
 
                       return (
                         <tr key={dateKey} className="border-b hover:bg-gray-50">
@@ -249,20 +250,20 @@ const ManajemenJadwal = () => {
                           {[0, 1, 2, 3].map((idx) => (
                             <td key={idx} className="px-4 py-2">
                               <div className="flex flex-col gap-1">
-                                {/* Badge Tampilan */}
-                                <span className={`text-xs px-2 py-1 rounded-full text-center ${badgeColor(row[idx])}`}>
+                                {/* Panggil fungsi warna yang sudah diperbaiki */}
+                                <span className={`text-xs px-2 py-1 rounded-full text-center ${getBadgeColor(row[idx])}`}>
                                     {row[idx] || '-'}
                                 </span>
-                                {/* Select Input (Hanya muncul saat Edit) */}
                                 {isEditing && (
                                     <select 
                                         value={row[idx] || ''}
                                         onChange={(e) => handleChangeCell(dateKey, idx, e.target.value)}
-                                        className="border rounded text-xs p-1 mt-1 w-full"
+                                        className="border rounded text-xs p-1 mt-1 w-full focus:ring-2 focus:ring-red-500"
                                     >
                                         <option value="">- Kosong -</option>
-                                        {personOptions.filter(p => p !== null).map(p => (
-                                            <option key={p} value={p}>{p}</option>
+                                        {/* Render Opsi Personil Dinamis dari API */}
+                                        {personOptions.filter(p => p !== null).map((p, i) => (
+                                            <option key={i} value={p}>{p}</option>
                                         ))}
                                     </select>
                                 )}
