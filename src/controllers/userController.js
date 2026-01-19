@@ -1,21 +1,32 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 
-// 1. Mengambil semua pengguna untuk tabel UserList
+// 1. Mengambil semua pengguna (Ditambahkan kolom password untuk fitur password lama)
 exports.getAllUsers = async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT nama, email, no_telp, role FROM users');
+        const [rows] = await db.query('SELECT nama, email, no_telp, role, password FROM users');
         res.status(200).json(rows);
     } catch (error) {
         res.status(500).json({ message: "Gagal mengambil data pengguna", error: error.message });
     }
 };
 
-// Menambah pengguna baru dengan enkripsi
+// Menambah pengguna baru dengan validasi ketat
 exports.addUser = async (req, res) => {
     const { nama, email, no_telp, password, role } = req.body;
+
+    // VALIDASI BACKEND
+    if (!nama || !email || !no_telp || !password || !role) {
+        return res.status(400).json({ message: "Semua field wajib diisi!" });
+    }
+    if (!/^\d+$/.test(no_telp) || no_telp.length > 15) {
+        return res.status(400).json({ message: "Nomor telepon harus angka dan maksimal 15 digit!" });
+    }
+    if (!/^(?=.*[A-Z]).{12,}$/.test(password)) {
+        return res.status(400).json({ message: "Password minimal 12 karakter dengan 1 huruf kapital!" });
+    }
+
     try {
-        // Hash password sebelum disimpan
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -27,21 +38,28 @@ exports.addUser = async (req, res) => {
     }
 };
 
-// Update data pengguna
+// Update data pengguna (Validasi untuk no_telp dan password baru jika diisi)
 exports.updateUser = async (req, res) => {
     const { email } = req.params;
     const { nama, no_telp, role, password } = req.body;
 
+    // VALIDASI NO TELP SAAT UPDATE
+    if (no_telp && (!/^\d+$/.test(no_telp) || no_telp.length > 15)) {
+        return res.status(400).json({ message: "Nomor telepon harus angka dan maksimal 15 digit!" });
+    }
+
     try {
         let query, params;
         if (password) {
-            // Jika admin mengisi password baru, lakukan hash ulang
+            // Validasi password baru jika diinputkan
+            if (!/^(?=.*[A-Z]).{12,}$/.test(password)) {
+                return res.status(400).json({ message: "Password baru minimal 12 karakter dengan 1 huruf kapital!" });
+            }
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
             query = 'UPDATE users SET nama = ?, no_telp = ?, role = ?, password = ? WHERE email = ?';
             params = [nama, no_telp, role, hashedPassword, email];
         } else {
-            // Jika password kosong, jangan update kolom password
             query = 'UPDATE users SET nama = ?, no_telp = ?, role = ? WHERE email = ?';
             params = [nama, no_telp, role, email];
         }
