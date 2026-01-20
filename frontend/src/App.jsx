@@ -82,7 +82,7 @@ function App() {
 
         {/* 2. Manajemen Kendaraan */}
         <Route path="/manajemen-kendaraan" element={<AdminRoute><VehicleList /></AdminRoute>} />
-        <Route path="/vehicle-management/:noPo" element={<AdminRoute><VehicleDetail /></AdminRoute>} />
+        <Route path="/vehicle-management/:noPo/:transporterId" element={<AdminRoute><VehicleDetail /></AdminRoute>} />
         
         {/* 3. Manajemen Pengguna */}
         <Route path="/manajemen-pengguna" element={<AdminRoute><UserList /></AdminRoute>} />

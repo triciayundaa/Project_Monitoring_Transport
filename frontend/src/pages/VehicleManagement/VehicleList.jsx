@@ -124,7 +124,7 @@ const VehicleList = () => {
                                         </div>
 
                                         <button 
-                                            onClick={() => navigate(`/vehicle-management/${item.no_po}`)}
+                                            onClick={() => navigate(`/vehicle-management/${item.no_po}/${item.transporter_id}`)}
                                             className="w-full bg-gray-900 hover:bg-red-600 text-white py-4 rounded-2xl text-xs font-black transition-all shadow-xl hover:shadow-red-200 uppercase tracking-widest flex items-center justify-center"
                                         >
                                             Kelola Kendaraan

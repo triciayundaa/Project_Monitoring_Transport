@@ -4,7 +4,8 @@ import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { 
     PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid 
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, 
+    ComposedChart, Line
 } from 'recharts';
 
 const Dashboard = () => {
@@ -32,23 +33,26 @@ const Dashboard = () => {
         { day: 'Jumat', value: 0 }, { day: 'Sabtu', value: 0 }, { day: 'Minggu', value: 0 },
     ]);
 
+    // --- NEW ANALYTICS STATES ---
+    const [dataHourly, setDataHourly] = useState([]);
+    const [dataVendor, setDataVendor] = useState([]);
+    const [dataShift, setDataShift] = useState([]);
+    const [dataProgress, setDataProgress] = useState([]);
+
     const [upcoming, setUpcoming] = useState([]);
     const [period, setPeriod] = useState('Hari Ini');
 
-    // --- 1. SECURITY CHECK (Dari HEAD) ---
+    // --- 1. SECURITY CHECK ---
     useEffect(() => {
         const user = localStorage.getItem('user');
         if (user) {
             try {
                 const userData = JSON.parse(user);
                 const userRole = String(userData.role || '').toLowerCase().trim();
-                
                 if (userRole !== 'admin') {
-                    console.log('⚠️ Non-admin user detected in Dashboard - Redirecting to /keberangkatan-truk');
                     navigate('/keberangkatan-truk', { replace: true });
                 }
             } catch (error) {
-                console.error('Error parsing user data:', error);
                 navigate('/login', { replace: true });
             }
         } else {
@@ -56,17 +60,63 @@ const Dashboard = () => {
         }
     }, [navigate]);
 
-    // --- 2. DATA FETCHING (Dari Olivia) ---
+    // --- 2. DATA FETCHING & ADVANCED ANALYSIS ---
     useEffect(() => {
         const load = async () => {
             try {
-                const res = await fetch('http://localhost:3000/api/kegiatan');
-                const json = await res.json();
-                setKegiatanList(json);
+                // Fetch Data Utama
+                const [resK, resB] = await Promise.all([
+                    fetch('http://localhost:3000/api/kegiatan'),
+                    fetch('http://localhost:3000/api/keberangkatan')
+                ]);
+                
+                const jsonKegiatan = await resK.json();
+                const jsonKeberangkatan = await resB.json();
+                
+                setKegiatanList(jsonKegiatan);
 
+                // --- LOGIKA ANALISIS 1: TREN PER JAM (OPERASIONAL) ---
+                const hourlyMap = Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, count: 0 }));
+                jsonKeberangkatan.forEach(k => {
+                    const h = new Date(k.created_at).getHours();
+                    hourlyMap[h].count++;
+                });
+                setDataHourly(hourlyMap.filter((_, i) => i >= 7 && i <= 21)); // Tampilkan jam sibuk 07-21
+
+                // --- LOGIKA ANALISIS 2: PERFORMA VENDOR (LOGISTIK) ---
+                const vendorMap = {};
+                jsonKegiatan.forEach(k => {
+                    vendorMap[k.transporter] = (vendorMap[k.transporter] || 0) + 1;
+                });
+                setDataVendor(Object.keys(vendorMap).map(name => ({ name, value: vendorMap[name] }))
+                    .sort((a,b) => b.value - a.value).slice(0, 5));
+
+                // --- LOGIKA ANALISIS 3: DISTRIBUSI SHIFT ---
+                const shiftMap = { 'Shift 1': 0, 'Shift 2': 0, 'Shift 3': 0 };
+                jsonKeberangkatan.forEach(k => {
+                    if(k.nama_shift) shiftMap[k.nama_shift]++;
+                });
+                setDataShift([
+                    { name: 'Shift 1', value: shiftMap['Shift 1'], color: '#ef4444' },
+                    { name: 'Shift 2', value: shiftMap['Shift 2'], color: '#f59e0b' },
+                    { name: 'Shift 3', value: shiftMap['Shift 3'], color: '#1e40af' },
+                ]);
+
+                // --- LOGIKA ANALISIS 4: REALISASI TARGET (TONASE) ---
+                const progressData = jsonKegiatan.filter(k => k.status === 'On Progress').slice(0, 4).map(k => {
+                    const totalTruk = jsonKeberangkatan.filter(b => b.kegiatan_id === k.id && b.status === 'Valid').length;
+                    const realisasi = totalTruk * 25; // Asumsi rata-rata muatan truk 25 ton
+                    return {
+                        no_po: `PO ${k.no_po.slice(-4)}`,
+                        target: parseFloat(k.quantity),
+                        realisasi: realisasi
+                    };
+                });
+                setDataProgress(progressData);
+
+                // --- LOGIKA LAMA (PERIOD FILTERING) ---
                 const today = new Date();
                 today.setHours(0,0,0,0);
-
                 let start, end;
                 if (period === 'Hari Ini') {
                     start = new Date(today);
@@ -78,28 +128,23 @@ const Dashboard = () => {
                     const monday = new Date(today);
                     monday.setDate(today.getDate() - diffToMonday);
                     monday.setHours(0,0,0,0);
+                    start = monday;
                     const sunday = new Date(monday);
                     sunday.setDate(monday.getDate() + 6);
                     sunday.setHours(23,59,59,999);
-                    start = monday;
                     end = sunday;
                 }
 
-                const overlaps = (k) => {
+                const filtered = jsonKegiatan.filter(k => {
                     const s = k.tanggal_mulai ? new Date(k.tanggal_mulai) : null;
                     const e = k.tanggal_selesai ? new Date(k.tanggal_selesai) : null;
-                    if (s && e) return s <= end && e >= start;
-                    if (s && !e) return s <= end && s >= start;
-                    if (!s && e) return e >= start && e <= end;
-                    return false;
-                };
+                    return (s && e) ? (s <= end && e >= start) : false;
+                });
 
-                const filteredByPeriod = json.filter(overlaps);
-
-                const total = filteredByPeriod.length;
-                const completed = filteredByPeriod.filter(k => k.status === 'Completed').length;
-                const onProgress = filteredByPeriod.filter(k => k.status === 'On Progress').length;
-                const waiting = filteredByPeriod.filter(k => k.status === 'Waiting').length || Math.max(0, total - completed - onProgress);
+                const total = filtered.length;
+                const completed = filtered.filter(k => k.status === 'Completed').length;
+                const onProgress = filtered.filter(k => k.status === 'On Progress').length;
+                const waiting = Math.max(0, total - completed - onProgress);
 
                 setStats([
                     { label: 'Total Kegiatan', value: total, color: 'bg-red-50', icon: 'fas fa-chart-line', iconColor: 'text-red-500' },
@@ -114,243 +159,185 @@ const Dashboard = () => {
                     { name: 'Completed', value: completed, color: '#16A34A' },
                 ]);
 
-                // Logic Bar Chart (Mingguan)
-                const weekStart = new Date();
-                const day = weekStart.getDay();
-                const diffToMonday = (day + 6) % 7;
-                weekStart.setDate(weekStart.getDate() - diffToMonday);
-                weekStart.setHours(0,0,0,0);
-
-                const days = [];
-                for (let i = 0; i < 7; i++) {
-                    const d = new Date(weekStart);
-                    d.setDate(weekStart.getDate() + i);
-                    days.push(d);
-                }
-
-                const barData = days.map((d, idx) => {
-                    const activitiesForDay = json.filter(k => {
-                        const start = k.tanggal_mulai ? new Date(k.tanggal_mulai) : null;
-                        const end = k.tanggal_selesai ? new Date(k.tanggal_selesai) : null;
-                        if (!start && !end) return false;
-                        const dayStart = new Date(d);
-                        dayStart.setHours(0,0,0,0);
-                        const dayEnd = new Date(d);
-                        dayEnd.setHours(23,59,59,999);
-                        const s = start ? new Date(start) : null;
-                        const e = end ? new Date(end) : null;
-                        if (s && e) return s <= dayEnd && e >= dayStart;
-                        if (s && !e) return s <= dayEnd;
-                        if (!s && e) return e >= dayStart;
-                        return false;
-                    }).map(k => ({
-                        no_po: k.no_po,
-                        vendor: k.vendor,
-                        transporter: k.transporter,
-                        tanggal_mulai: k.tanggal_mulai ? new Date(k.tanggal_mulai).toLocaleDateString('id-ID') : '-',
-                        tanggal_selesai: k.tanggal_selesai ? new Date(k.tanggal_selesai).toLocaleDateString('id-ID') : '-',
-                        total_truk: k.total_truk || 0
-                    }));
-
-                    const labels = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
-                    return { day: labels[idx], value: activitiesForDay.length, activities: activitiesForDay };
-                });
-
-                setDataBar(barData);
-
-                // Logic Upcoming
-                const now = new Date();
-                const next7 = new Date();
-                next7.setDate(now.getDate() + 7);
-                const upcoming = json.filter(k => {
-                    const s = k.tanggal_mulai ? new Date(k.tanggal_mulai) : null;
-                    return s && s >= now && s <= next7;
-                }).map(k => ({ 
-                    no_po: k.no_po, 
-                    vendor: k.vendor, 
-                    transporter: k.transporter, 
-                    tanggal_mulai: k.tanggal_mulai, 
-                    tanggal_selesai: k.tanggal_selesai, 
-                    total_truk: k.total_truk || 0 
+                // Weekly Bar Logic
+                const labels = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
+                setDataBar(labels.map((day, idx) => {
+                    const d = new Date(start);
+                    d.setDate(start.getDate() + idx);
+                    return { day, value: jsonKegiatan.filter(k => new Date(k.tanggal_mulai).toDateString() === d.toDateString()).length };
                 }));
-                setUpcoming(upcoming);
+
+                // Upcoming logic
+                const next7 = new Date();
+                next7.setDate(today.getDate() + 7);
+                setUpcoming(jsonKegiatan.filter(k => {
+                    const s = new Date(k.tanggal_mulai);
+                    return s >= today && s <= next7;
+                }));
+
             } catch (err) {
-                console.error('Failed loading kegiatan for dashboard', err);
+                console.error('Dashboard Error:', err);
             }
         };
-
         load();
     }, [period]);
 
-    // Custom Tooltip Component
-    const CustomBarTooltip = ({ active, payload, label }) => {
-        if (!active || !payload || !payload.length) return null;
-        const data = payload[0].payload;
-        
-        if (data.activities && data.activities.length <= 3) {
-            return (
-                <div className="bg-white p-4 rounded-lg shadow-xl border-2 border-gray-200 max-w-md">
-                    <div className="font-bold text-gray-900 mb-3 text-base border-b pb-2">
-                        {label} — {data.value} kegiatan
-                    </div>
-                    <div className="space-y-3">
-                        {data.activities.map((a, i) => (
-                            <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                <div className="font-bold text-sm text-gray-900 mb-1">PO {a.no_po}</div>
-                                <div className="text-sm text-gray-700 mb-1">{a.vendor}</div>
-                                <div className="text-xs text-gray-600 mb-1">Transporter: {a.transporter}</div>
-                                <div className="text-xs text-gray-500 mb-1">{a.tanggal_mulai} — {a.tanggal_selesai}</div>
-                                <div className="text-xs font-bold text-red-600">Total Truk: {a.total_truk}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-        
-        return (
-            <div className="bg-white rounded-lg shadow-xl border-2 border-gray-200 max-w-md flex flex-col" style={{ maxHeight: '400px' }}>
-                <div className="font-bold text-gray-900 p-4 border-b-2 bg-white sticky top-0 z-10 text-base">
-                    {label} — {data.value} kegiatan
-                </div>
-                <div className="overflow-y-auto p-4 pt-2" style={{ maxHeight: '340px' }}>
-                    {data.activities && data.activities.length > 0 ? (
-                        <div className="space-y-3">
-                            {data.activities.map((a, i) => (
-                                <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100">
-                                    <div className="font-bold text-sm text-gray-900 mb-1">PO {a.no_po}</div>
-                                    <div className="text-sm text-gray-700 mb-1">{a.vendor}</div>
-                                    <div className="text-xs text-gray-600 mb-1">Transporter: {a.transporter}</div>
-                                    <div className="text-xs text-gray-500 mb-1">{a.tanggal_mulai} — {a.tanggal_selesai}</div>
-                                    <div className="text-xs font-bold text-red-600">Total Truk: {a.total_truk}</div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-sm text-gray-500 text-center py-4">Tidak ada kegiatan.</div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
     return (
-        <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
             <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
                 <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
                 <main className="flex-1 p-6 overflow-y-auto bg-gray-50">
-                    {/* Period Filter */}
-                    <div className="flex justify-end mb-6">
+                    <div className="flex justify-between items-center mb-8">
+                        <div>
+                            <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter">Monitoring Dashboard</h2>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">PT Semen Padang - Logistik Transportasi</p>
+                        </div>
                         <select 
                             value={period} 
                             onChange={e => setPeriod(e.target.value)} 
-                            className="bg-white border border-gray-300 rounded-lg px-4 py-2 shadow-sm text-sm font-semibold outline-none focus:ring-2 focus:ring-red-500"
+                            className="bg-white border-2 border-gray-100 rounded-2xl px-6 py-3 shadow-sm text-sm font-black uppercase outline-none focus:border-red-600 transition-all"
                         >
                             <option>Hari Ini</option>
                             <option>Minggu Ini</option>
                         </select>
                     </div>
 
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    {/* SECTION 1: KARTU STATISTIK UTAMA */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
                         {stats.map((stat, index) => (
-                            <div key={index} className="bg-white p-6 rounded-xl shadow-sm flex items-center space-x-4 border border-gray-100 hover:shadow-md transition-shadow">
-                                <div className={`${stat.color} p-4 rounded-xl`}>
+                            <div key={index} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 flex items-center space-x-5 hover:shadow-xl hover:-translate-y-1 transition-all">
+                                <div className={`${stat.color} p-5 rounded-2xl`}>
                                     <i className={`${stat.icon} text-2xl ${stat.iconColor}`}></i>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{stat.label}</p>
-                                    <p className="text-3xl font-bold text-gray-800 mt-1">{stat.value}</p>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
+                                    <p className="text-3xl font-black text-gray-800">{stat.value}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    {/* Charts Section */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                        {/* Pie Chart */}
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                                <span className="w-1 h-6 bg-red-600 rounded-full mr-3"></span>
-                                Distribusi Status Kegiatan
+                    {/* SECTION 2: ANALISIS OPERASIONAL (PEAK HOURS & SHIFT) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+                        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50">
+                            <h3 className="text-sm font-black text-gray-800 mb-6 uppercase tracking-widest flex items-center">
+                                <i className="fas fa-clock text-red-600 mr-3"></i> Analisis Waktu Keberangkatan (Peak Hours)
                             </h3>
-                            <div style={{ height: '320px' }}>
+                            <div style={{ height: '300px' }}>
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie 
-                                            data={dataPie} 
-                                            innerRadius={60} 
-                                            outerRadius={100} 
-                                            paddingAngle={5} 
-                                            dataKey="value" 
-                                            stroke="none"
-                                        >
-                                            {dataPie.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                        <Legend iconType="circle" wrapperStyle={{ fontSize: '14px' }} />
-                                    </PieChart>
+                                    <AreaChart data={dataHourly}>
+                                        <defs>
+                                            <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                                                <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="hour" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                                        <YAxis fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                                        <Tooltip contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                                        <Area type="monotone" dataKey="count" name="Jumlah Truk" stroke="#ef4444" strokeWidth={4} fill="url(#colorCount)" />
+                                    </AreaChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
 
-                        {/* Bar Chart */}
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                                <span className="w-1 h-6 bg-red-600 rounded-full mr-3"></span>
-                                Total Kegiatan Minggu Ini
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50">
+                            <h3 className="text-sm font-black text-gray-800 mb-6 uppercase tracking-widest">Produktivitas Shift</h3>
+                            <div style={{ height: '300px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie data={dataShift} innerRadius={70} outerRadius={90} dataKey="value" stroke="none" paddingAngle={8}>
+                                            {dataShift.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+                                        </Pie>
+                                        <Tooltip />
+                                        <Legend iconType="circle" layout="horizontal" verticalAlign="bottom" />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SECTION 3: REALISASI TARGET & VENDOR */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+                        {/* Realisasi Target Tonase */}
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50">
+                            <h3 className="text-sm font-black text-gray-800 mb-6 uppercase tracking-widest flex items-center">
+                                <i className="fas fa-weight-hanging text-blue-600 mr-3"></i> Progres Target Tonase (PO Berjalan)
                             </h3>
                             <div style={{ height: '320px' }}>
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={dataBar}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#6b7280'}} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#6b7280'}} />
-                                        <Tooltip content={<CustomBarTooltip/>} cursor={{fill: '#f9fafb'}} wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }} />
-                                        <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={40}>
-                                            {dataBar.map((entry, i) => {
-                                                const today = new Date();
-                                                const todayLabel = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][today.getDay()];
-                                                const isToday = entry.day === todayLabel;
-                                                return <Cell key={`cell-${i}`} fill={isToday ? '#991b1b' : '#DC2626'} />;
-                                            })}
-                                        </Bar>
+                                    <ComposedChart data={dataProgress} layout="vertical" margin={{ left: 20 }}>
+                                        <CartesianGrid stroke="#f1f5f9" horizontal={false} />
+                                        <XAxis type="number" fontSize={10} fontWeight="bold" hide />
+                                        <YAxis dataKey="no_po" type="category" fontSize={10} fontWeight="black" axisLine={false} tickLine={false} />
+                                        <Tooltip />
+                                        <Bar dataKey="target" name="Target (Ton)" fill="#e2e8f0" radius={[0, 10, 10, 0]} barSize={15} />
+                                        <Bar dataKey="realisasi" name="Realisasi (Ton)" fill="#3B82F6" radius={[0, 10, 10, 0]} barSize={15} />
+                                    </ComposedChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <p className="text-[9px] text-gray-400 mt-4 italic font-bold uppercase">*Estimasi realisasi dihitung dari Jumlah Truk x 25 Ton</p>
+                        </div>
+
+                        {/* Top Transporter */}
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50">
+                            <h3 className="text-sm font-black text-gray-800 mb-6 uppercase tracking-widest">5 Transporter Teraktif</h3>
+                            <div style={{ height: '320px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={dataVendor} layout="vertical">
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" fontSize={9} fontWeight="black" width={100} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#f8fafc' }} />
+                                        <Bar dataKey="value" name="Total Kegiatan" fill="#1e40af" radius={[0, 20, 20, 0]} barSize={25} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
                     </div>
 
-                    {/* Upcoming Activities */}
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                            <span className="w-1 h-6 bg-red-600 rounded-full mr-3"></span>
-                            Kegiatan Mendatang (7 Hari Ke Depan)
-                        </h3>
-                        {upcoming.length === 0 ? (
-                            <div className="text-sm text-gray-500 text-center py-8">
-                                Tidak ada kegiatan yang akan dimulai dalam 7 hari ke depan.
+                    {/* SECTION 4: UPCOMING & WEEKLY STATUS */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-1 bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50">
+                            <h3 className="text-sm font-black text-gray-800 mb-6 uppercase tracking-widest">Kegiatan Mingguan</h3>
+                            <div style={{ height: '250px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={dataBar}>
+                                        <XAxis dataKey="day" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{fill: 'transparent'}} />
+                                        <Bar dataKey="value" fill="#ef4444" radius={[10, 10, 10, 10]} barSize={15} />
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {upcoming.map((u, i) => (
-                                    <div key={i} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow bg-gray-50">
-                                        <div className="font-bold text-gray-800 mb-2">PO {u.no_po}</div>
-                                        <div className="text-sm text-gray-600 mb-1">{u.vendor}</div>
-                                        <div className="text-xs text-gray-500 mb-2">Transporter: {u.transporter}</div>
-                                        <div className="text-xs text-gray-500 mb-2">
-                                            {new Date(u.tanggal_mulai).toLocaleDateString('id-ID')} — {new Date(u.tanggal_selesai).toLocaleDateString('id-ID')}
+                        </div>
+
+                        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50">
+                            <h3 className="text-sm font-black text-red-600 mb-6 uppercase tracking-widest flex items-center">
+                                <span className="w-2 h-6 bg-red-600 rounded-full mr-3"></span> Jadwal 7 Hari Mendatang
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {upcoming.length === 0 ? (
+                                    <div className="col-span-2 text-center py-10 text-gray-300 font-bold uppercase text-xs">Tidak ada jadwal</div>
+                                ) : (
+                                    upcoming.slice(0, 4).map((u, i) => (
+                                        <div key={i} className="p-5 border-2 border-red-50 rounded-[1.5rem] hover:bg-red-50 transition-all group">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-red-600 font-black text-sm uppercase">PO {u.no_po}</span>
+                                                <i className="fas fa-arrow-right text-red-200 group-hover:text-red-500 transition-colors"></i>
+                                            </div>
+                                            <p className="text-[10px] font-black text-gray-800 uppercase truncate">{u.vendor}</p>
+                                            <div className="mt-3 flex items-center text-[9px] font-black text-gray-400 uppercase">
+                                                <i className="far fa-calendar-alt mr-2 text-red-400"></i>
+                                                {new Date(u.tanggal_mulai).toLocaleDateString('id-ID')}
+                                            </div>
                                         </div>
-                                        
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
-                        )}
+                        </div>
                     </div>
                 </main>
             </div>

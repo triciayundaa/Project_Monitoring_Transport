@@ -1,7 +1,5 @@
 const db = require('../config/db');
 
-// backend/controllers/vehicleController.js
-
 // 1. GET TRANSPORTERS (Daftar Transporter beserta Jumlah Kendaraan)
 exports.getTransporters = async (req, res) => {
   try {
@@ -11,12 +9,11 @@ exports.getTransporters = async (req, res) => {
         t.id AS transporter_id,
         t.nama_transporter,
         kt.status AS status_transporter,
-        COUNT(DISTINCT ken.id) AS total_kendaraan_vendor
+        -- Menghitung kendaraan yang spesifik milik transporter tersebut
+        (SELECT COUNT(*) FROM kendaraan ken WHERE ken.transporter_id = t.id) AS total_kendaraan_vendor
       FROM kegiatan k
-      JOIN vendor v ON k.vendor_id = v.id
       JOIN kegiatan_transporter kt ON kt.kegiatan_id = k.id
       JOIN transporter t ON t.id = kt.transporter_id
-      LEFT JOIN kendaraan ken ON ken.vendor_id = v.id
       GROUP BY k.no_po, t.id, kt.status
       ORDER BY k.no_po, t.nama_transporter
     `;
@@ -30,26 +27,23 @@ exports.getTransporters = async (req, res) => {
   }
 };
 
-
-// 2. GET VEHICLES BY PO (Detail Kendaraan berdasarkan No PO)
-// Bisa menerima transporter_id='all' untuk menampilkan semua transporter
+// 2. GET VEHICLES BY PO (Detail Kendaraan berdasarkan No PO dan Filter Transporter)
 exports.getVehiclesByPo = async (req, res) => {
-    const { no_po, transporter_id } = req.query;
+    const { noPo } = req.params; 
+    const { transporter_id } = req.query;
 
-    if (!no_po) {
+    if (!noPo) {
         return res.status(400).json({ message: "no_po wajib" });
     }
 
     try {
-        // Ambil kegiatan
         const [[kegiatan]] = await db.query(
             `SELECT id, vendor_id FROM kegiatan WHERE no_po = ?`,
-            [no_po]
+            [noPo]
         );
 
         if (!kegiatan) return res.status(404).json({ message: "PO tidak ditemukan" });
 
-        // Ambil list transporter untuk PO ini
         const [transporters] = await db.query(`
             SELECT t.id AS transporter_id, t.nama_transporter, kt.status AS status_transporter
             FROM kegiatan_transporter kt
@@ -60,53 +54,46 @@ exports.getVehiclesByPo = async (req, res) => {
 
         let vehicles = [];
 
+        // PERBAIKAN LOGIKA: Filter kendaraan berdasarkan Transporter, bukan Vendor PO
         if (!transporter_id || transporter_id === 'all') {
-            // Ambil semua kendaraan dari semua transporter
             const [allVehicles] = await db.query(`
-                SELECT ken.id, ken.plat_nomor, ken.status
+                SELECT ken.id, ken.plat_nomor, ken.status, t.nama_transporter as nama_milik
                 FROM kendaraan ken
-                WHERE ken.vendor_id = ?
+                JOIN transporter t ON ken.transporter_id = t.id
+                JOIN kegiatan_transporter kt ON kt.transporter_id = t.id
+                WHERE kt.kegiatan_id = ?
                 ORDER BY ken.plat_nomor
-            `, [kegiatan.vendor_id]);
+            `, [kegiatan.id]);
 
-            // Tandai penggunaan masing-masing kendaraan
-            vehicles = allVehicles.map(v => {
-                return {
-                    ...v,
-                    penggunaan: 'belum_digunakan'
-                };
-            });
-
+            vehicles = allVehicles.map(v => ({
+                ...v,
+                penggunaan: 'belum_digunakan' 
+            }));
         } else {
-            // Ambil transporter spesifik
-            const [[kt]] = await db.query(`
-                SELECT id FROM kegiatan_transporter
-                WHERE kegiatan_id = ? AND transporter_id = ?
-            `, [kegiatan.id, transporter_id]);
-
-            if (!kt) return res.status(404).json({ message: "Transporter tidak terdaftar di PO ini" });
-
+            // Mengambil kendaraan HANYA yang terikat dengan transporter_id tersebut
             const [specificVehicles] = await db.query(`
                 SELECT ken.id, ken.plat_nomor, ken.status,
                     CASE 
                         WHEN EXISTS (
                             SELECT 1 FROM keberangkatan_truk kbt
+                            JOIN kegiatan_transporter kt_check ON kbt.kegiatan_transporter_id = kt_check.id
                             WHERE kbt.kendaraan_id = ken.id
-                            AND kbt.kegiatan_transporter_id = ?
+                            AND kt_check.kegiatan_id = ? 
+                            AND kt_check.transporter_id = ?
                         )
                         THEN 'digunakan'
                         ELSE 'belum_digunakan'
                     END AS penggunaan
                 FROM kendaraan ken
-                WHERE ken.vendor_id = ?
+                WHERE ken.transporter_id = ?
                 ORDER BY ken.plat_nomor
-            `, [kt.id, kegiatan.vendor_id]);
+            `, [kegiatan.id, transporter_id, transporter_id]);
 
             vehicles = specificVehicles;
         }
 
         res.json({
-            no_po,
+            no_po: noPo,
             transporters,
             vehicles
         });
@@ -117,36 +104,32 @@ exports.getVehiclesByPo = async (req, res) => {
     }
 };
 
-
-// 3. ADD VEHICLE (Tambah Kendaraan Baru)
 exports.addVehicle = async (req, res) => {
-  const { no_po, nopol } = req.body;
+    const { nopol, transporter_id } = req.body; 
 
-  if (!no_po || !nopol) {
-    return res.status(400).json({ message: "no_po dan nopol wajib" });
-  }
-
-  try {
-    const [[kegiatan]] = await db.query(
-      `SELECT vendor_id FROM kegiatan WHERE no_po = ?`,
-      [no_po]
-    );
-
-    if (!kegiatan) {
-      return res.status(404).json({ message: "PO tidak ditemukan" });
+    // 1. Validasi Panjang Karakter
+    if (nopol && nopol.length > 15) {
+        return res.status(400).json({ 
+            message: "Gagal: Nomor Polisi tidak boleh lebih dari 15 karakter." 
+        });
     }
 
-    await db.query(`
-      INSERT INTO kendaraan (vendor_id, plat_nomor, status)
-      VALUES (?, ?, 'aktif')
-    `, [kegiatan.vendor_id, nopol]);
+    // 2. Validasi Kelengkapan Data
+    if (!transporter_id || !nopol) {
+        return res.status(400).json({ message: "Transporter dan nopol wajib diisi" });
+    }
 
-    res.status(201).json({ message: "Kendaraan berhasil ditambahkan" });
+    try {
+        await db.query(`
+            INSERT INTO kendaraan (transporter_id, plat_nomor, status)
+            VALUES (?, ?, 'aktif')
+        `, [transporter_id, nopol]);
 
-  } catch (error) {
-    console.error("addVehicle ERROR:", error);
-    res.status(500).json({ message: error.message });
-  }
+        res.status(201).json({ message: "Kendaraan berhasil didaftarkan ke transporter ini" });
+    } catch (error) {
+        console.error("addVehicle ERROR:", error);
+        res.status(500).json({ message: error.message });
+    }
 };
 
 // 4. DELETE VEHICLE (Hapus Kendaraan)
@@ -170,7 +153,6 @@ exports.updateVehicle = async (req, res) => {
     }
 
     try {
-        // Gunakan nama kolom baru 'plat_nomor'
         const query = 'UPDATE kendaraan SET plat_nomor = ? WHERE id = ?';
         const [result] = await db.query(query, [nopol, id]);
 

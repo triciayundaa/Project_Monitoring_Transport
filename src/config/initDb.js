@@ -74,15 +74,15 @@ const initDb = async () => {
 
     // ================= 7. KENDARAAN =================
     const createKendaraanTable = `
-      CREATE TABLE IF NOT EXISTS kendaraan (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        vendor_id INT,
-        plat_nomor VARCHAR(20) NOT NULL,
-        status ENUM('aktif', 'non-aktif') DEFAULT 'aktif',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (vendor_id) REFERENCES vendor(id)
-      );
-    `;
+  CREATE TABLE IF NOT EXISTS kendaraan (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    transporter_id INT NOT NULL, 
+    plat_nomor VARCHAR(15) NOT NULL,
+    status ENUM('aktif', 'non-aktif') DEFAULT 'aktif',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_kendaraan_transporter FOREIGN KEY (transporter_id) REFERENCES transporter(id)
+  );
+`;
 
     // ================= 8. KEBERANGKATAN TRUK =================
     // (BELUM pakai kegiatan_transporter sesuai permintaan)

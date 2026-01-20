@@ -21,28 +21,37 @@ const VehicleDetail = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editData, setEditData] = useState({ id: null, oldNopol: '', newNopol: '' });
 
+    // 1. Ambil parameter noPo dan transporterId dari URL
     const { noPo, transporterId } = useParams();
     const navigate = useNavigate();
 
     const [transporterList, setTransporterList] = useState([]);
-    const [selectedTransporterId, setSelectedTransporterId] = useState('all');
+    // 2. Gunakan transporterId dari URL sebagai nilai awal agar sinkron dengan card yang diklik
+    const [selectedTransporterId, setSelectedTransporterId] = useState(transporterId || 'all');
 
 
     const fetchVehicleData = async () => {
+        if (!noPo) return;
+
         try {
             setLoading(true);
             const response = await axios.get(`http://localhost:3000/api/vehicles/${noPo}`, {
-            params: { transporter_id: selectedTransporterId } // 'all' atau id transporter
-        });
+                params: { transporter_id: selectedTransporterId }
+            });
 
-
-            
-            setVehicles(response.data.vehicles.map(v => ({
-                ...v,
-                nopol: v.plat_nomor // Map plat_nomor ke nopol untuk kompatibilitas
-            })));
-            setTransporterName(response.data.transporter);
-            setTransporterStatus(response.data.status_transporter);
+            if (response.data) {
+                setVehicles(response.data.vehicles.map(v => ({
+                    ...v,
+                    nopol: v.plat_nomor 
+                })));
+                
+                if (selectedTransporterId === 'all') {
+                    setTransporterName("Semua Transporter");
+                } else {
+                    const current = response.data.transporters.find(t => t.transporter_id == selectedTransporterId);
+                    setTransporterName(current ? current.nama_transporter : "Transporter");
+                }
+            }
         } catch (error) {
             console.error("Gagal mengambil detail kendaraan:", error);
             alert("Gagal memuat data: " + (error.response?.data?.message || "Server error"));
@@ -52,20 +61,24 @@ const VehicleDetail = () => {
     };
 
     const fetchTransportersByPo = async () => {
-    try {
-        const res = await axios.get(`http://localhost:3000/api/kegiatan/${noPo}/transporters`);
-        setTransporterList(res.data); 
-        if (res.data.length === 1) {
-            setSelectedTransporterId(res.data[0].transporter_id);
+        try {
+            const res = await axios.get(`http://localhost:3000/api/kegiatan/${noPo}/transporters`);
+            setTransporterList(res.data); 
+            if (selectedTransporterId === 'all' && transporterId) {
+                setSelectedTransporterId(transporterId);
+            }
+        } catch (err) {
+            console.error("Gagal fetch transporter:", err);
         }
-    } catch (err) {
-        console.error("Gagal fetch transporter:", err);
-    }
-};
+    };
 
 
     const addTempNopol = () => {
         if (!newNopol.trim()) return;
+        if (newNopol.length > 15) {
+            alert("Gagal: No. Polisi maksimal 15 karakter.");
+            return;
+        }
         setTempNopolList([...tempNopolList, newNopol.toUpperCase().trim()]);
         setNewNopol('');
     };
@@ -76,13 +89,24 @@ const VehicleDetail = () => {
 
     const saveAllVehicles = async () => {
         if (tempNopolList.length === 0) return;
+
+        const finalId = (selectedTransporterId && selectedTransporterId !== 'all') 
+                        ? selectedTransporterId 
+                        : transporterId;
+
+        if (!finalId || finalId === 'all') {
+            alert("Silakan pilih salah satu Transporter terlebih dahulu.");
+            return;
+        }
+
         try {
             setLoading(true);
             await Promise.all(
                 tempNopolList.map(nopol => 
                     axios.post('http://localhost:3000/api/vehicles/add', {
                         no_po: noPo,
-                        nopol: nopol
+                        nopol: nopol,
+                        transporter_id: finalId 
                     })
                 )
             );
@@ -92,7 +116,8 @@ const VehicleDetail = () => {
             setIsSuccessModalOpen(true); 
             fetchVehicleData();
         } catch (error) {
-            alert("Gagal menyimpan beberapa kendaraan: " + (error.response?.data?.message || "Server error"));
+            console.error("Save Error:", error);
+            alert("Gagal menyimpan: " + (error.response?.data?.message || "Server Error"));
         } finally {
             setLoading(false);
         }
@@ -144,12 +169,12 @@ const VehicleDetail = () => {
     };
 
     useEffect(() => {
-    fetchTransportersByPo(); // fetch list transporter
-}, [noPo]);
+        fetchTransportersByPo();
+    }, [noPo]);
 
-useEffect(() => {
-    fetchVehicleData(); // fetch kendaraan setiap kali transporter berubah
-}, [noPo, selectedTransporterId]);
+    useEffect(() => {
+        fetchVehicleData();
+    }, [noPo, selectedTransporterId, transporterId]);
 
 
     return (
@@ -161,12 +186,12 @@ useEffect(() => {
 
                 <main className="flex-grow p-6 overflow-y-auto">
                     <div className="max-w-5xl mx-auto bg-white rounded-[2.5rem] shadow-sm p-8 border border-gray-100">
-                        <div className="flex justify-between items-start mb-8">
+                        <div className="flex justify-between items-start mb-8 text-left">
                             <div>
                                 <h3 className="text-2xl font-black text-red-600 uppercase">
                                     {transporterName || 'Loading...'}
                                 </h3>
-                               {transporterList.length > 1 && (
+                               {transporterList.length > 0 && (
                                 <select
                                     value={selectedTransporterId}
                                     onChange={(e) => setSelectedTransporterId(e.target.value)}
@@ -180,13 +205,10 @@ useEffect(() => {
                                     ))}
                                 </select>
                                 )}
-
-                            
-
                             </div>
                             <div className="flex items-center">
-                                <span className="font-bold text-gray-800 mr-4">No. PO</span>
-                                <div className="bg-white border border-gray-200 shadow-inner px-12 py-2 rounded-lg font-bold text-gray-700">
+                                <span className="font-bold text-gray-800 mr-4 uppercase text-xs">No. PO</span>
+                                <div className="bg-white border border-gray-200 shadow-inner px-12 py-2 rounded-xl font-bold text-gray-700">
                                     {noPo}
                                 </div>
                             </div>
@@ -197,7 +219,7 @@ useEffect(() => {
                                 onClick={() => { setTempNopolList([]); setIsModalOpen(true); }}
                                 className="bg-cyan-400 hover:bg-cyan-500 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors uppercase"
                             >
-                                Tambah NOPOL
+                                Tambah No. Polisi
                             </button>
                         </div>
 
@@ -206,55 +228,38 @@ useEffect(() => {
                                 <thead>
                                     <tr className="border-b border-red-600 bg-red-50/30">
                                         <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">No</th>
-                                        <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">Nopol</th>
-                                        <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">Penggunaan</th>
+                                        <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">No. Polisi</th>
                                         <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {loading && vehicles.length === 0 ? (
-                                        <tr><td colSpan="4" className="py-4 italic text-gray-400">Memuat data...</td></tr>
+                                        <tr><td colSpan="3" className="py-4 italic text-gray-400">Memuat data...</td></tr>
                                     ) : vehicles.length > 0 ? (
                                         vehicles.map((v, index) => (
                                             <tr key={v.id} className="border-b border-gray-200 last:border-0 hover:bg-gray-50 transition-colors">
                                                 <td className="py-4 text-gray-600 text-sm font-medium">{index + 1}</td>
                                                 <td className="py-4 text-gray-800 text-sm font-bold uppercase">{v.nopol}</td>
                                                 <td className="py-4">
-                                                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${
-                                                        v.penggunaan === 'digunakan' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                                                    }`}>
-                                                        {v.penggunaan === 'digunakan' ? 'Digunakan' : 'Belum Digunakan'}
-                                                    </span>
-                                                </td>
-                                                <td className="py-4">
                                                     <div className="flex justify-center space-x-4">
-                                                        <i 
-                                                            onClick={() => openEditModal(v)} 
-                                                            className="far fa-edit text-xl text-gray-700 cursor-pointer hover:text-blue-600 transition-colors"
-                                                        ></i>
-                                                        <i 
-                                                            onClick={() => v.penggunaan !== 'digunakan' && confirmDelete(v.id)} 
-                                                            className={`far fa-trash-alt text-xl transition-colors ${
-                                                                v.penggunaan === 'digunakan' 
-                                                                    ? 'text-gray-300 cursor-not-allowed' 
-                                                                    : 'text-red-500 cursor-pointer hover:text-red-700'
-                                                            }`}
-                                                            title={v.penggunaan === 'digunakan' ? 'Kendaraan sedang digunakan, tidak bisa dihapus' : 'Hapus kendaraan'}
-                                                        ></i>
+                                                        <i onClick={() => openEditModal(v)} className="far fa-edit text-xl text-gray-700 cursor-pointer hover:text-blue-600 transition-colors"></i>
+                                                        <i onClick={() => confirmDelete(v.id)} className="far fa-trash-alt text-xl text-red-500 cursor-pointer hover:text-red-700 transition-colors"></i>
                                                     </div>
                                                 </td>
                                             </tr>
                                         ))
                                     ) : (
-                                        <tr><td colSpan="4" className="py-10 text-gray-400">Belum ada kendaraan terdaftar.</td></tr>
+                                        <tr><td colSpan="3" className="py-10 text-gray-400 font-bold uppercase text-xs text-center italic">Belum ada kendaraan terdaftar.</td></tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
 
-                        <button onClick={() => navigate(-1)} className="mt-8 text-black font-black text-xl hover:text-red-600 transition-colors flex items-center">
-                            <i className="fas fa-chevron-left mr-2"></i> Back
-                        </button>
+                        <div className="text-left mt-8">
+                             <button onClick={() => navigate(-1)} className="text-black font-black text-xl hover:text-red-600 transition-colors flex items-center">
+                                <i className="fas fa-chevron-left mr-2"></i> Back
+                            </button>
+                        </div>
                     </div>
                 </main>
             </div>
@@ -262,10 +267,8 @@ useEffect(() => {
             {/* MODAL INPUT NOPOL */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-2xl shadow-2xl relative">
-                        <h3 className="text-3xl font-black text-red-600 text-center mb-8 uppercase tracking-tighter">
-                            Tambah Daftar Nopol
-                        </h3>
+                    <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-2xl shadow-2xl relative text-left">
+                        <h3 className="text-3xl font-black text-red-600 text-center mb-8 uppercase tracking-tighter">Tambah Daftar Nopol</h3>
                         <div className="space-y-6">
                             <div>
                                 <label className="block text-red-600 font-bold mb-1 uppercase text-xs">Transportir</label>
@@ -276,12 +279,13 @@ useEffect(() => {
                                 <input type="text" disabled className="w-full border-b-2 border-gray-300 py-2 bg-transparent outline-none font-bold text-gray-700" value={noPo} />
                             </div>
                             <div className="relative">
-                                <label className="block text-red-600 font-bold mb-1 uppercase text-xs">Input Nopol Baru</label>
+                                <label className="block text-red-600 font-bold mb-1 uppercase text-xs">Input No. Polisi Baru</label>
                                 <div className="flex space-x-2">
                                     <input 
                                         type="text" 
+                                        maxLength={15}
                                         className="flex-1 border-b-2 border-gray-300 py-2 outline-none focus:border-red-600 font-bold uppercase placeholder:font-normal"
-                                        placeholder="Ketik Nopol (Contoh: BA 1234 ABC)..."
+                                        placeholder="Ketik Nopol (Contoh: BA 1234 ABC)"
                                         value={newNopol}
                                         onChange={(e) => setNewNopol(e.target.value)}
                                         onKeyPress={(e) => e.key === 'Enter' && addTempNopol()}
@@ -290,38 +294,22 @@ useEffect(() => {
                                 </div>
                             </div>
                             <div className="max-h-[200px] overflow-y-auto bg-gray-50 rounded-2xl p-4 border border-gray-100 shadow-inner">
-                                {tempNopolList.length === 0 ? (
-                                    <p className="text-gray-400 text-center text-sm italic py-4">Belum ada nopol dalam daftar tunggu</p>
-                                ) : (
-                                    <div className="flex flex-col space-y-2">
-                                        {tempNopolList.map((n, idx) => (
-                                            <div key={idx} className="bg-white flex justify-between items-center px-5 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 uppercase shadow-sm">
-                                                <div className="flex items-center">
-                                                    <span className="bg-red-50 text-red-600 w-6 h-6 rounded-full flex items-center justify-center text-[10px] mr-3 font-black">{idx + 1}</span>
-                                                    {n}
-                                                </div>
-                                                <button onClick={() => removeTempNopol(idx)} className="text-red-500 hover:text-red-700 transition-colors">
-                                                    <i className="fas fa-times-circle text-lg"></i>
-                                                </button>
-                                            </div>
-                                        ))}
+                                {tempNopolList.map((n, idx) => (
+                                    <div key={idx} className="bg-white flex justify-between items-center px-5 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 uppercase shadow-sm mb-2">
+                                        <div className="flex items-center">
+                                            <span className="bg-red-50 text-red-600 w-6 h-6 rounded-full flex items-center justify-center text-[10px] mr-3 font-black">{idx + 1}</span>
+                                            {n}
+                                        </div>
+                                        <button onClick={() => removeTempNopol(idx)} className="text-red-500 hover:text-red-700 transition-colors">
+                                            <i className="fas fa-times-circle text-lg"></i>
+                                        </button>
                                     </div>
-                                )}
+                                ))}
                             </div>
                         </div>
                         <div className="flex items-center justify-between mt-12">
-                            <button onClick={() => setIsModalOpen(false)} className="text-black font-black text-xl hover:text-red-600 transition-colors uppercase flex items-center">
-                                <i className="fas fa-chevron-left mr-2 text-sm"></i> Back
-                            </button>
-                            <button 
-                                onClick={saveAllVehicles} 
-                                disabled={tempNopolList.length === 0}
-                                className={`px-16 py-3 rounded-2xl font-black text-white uppercase shadow-lg transition-all ${
-                                    tempNopolList.length === 0 ? 'bg-gray-300 cursor-not-allowed shadow-none' : 'bg-red-600 hover:bg-red-700 shadow-red-200'
-                                }`}
-                            >
-                                Simpan
-                            </button>
+                            <button onClick={() => setIsModalOpen(false)} className="text-black font-black text-xl hover:text-red-600 transition-colors uppercase flex items-center">Batal</button>
+                            <button onClick={saveAllVehicles} disabled={tempNopolList.length === 0} className={`px-16 py-3 rounded-2xl font-black text-white uppercase shadow-lg transition-all ${tempNopolList.length === 0 ? 'bg-gray-300 cursor-not-allowed shadow-none' : 'bg-red-600 hover:bg-red-700 shadow-red-200'}`}>Simpan</button>
                         </div>
                     </div>
                 </div>
@@ -330,55 +318,23 @@ useEffect(() => {
             {/* MODAL EDIT NOPOL */}
             {isEditModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative text-left">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-gray-800">Edit NOPOL</h3>
-                            <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                                <i className="fas fa-times text-xl"></i>
-                            </button>
+                            <h3 className="text-xl font-bold text-gray-800">Edit No. Polisi</h3>
+                            <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600"><i className="fas fa-times text-xl"></i></button>
                         </div>
-                        
                         <form onSubmit={handleUpdateNopol} className="space-y-6">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">NOPOL Lama</label>
-                                <input 
-                                    type="text" 
-                                    disabled 
-                                    className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl font-bold text-gray-500 uppercase cursor-not-allowed" 
-                                    value={editData.oldNopol} 
-                                />
+                                <label className="block text-sm font-bold text-gray-700 mb-2">NO.Polisi Lama</label>
+                                <input type="text" disabled className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl font-bold text-gray-500 uppercase cursor-not-allowed" value={editData.oldNopol} />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">NOPOL Baru</label>
-                                <input 
-                                    type="text" 
-                                    required
-                                    placeholder="Input Nopol Baru..."
-                                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl font-bold text-gray-800 uppercase focus:ring-2 focus:ring-red-500 outline-none transition-all" 
-                                    value={editData.newNopol} 
-                                    onChange={(e) => setEditData({...editData, newNopol: e.target.value})}
-                                />
+                                <label className="block text-sm font-bold text-gray-700 mb-2">No. Polisi Baru</label>
+                                <input type="text" maxLength={15} required placeholder="Input Nopol Baru..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl font-bold text-gray-800 uppercase focus:ring-2 focus:ring-red-500 outline-none transition-all" value={editData.newNopol} onChange={(e) => setEditData({...editData, newNopol: e.target.value})} />
                             </div>
-
                             <div className="flex justify-end space-x-3 pt-4">
-                                <button 
-                                    type="button"
-                                    onClick={() => setIsEditModalOpen(false)}
-                                    className="px-6 py-2.5 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-                                >
-                                    Batal
-                                </button>
-                                <button 
-                                    type="submit"
-                                    disabled={!editData.newNopol.trim()} 
-                                    className={`px-8 py-2.5 rounded-xl font-bold text-white transition-all shadow-lg ${
-                                        !editData.newNopol.trim() 
-                                        ? 'bg-gray-300 cursor-not-allowed shadow-none' 
-                                        : 'bg-red-600 hover:bg-red-700 shadow-red-200'
-                                    }`}
-                                >
-                                    Simpan
-                                </button>
+                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-6 py-2.5 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors">Batal</button>
+                                <button type="submit" disabled={!editData.newNopol.trim()} className={`px-8 py-2.5 rounded-xl font-bold text-white transition-all shadow-lg ${!editData.newNopol.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 shadow-red-200'}`}>Simpan</button>
                             </div>
                         </form>
                     </div>
@@ -387,43 +343,25 @@ useEffect(() => {
 
             {/* SUCCESS POPUP */}
             {isSuccessModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-12 w-full max-w-lg shadow-2xl flex flex-col items-center text-center">
-                        <div className="w-48 h-48 bg-red-100 rounded-full flex items-center justify-center mb-8 shadow-inner">
-                            <i className="fas fa-check text-red-500 text-8xl font-black"></i>
-                        </div>
-                        <h2 className="text-2xl font-black text-red-600 uppercase mb-10 tracking-tighter">NOPOL Berhasil Ditambahkan</h2>
-                        <button onClick={() => setIsSuccessModalOpen(false)} className="bg-red-600 text-white px-16 py-3 rounded-2xl font-black hover:bg-red-700 transition-all shadow-lg uppercase">
-                            OK
-                        </button>
+                <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm text-center">
+                    <div className="bg-white rounded-[2.5rem] p-12 w-full max-w-lg shadow-2xl flex flex-col items-center">
+                        <div className="w-48 h-48 bg-red-100 rounded-full flex items-center justify-center mb-8 shadow-inner"><i className="fas fa-check text-red-500 text-8xl font-black"></i></div>
+                        <h2 className="text-2xl font-black text-red-600 uppercase mb-10 tracking-tighter text-center">No. Polisi Berhasil Ditambahkan</h2>
+                        <button onClick={() => setIsSuccessModalOpen(false)} className="bg-red-600 text-white px-16 py-3 rounded-2xl font-black hover:bg-red-700 shadow-lg uppercase transition-all">OK</button>
                     </div>
                 </div>
             )}
 
             {/* MODAL KONFIRMASI DELETE */}
             {isDeleteModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl flex flex-col items-center text-center">
-                        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                            <i className="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
-                        </div>
-                        <h3 className="text-2xl font-black text-gray-800 uppercase tracking-tighter mb-2">Konfirmasi Hapus</h3>
-                        <p className="text-gray-400 font-medium mb-8 text-sm px-4 text-center">
-                            Apakah Anda yakin ingin menghapus nopol ini? Data yang sudah dihapus tidak dapat dikembalikan.
-                        </p>
+                <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm text-center">
+                    <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl flex flex-col items-center">
+                        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6 shadow-inner"><i className="fas fa-exclamation-triangle text-red-500 text-3xl"></i></div>
+                        <h3 className="text-2xl font-black text-gray-800 uppercase mb-2 tracking-tighter text-center">Konfirmasi Hapus</h3>
+                        <p className="text-gray-400 font-medium mb-8 text-sm px-4 text-center">Apakah Anda yakin ingin menghapus No. Polisi ini? Data yang sudah dihapus tidak dapat dikembalikan.</p>
                         <div className="flex w-full space-x-4">
-                            <button 
-                                onClick={() => setIsDeleteModalOpen(false)}
-                                className="flex-1 py-3 rounded-2xl font-black text-gray-400 hover:text-gray-600 uppercase transition-colors"
-                            >
-                                Batal
-                            </button>
-                            <button 
-                                onClick={executeDelete}
-                                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-2xl font-black uppercase shadow-lg shadow-red-200 transition-all"
-                            >
-                                Hapus
-                            </button>
+                            <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-3 rounded-2xl font-black text-gray-400 hover:text-gray-600 uppercase transition-colors">Batal</button>
+                            <button onClick={executeDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-2xl font-black uppercase shadow-lg shadow-red-200 transition-all">Hapus</button>
                         </div>
                     </div>
                 </div>
