@@ -16,10 +16,12 @@ const VehicleList = () => {
         try {
             setLoading(true);
             const response = await axios.get('http://localhost:3000/api/vehicles/transporters');
+            console.log('📦 Data dari API Transporters:', response.data); // DEBUG
             setTransporters(response.data);
             setFilteredTransporters(response.data);
         } catch (error) {
-            console.error("Detail Error:", error.response?.data);
+            console.error("❌ Detail Error:", error.response?.data);
+            console.error("❌ Full Error:", error); // DEBUG
             alert("Server Error: " + (error.response?.data?.message || "Koneksi bermasalah"));
         } finally {
             setLoading(false);
@@ -32,7 +34,7 @@ const VehicleList = () => {
 
     useEffect(() => {
         const results = transporters.filter(item =>
-            item.transporter?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.nama_transporter?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.no_po?.toLowerCase().includes(searchTerm.toLowerCase())
         );
         setFilteredTransporters(results);
@@ -51,7 +53,6 @@ const VehicleList = () => {
                 <main className="flex-grow p-6 overflow-y-auto">
                     <div className="max-w-7xl mx-auto">
                         
-                        {/* Header & Search Bar Section */}
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
                             <div>
                                 <h2 className="text-3xl font-black text-red-600 uppercase tracking-tighter">
@@ -60,7 +61,6 @@ const VehicleList = () => {
                                 <p className="text-sm text-gray-500 font-medium tracking-tight">Kelola kendaraan berdasarkan vendor pengiriman aktif</p>
                             </div>
                             
-                            {/* Hanya tampilkan search jika ada data utama */}
                             {transporters.length > 0 && (
                                 <div className="relative group">
                                     <input 
@@ -75,14 +75,12 @@ const VehicleList = () => {
                             )}
                         </div>
 
-                        {/* Kondisi 1: Sedang Memuat Data */}
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-20">
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-red-600 mb-4"></div>
                                 <p className="text-gray-500 font-bold italic animate-pulse">Menyingkronkan data...</p>
                             </div>
                         ) : transporters.length === 0 ? (
-                            /* Kondisi 2: Database Benar-benar Kosong (Belum ada Input) */
                             <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-gray-200 shadow-inner flex flex-col items-center">
                                 <div className="bg-red-50 w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-sm">
                                     <i className="fas fa-database text-red-300 text-4xl"></i>
@@ -94,7 +92,6 @@ const VehicleList = () => {
                                 </p>
                             </div>
                         ) : filteredTransporters.length > 0 ? (
-                            /* Kondisi 3: Data Ada dan Berhasil Ditemukan */
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {filteredTransporters.map((item, index) => (
                                     <div 
@@ -103,7 +100,7 @@ const VehicleList = () => {
                                     >
                                         <div className="mb-6">
                                             <h3 className="text-xl font-black text-gray-800 leading-tight mb-4 min-h-[3rem] line-clamp-2 uppercase tracking-tight">
-                                                {item.transporter || "Transporter Tidak Diketahui"}
+                                                {item.nama_transporter || "Transporter Tidak Diketahui"}
                                             </h3>
                                             
                                             <div className="space-y-3">
@@ -111,6 +108,7 @@ const VehicleList = () => {
                                                     <span className="bg-gray-100 px-3 py-1 rounded-full mr-2 text-gray-600 shadow-sm">PO</span>
                                                     {item.no_po}
                                                 </div>
+                                                
                                                 <div className="flex items-center text-sm font-black text-gray-700 bg-red-50 p-4 rounded-2xl w-full border border-red-100 group-hover:bg-red-600 group-hover:border-red-600 transition-colors duration-300">
                                                     <div className="bg-red-600 w-10 h-10 rounded-xl flex items-center justify-center mr-4 shadow-lg shadow-red-200 group-hover:bg-white group-hover:shadow-none transition-colors">
                                                         <i className="fas fa-truck-moving text-white text-xs group-hover:text-red-600 transition-colors"></i>
@@ -118,7 +116,7 @@ const VehicleList = () => {
                                                     <div>
                                                         <p className="text-[10px] text-red-400 group-hover:text-red-100 uppercase leading-none mb-1 transition-colors">Total Kendaraan</p>
                                                         <p className="text-xl text-red-600 group-hover:text-white leading-none transition-colors">
-                                                            {item.totalVehicles || 0} <span className="text-xs font-bold uppercase tracking-tighter">Unit</span>
+                                                            {item.total_kendaraan_vendor || 0} <span className="text-xs font-bold uppercase tracking-tighter">Unit</span>
                                                         </p>
                                                     </div>
                                                 </div>
@@ -136,7 +134,6 @@ const VehicleList = () => {
                                 ))}
                             </div>
                         ) : (
-                            /* Kondisi 4: Data Ada, tapi Hasil Pencarian Nihil */
                             <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-gray-200 shadow-inner">
                                 <div className="bg-gray-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
                                     <i className="fas fa-search text-gray-300 text-4xl"></i>

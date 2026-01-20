@@ -4,85 +4,149 @@ const db = require('../config/db');
 
 // 1. GET TRANSPORTERS (Daftar Transporter beserta Jumlah Kendaraan)
 exports.getTransporters = async (req, res) => {
-    try {
-        // Query disesuaikan dengan relasi baru: Kegiatan -> Vendor <- Kendaraan
-        // Kita hitung jumlah kendaraan berdasarkan vendor yang sama
-        const query = `
-            SELECT 
-                k.no_po, 
-                k.transporter, 
-                COUNT(ken.id) AS totalVehicles 
-            FROM kegiatan k
-            LEFT JOIN vendor v ON k.vendor_id = v.id
-            LEFT JOIN kendaraan ken ON v.id = ken.vendor_id
-            GROUP BY k.no_po, k.transporter
-        `;
-        
-        const [rows] = await db.query(query);
-        res.status(200).json(rows);
-    } catch (error) {
-        console.error("Kesalahan Database:", error.message); 
-        res.status(500).json({ 
-            message: "Gagal mengambil data transporter", 
-            error: error.message 
-        });
-    }
+  try {
+    const query = `
+      SELECT
+        k.no_po,
+        t.id AS transporter_id,
+        t.nama_transporter,
+        kt.status AS status_transporter,
+        COUNT(DISTINCT ken.id) AS total_kendaraan_vendor
+      FROM kegiatan k
+      JOIN vendor v ON k.vendor_id = v.id
+      JOIN kegiatan_transporter kt ON kt.kegiatan_id = k.id
+      JOIN transporter t ON t.id = kt.transporter_id
+      LEFT JOIN kendaraan ken ON ken.vendor_id = v.id
+      GROUP BY k.no_po, t.id, kt.status
+      ORDER BY k.no_po, t.nama_transporter
+    `;
+
+    const [rows] = await db.query(query);
+    res.json(rows);
+
+  } catch (error) {
+    console.error("getTransporters ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
 };
 
+
 // 2. GET VEHICLES BY PO (Detail Kendaraan berdasarkan No PO)
+// Bisa menerima transporter_id='all' untuk menampilkan semua transporter
 exports.getVehiclesByPo = async (req, res) => {
-    const { no_po } = req.params;
+    const { no_po, transporter_id } = req.query;
+
+    if (!no_po) {
+        return res.status(400).json({ message: "no_po wajib" });
+    }
+
     try {
-        // 1. Cari Vendor ID dari Kegiatan berdasarkan No PO
-        const [kegiatan] = await db.query('SELECT vendor_id, transporter FROM kegiatan WHERE no_po = ?', [no_po]);
-        
-        if (kegiatan.length === 0) {
-            return res.status(404).json({ message: 'Kegiatan tidak ditemukan' });
+        // Ambil kegiatan
+        const [[kegiatan]] = await db.query(
+            `SELECT id, vendor_id FROM kegiatan WHERE no_po = ?`,
+            [no_po]
+        );
+
+        if (!kegiatan) return res.status(404).json({ message: "PO tidak ditemukan" });
+
+        // Ambil list transporter untuk PO ini
+        const [transporters] = await db.query(`
+            SELECT t.id AS transporter_id, t.nama_transporter, kt.status AS status_transporter
+            FROM kegiatan_transporter kt
+            JOIN transporter t ON t.id = kt.transporter_id
+            WHERE kt.kegiatan_id = ?
+            ORDER BY t.nama_transporter
+        `, [kegiatan.id]);
+
+        let vehicles = [];
+
+        if (!transporter_id || transporter_id === 'all') {
+            // Ambil semua kendaraan dari semua transporter
+            const [allVehicles] = await db.query(`
+                SELECT ken.id, ken.plat_nomor, ken.status
+                FROM kendaraan ken
+                WHERE ken.vendor_id = ?
+                ORDER BY ken.plat_nomor
+            `, [kegiatan.vendor_id]);
+
+            // Tandai penggunaan masing-masing kendaraan
+            vehicles = allVehicles.map(v => {
+                return {
+                    ...v,
+                    penggunaan: 'belum_digunakan'
+                };
+            });
+
+        } else {
+            // Ambil transporter spesifik
+            const [[kt]] = await db.query(`
+                SELECT id FROM kegiatan_transporter
+                WHERE kegiatan_id = ? AND transporter_id = ?
+            `, [kegiatan.id, transporter_id]);
+
+            if (!kt) return res.status(404).json({ message: "Transporter tidak terdaftar di PO ini" });
+
+            const [specificVehicles] = await db.query(`
+                SELECT ken.id, ken.plat_nomor, ken.status,
+                    CASE 
+                        WHEN EXISTS (
+                            SELECT 1 FROM keberangkatan_truk kbt
+                            WHERE kbt.kendaraan_id = ken.id
+                            AND kbt.kegiatan_transporter_id = ?
+                        )
+                        THEN 'digunakan'
+                        ELSE 'belum_digunakan'
+                    END AS penggunaan
+                FROM kendaraan ken
+                WHERE ken.vendor_id = ?
+                ORDER BY ken.plat_nomor
+            `, [kt.id, kegiatan.vendor_id]);
+
+            vehicles = specificVehicles;
         }
 
-        const vendorId = kegiatan[0].vendor_id;
-        const transporterName = kegiatan[0].transporter;
-
-        // 2. Ambil Kendaraan berdasarkan Vendor ID
-        // Perhatikan: Kolom 'plat_nomor' adalah nama baru untuk 'nopol'
-        const [vehicles] = await db.query('SELECT id, plat_nomor as nopol, status FROM kendaraan WHERE vendor_id = ?', [vendorId]);
-        
         res.json({
-            transporter: transporterName,
-            vehicles: vehicles
+            no_po,
+            transporters,
+            vehicles
         });
+
     } catch (error) {
-        console.error("Error getVehiclesByPo:", error);
+        console.error("getVehiclesByPo ERROR:", error);
         res.status(500).json({ message: error.message });
     }
 };
+
 
 // 3. ADD VEHICLE (Tambah Kendaraan Baru)
 exports.addVehicle = async (req, res) => {
-    const { no_po, nopol } = req.body; // Frontend lama mengirim 'nopol' dan 'no_po'
-    
-    if (!no_po || !nopol) {
-        return res.status(400).json({ message: 'No PO dan Nopol harus diisi' });
+  const { no_po, nopol } = req.body;
+
+  if (!no_po || !nopol) {
+    return res.status(400).json({ message: "no_po dan nopol wajib" });
+  }
+
+  try {
+    const [[kegiatan]] = await db.query(
+      `SELECT vendor_id FROM kegiatan WHERE no_po = ?`,
+      [no_po]
+    );
+
+    if (!kegiatan) {
+      return res.status(404).json({ message: "PO tidak ditemukan" });
     }
 
-    try {
-        // 1. Cari Vendor ID dari No PO
-        const [kegiatan] = await db.query('SELECT vendor_id FROM kegiatan WHERE no_po = ? LIMIT 1', [no_po]);
-        
-        if (kegiatan.length === 0) {
-            return res.status(404).json({ message: 'No PO tidak valid / Kegiatan tidak ditemukan' });
-        }
+    await db.query(`
+      INSERT INTO kendaraan (vendor_id, plat_nomor, status)
+      VALUES (?, ?, 'aktif')
+    `, [kegiatan.vendor_id, nopol]);
 
-        const vendorId = kegiatan[0].vendor_id;
+    res.status(201).json({ message: "Kendaraan berhasil ditambahkan" });
 
-        // 2. Insert ke Tabel Kendaraan (gunakan kolom baru: 'plat_nomor')
-        await db.query('INSERT INTO kendaraan (vendor_id, plat_nomor, status) VALUES (?, ?, ?)', [vendorId, nopol, 'aktif']);
-        
-        res.status(201).json({ message: 'Kendaraan berhasil ditambahkan' });
-    } catch (error) {
-        console.error("Error addVehicle:", error);
-        res.status(500).json({ message: error.message });
-    }
+  } catch (error) {
+    console.error("addVehicle ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // 4. DELETE VEHICLE (Hapus Kendaraan)
@@ -119,4 +183,41 @@ exports.updateVehicle = async (req, res) => {
         console.error("Kesalahan Update Database:", error.message);
         res.status(500).json({ message: error.message });
     }
+};
+
+// 6. GET TRANSPORTERS BY PO (List Transporter untuk satu PO)
+exports.getTransportersByPo = async (req, res) => {
+  const { no_po } = req.params;
+
+  try {
+    const [[kegiatan]] = await db.query(
+      `SELECT id, vendor_id FROM kegiatan WHERE no_po = ?`,
+      [no_po]
+    );
+
+    if (!kegiatan) {
+      return res.status(404).json({ message: "PO tidak ditemukan" });
+    }
+
+    const [transporters] = await db.query(`
+      SELECT 
+        t.id AS transporter_id,
+        t.nama_transporter,
+        kt.status AS status_transporter
+      FROM kegiatan_transporter kt
+      JOIN transporter t ON t.id = kt.transporter_id
+      WHERE kt.kegiatan_id = ?
+      ORDER BY t.nama_transporter
+    `, [kegiatan.id]);
+
+    res.json({
+      no_po,
+      vendor_id: kegiatan.vendor_id,
+      transporters
+    });
+
+  } catch (error) {
+    console.error("getTransportersByPo ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
 };

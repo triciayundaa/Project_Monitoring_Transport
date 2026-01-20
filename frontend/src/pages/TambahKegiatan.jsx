@@ -1,60 +1,84 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 
 const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
-    // State Form
     const [formData, setFormData] = useState({
         no_po: '',
         vendor: '',
-        transporter: '',
         nama_kapal: '',
         material: '',
         incoterm: '',
         no_bl: '',
         quantity: '',
-        total_truk: '', 
         tanggal_mulai: '',
         tanggal_selesai: ''
     });
 
+    const [transporters, setTransporters] = useState(['']);
+    const [availableTransporters, setAvailableTransporters] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    // Load Data jika Mode Edit
+    useEffect(() => {
+        fetchTransporters();
+    }, []);
+
+    const fetchTransporters = async () => {
+        try {
+            const res = await fetch('http://localhost:3000/api/kegiatan/transporters');
+            const data = await res.json();
+            setAvailableTransporters(data);
+        } catch (error) {
+            console.error('Error fetching transporters:', error);
+        }
+    };
+
     useEffect(() => {
         if (mode === 'edit' && data) {
             setFormData({
                 no_po: data.no_po || '',
                 vendor: data.vendor || '',
-                transporter: data.transporter || '',
                 nama_kapal: data.nama_kapal || '',
                 material: data.material || '',
                 incoterm: data.incoterm || '',
                 no_bl: data.no_bl || '',
                 quantity: data.quantity || '',
-                total_truk: data.total_truk || '',
                 tanggal_mulai: data.tanggal_mulai ? data.tanggal_mulai.split('T')[0] : '',
                 tanggal_selesai: data.tanggal_selesai ? data.tanggal_selesai.split('T')[0] : ''
             });
+            
+            if (data.transporters && data.transporters.length > 0) {
+                setTransporters(data.transporters);
+            }
         }
     }, [mode, data]);
 
-    // Handle Change Input
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // Handle Submit
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleTransporterChange = (index, value) => {
+        const newTransporters = [...transporters];
+        newTransporters[index] = value;
+        setTransporters(newTransporters);
+    };
+
+    const addTransporterField = () => {
+        setTransporters([...transporters, '']);
+    };
+
+    const removeTransporterField = (index) => {
+        const newTransporters = transporters.filter((_, i) => i !== index);
+        setTransporters(newTransporters.length > 0 ? newTransporters : ['']);
+    };
+
+    const handleSubmit = async () => {
         setLoading(true);
 
-        // --- VALIDASI TANGGAL (LOGIC) ---
-        // Jika Tanggal Selesai lebih kecil dari Tanggal Mulai, hentikan proses.
         if (formData.tanggal_mulai && formData.tanggal_selesai) {
             if (formData.tanggal_selesai < formData.tanggal_mulai) {
                 alert("Tanggal Selesai tidak boleh kurang dari Tanggal Mulai!");
                 setLoading(false);
-                return; // Stop function di sini
+                return;
             }
         }
 
@@ -64,11 +88,10 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
         
         const method = mode === 'add' ? 'POST' : 'PUT';
 
-        // Normalisasi Data
         const payload = {
             ...formData,
             nama_vendor: formData.vendor,
-            total_truk: 0 // Default 0 karena input dihapus
+            transporters: transporters.filter(t => t.trim() !== '')
         };
 
         try {
@@ -85,8 +108,8 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
             }
 
             alert(mode === 'add' ? 'Kegiatan berhasil ditambahkan!' : 'Kegiatan berhasil diperbarui!');
-            onSuccess(); // Refresh Data di Parent
-            onClose();   // Tutup Modal
+            onSuccess();
+            onClose();
         } catch (error) {
             console.error(error);
             alert(error.message);
@@ -95,14 +118,12 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
         }
     };
 
-    // Logika Kunci Input (No PO & Tanggal Mulai terkunci jika sudah berjalan)
-    const isPoLocked = mode === 'edit' && (data.status === 'On Progress' || data.status === 'Completed');
+    const hasRunningTransporter = mode === 'edit' && data.hasRunningTransporter;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden transform transition-all scale-100">
                 
-                {/* Header */}
                 <div className="flex justify-between items-center p-6 border-b border-gray-100">
                     <h2 className="text-xl font-bold text-gray-800">
                         {mode === 'add' ? 'Tambah Kegiatan Baru' : 'Edit PO'}
@@ -112,28 +133,57 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                     </button>
                 </div>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* NO PO (LOCKED CONDITION) */}
                         <InputGroup 
                             label="Nomor PO" 
                             name="no_po" 
                             value={formData.no_po} 
                             onChange={handleChange} 
                             required 
-                            disabled={isPoLocked} 
-                            placeholder={isPoLocked ? "Tidak bisa diedit (Sedang Berjalan)" : "Masukkan No PO"}
+                            disabled={hasRunningTransporter} 
+                            placeholder={hasRunningTransporter ? "Tidak bisa diedit (Sedang Berjalan)" : "Masukkan No PO"}
                         />
 
-                        <InputGroup label="Nama Vendor" name="vendor" value={formData.vendor} onChange={handleChange} required />
+                        <InputGroup 
+                            label="Nama Vendor" 
+                            name="vendor" 
+                            value={formData.vendor} 
+                            onChange={handleChange} 
+                            required 
+                        />
                         
-                        <InputGroup label="Transporter" name="transporter" value={formData.transporter} onChange={handleChange} />
-                        <InputGroup label="Nama Kapal" name="nama_kapal" value={formData.nama_kapal} onChange={handleChange} />
+                        <InputGroup 
+                            label="Nama Kapal" 
+                            name="nama_kapal" 
+                            value={formData.nama_kapal} 
+                            onChange={handleChange} 
+                        />
                         
-                        <InputGroup label="Incoterm" name="incoterm" value={formData.incoterm} onChange={handleChange} />
-                        <InputGroup label="Nomor BL" name="no_bl" value={formData.no_bl} onChange={handleChange} />
+                        <InputGroup 
+                            label="Incoterm" 
+                            name="incoterm" 
+                            value={formData.incoterm} 
+                            onChange={handleChange} 
+                        />
+                        
+                        <InputGroup 
+                            label="Nomor BL" 
+                            name="no_bl" 
+                            value={formData.no_bl} 
+                            onChange={handleChange} 
+                        />
+
+                        <InputGroup 
+                            label="Quantity (ton)" 
+                            name="quantity" 
+                            type="number"
+                            value={formData.quantity !== '' ? parseFloat(formData.quantity) : ''}
+                            onChange={handleChange} 
+                            min={0}          
+                            step={0.01}      
+                        />
                     </div>
 
                     <div className="space-y-1">
@@ -147,24 +197,62 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                         ></textarea>
                     </div>
 
-                    {/* Quantity */}
-                    <div className="grid grid-cols-1">
-                        <InputGroup label="Quantity (ton)" name="quantity" type="number" value={formData.quantity} onChange={handleChange} />
+                    <div className="space-y-2 border-t pt-4">
+                        <div className="flex justify-between items-center">
+                            <label className="text-xs font-semibold text-gray-500 uppercase">
+                                Transporter <span className="text-red-500">*</span>
+                            </label>
+                            <button
+                                type="button"
+                                onClick={addTransporterField}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                            >
+                                <Plus size={14} />
+                                Tambah Transporter
+                            </button>
+                        </div>
+
+                        {transporters.map((transporter, index) => (
+                            <div key={index} className="flex gap-2 items-center">
+                                <div className="flex-1 relative">
+                                    <input
+                                        list={`transporters-${index}`}
+                                        type="text"
+                                        value={transporter}
+                                        onChange={(e) => handleTransporterChange(index, e.target.value)}
+                                        placeholder="Ketik atau pilih dari daftar..."
+                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm"
+                                    />
+                                    <datalist id={`transporters-${index}`}>
+                                        {availableTransporters.map(t => (
+                                            <option key={t.id} value={t.nama_transporter} />
+                                        ))}
+                                    </datalist>
+                                </div>
+                                
+                                {transporters.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => removeTransporterField(index)}
+                                        className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
+                            </div>
+                        ))}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* TANGGAL MULAI */}
                         <InputGroup 
                             label="Tanggal Mulai" 
                             name="tanggal_mulai" 
                             type="date" 
                             value={formData.tanggal_mulai} 
                             onChange={handleChange} 
-                            disabled={isPoLocked} 
+                            disabled={hasRunningTransporter} 
                         />
                         
-                        {/* TANGGAL SELESAI (VALIDASI UI) */}
-                        {/* Atribut 'min' mencegah user memilih tanggal mundur di kalender */}
                         <InputGroup 
                             label="Tanggal Selesai" 
                             name="tanggal_selesai" 
@@ -175,7 +263,6 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                         />
                     </div>
 
-                    {/* Footer Actions */}
                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6">
                         <button 
                             type="button" 
@@ -185,7 +272,8 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                             Batal
                         </button>
                         <button 
-                            type="submit" 
+                            type="button"
+                            onClick={handleSubmit}
                             disabled={loading}
                             className="px-6 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200 disabled:opacity-70 flex items-center gap-2"
                         >
@@ -200,13 +288,12 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                         </button>
                     </div>
 
-                </form>
+                </div>
             </div>
         </div>
     );
 };
 
-// Komponen Input Sederhana (Updated dengan spread props)
 const InputGroup = ({ label, name, type = "text", value, onChange, required, disabled, placeholder, ...props }) => (
     <div className="space-y-1">
         <label className="text-xs font-semibold text-gray-500 uppercase">
@@ -220,7 +307,6 @@ const InputGroup = ({ label, name, type = "text", value, onChange, required, dis
             required={required}
             disabled={disabled}
             placeholder={placeholder}
-            // Spread sisa props ke sini agar atribut seperti 'min', 'max', dll berfungsi
             {...props} 
             className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm 
                 ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-gray-50 border-gray-200 hover:bg-white'}`}
