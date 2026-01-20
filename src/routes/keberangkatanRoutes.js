@@ -1,29 +1,34 @@
 const express = require('express');
 const router = express.Router();
-const keberangkatanController = require('../controllers/keberangkatanController');
+const {
+    cekStatusShiftUser,
+    cekPO,
+    simpanKeberangkatan,
+    getKeberangkatanByDate,
+    hapusKeberangkatan,
+    verifikasiKeberangkatan,
+    updateTruk
+} = require('../controllers/keberangkatanController');
 
-// ================= ROUTE DARI HEAD (Fitur Utama) =================
+// 1. Cek status shift user
+router.get('/status-shift', cekStatusShiftUser);
 
-// 1. Cek Shift User (Real-time check di Frontend)
-router.get('/status-shift', keberangkatanController.cekStatusShiftUser);
+// 2. Cek PO
+router.post('/cek-po', cekPO);
 
-// 2. Cek Detail PO
-router.post('/cek-po', keberangkatanController.cekPO);
+// 3. Simpan keberangkatan
+router.post('/', simpanKeberangkatan);
 
-// 3. Simpan Data Keberangkatan
-router.post('/simpan', keberangkatanController.simpanKeberangkatan);
+// 4. Get data keberangkatan by date
+router.get('/', getKeberangkatanByDate);
 
-// 4. Ambil List Data (Filter Tanggal)
-router.get('/list', keberangkatanController.getKeberangkatanByDate);
+// 5. Update/Edit data truk - PENTING: Route ini harus ada!
+router.put('/:id', updateTruk);
 
-// 5. Hapus Data
-router.delete('/hapus/:id', keberangkatanController.hapusKeberangkatan);
+// 6. Verifikasi keberangkatan (update status Valid/Tolak)
+router.patch('/:id/verifikasi', verifikasiKeberangkatan);
 
-
-// ================= ROUTE DARI OLIVIA (Fitur Verifikasi) =================
-
-// 6. Verifikasi Status (Valid / Tolak)
-// Digunakan oleh Admin/Personil untuk memvalidasi keberangkatan
-router.put('/:id/verifikasi', keberangkatanController.verifikasiKeberangkatan);
+// 7. Hapus keberangkatan
+router.delete('/:id', hapusKeberangkatan);
 
 module.exports = router;

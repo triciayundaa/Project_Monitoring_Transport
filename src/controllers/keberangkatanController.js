@@ -264,11 +264,124 @@ const verifikasiKeberangkatan = async (req, res) => {
     }
 };
 
+// 7. UPDATE TRUK - PERBAIKAN LENGKAP
+const updateTruk = async (req, res) => {
+    const { id } = req.params;
+    const { nopol, nama_personil, no_seri_pengantar, keterangan, status } = req.body;
+
+    console.log('📝 UPDATE TRUK REQUEST:', {
+        id,
+        body: req.body
+    });
+
+    try {
+        // Validasi input
+        if (!nopol || !nama_personil) {
+            console.log('❌ Validasi gagal: nopol atau nama_personil kosong');
+            return res.status(400).json({ 
+                message: 'Plat nomor dan nama personil harus diisi' 
+            });
+        }
+
+        if (!['Valid', 'Tolak'].includes(status)) {
+            console.log('❌ Validasi gagal: status tidak valid');
+            return res.status(400).json({ 
+                message: 'Status tidak valid. Harus Valid atau Tolak' 
+            });
+        }
+
+        // 1. Cari atau buat kendaraan baru
+        let kendaraanId;
+        const [existingKendaraan] = await db.query(
+            'SELECT id FROM kendaraan WHERE plat_nomor = ?',
+            [nopol]
+        );
+
+        if (existingKendaraan.length > 0) {
+            kendaraanId = existingKendaraan[0].id;
+            console.log('✅ Kendaraan sudah ada:', kendaraanId);
+        } else {
+            // Jika plat nomor baru, insert ke tabel kendaraan
+            const [newKendaraan] = await db.query(
+                'INSERT INTO kendaraan (plat_nomor, status) VALUES (?, ?)',
+                [nopol, 'aktif']
+            );
+            kendaraanId = newKendaraan.insertId;
+            console.log('✅ Kendaraan baru ditambahkan:', kendaraanId, nopol);
+        }
+
+        // 2. Ambil data keberangkatan_truk untuk mendapatkan email_user
+        const [trukData] = await db.query(
+            'SELECT email_user FROM keberangkatan_truk WHERE id = ?',
+            [id]
+        );
+
+        if (trukData.length === 0) {
+            console.log('❌ Data keberangkatan tidak ditemukan untuk ID:', id);
+            return res.status(404).json({ 
+                message: 'Data keberangkatan tidak ditemukan' 
+            });
+        }
+
+        const emailUser = trukData[0].email_user;
+        console.log('📧 Email user:', emailUser);
+
+        // 3. Update nama personil di tabel users
+        const [updateUserResult] = await db.query(
+            'UPDATE users SET nama = ? WHERE email = ?',
+            [nama_personil, emailUser]
+        );
+        console.log('✅ Update users:', updateUserResult.affectedRows, 'row(s)');
+
+        // 4. Update keberangkatan_truk
+        const [updateTrukResult] = await db.query(
+            `UPDATE keberangkatan_truk 
+             SET kendaraan_id = ?, 
+                 no_seri_pengantar = ?, 
+                 keterangan = ?, 
+                 status = ? 
+             WHERE id = ?`,
+            [kendaraanId, no_seri_pengantar || '', keterangan || '', status, id]
+        );
+
+        console.log('✅ Update keberangkatan_truk:', updateTrukResult.affectedRows, 'row(s)');
+
+        if (updateTrukResult.affectedRows === 0) {
+            console.log('⚠️ Tidak ada row yang diupdate');
+            return res.status(404).json({
+                message: 'Data truk tidak ditemukan atau tidak ada perubahan'
+            });
+        }
+
+        console.log('✅ Data truk ID', id, 'berhasil diperbarui');
+        
+        return res.status(200).json({ 
+            message: 'Data berhasil diperbarui',
+            data: {
+                id: parseInt(id),
+                nopol: nopol,
+                nama_personil: nama_personil,
+                no_seri_pengantar: no_seri_pengantar || '',
+                keterangan: keterangan || '',
+                status: status
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ UPDATE TRUK ERROR:', error);
+        return res.status(500).json({ 
+            message: error.message || 'Gagal memperbarui data truk',
+            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+};
+
 module.exports = {
     cekStatusShiftUser,
     cekPO,
     simpanKeberangkatan,
     getKeberangkatanByDate,
     hapusKeberangkatan,
-    verifikasiKeberangkatan
+    verifikasiKeberangkatan,
+    updateTruk
 };

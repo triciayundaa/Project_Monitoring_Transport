@@ -4,6 +4,7 @@ const vehicleController = require('../controllers/vehicleController');
 
 // Pastikan penulisan fungsi di controller sesuai (getTransporters, getVehiclesByPo, dll)
 router.get('/transporters', vehicleController.getTransporters);
+router.get('/transporters/:no_po', vehicleController.getTransportersByPo);
 router.get('/:no_po', vehicleController.getVehiclesByPo);
 router.post('/add', vehicleController.addVehicle);
 router.delete('/:id', vehicleController.deleteVehicle);

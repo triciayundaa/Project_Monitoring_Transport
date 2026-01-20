@@ -10,39 +10,63 @@ const VehicleDetail = () => {
     const [transporterName, setTransporterName] = useState('');
     const [loading, setLoading] = useState(true);
     
-    // State untuk Modal Tambah & Bulk Input
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false); 
     const [newNopol, setNewNopol] = useState('');
     const [tempNopolList, setTempNopolList] = useState([]); 
 
-    // --- STATE UNTUK DELETE ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedVehicleId, setSelectedVehicleId] = useState(null);
 
-    // --- STATE BARU UNTUK EDIT ---
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editData, setEditData] = useState({ id: null, oldNopol: '', newNopol: '' });
 
-    const { noPo } = useParams();
+    const { noPo, transporterId } = useParams();
     const navigate = useNavigate();
+
+    const [transporterList, setTransporterList] = useState([]);
+    const [selectedTransporterId, setSelectedTransporterId] = useState('all');
+
 
     const fetchVehicleData = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`http://localhost:3000/api/vehicles/${noPo}`);
-            setVehicles(response.data.vehicles);
+            const response = await axios.get(`http://localhost:3000/api/vehicles/${noPo}`, {
+            params: { transporter_id: selectedTransporterId } // 'all' atau id transporter
+        });
+
+
+            
+            setVehicles(response.data.vehicles.map(v => ({
+                ...v,
+                nopol: v.plat_nomor // Map plat_nomor ke nopol untuk kompatibilitas
+            })));
             setTransporterName(response.data.transporter);
+            setTransporterStatus(response.data.status_transporter);
         } catch (error) {
             console.error("Gagal mengambil detail kendaraan:", error);
+            alert("Gagal memuat data: " + (error.response?.data?.message || "Server error"));
         } finally {
             setLoading(false);
         }
     };
 
+    const fetchTransportersByPo = async () => {
+    try {
+        const res = await axios.get(`http://localhost:3000/api/kegiatan/${noPo}/transporters`);
+        setTransporterList(res.data); 
+        if (res.data.length === 1) {
+            setSelectedTransporterId(res.data[0].transporter_id);
+        }
+    } catch (err) {
+        console.error("Gagal fetch transporter:", err);
+    }
+};
+
+
     const addTempNopol = () => {
-        if (!newNopol) return;
-        setTempNopolList([...tempNopolList, newNopol.toUpperCase()]);
+        if (!newNopol.trim()) return;
+        setTempNopolList([...tempNopolList, newNopol.toUpperCase().trim()]);
         setNewNopol('');
     };
 
@@ -68,13 +92,12 @@ const VehicleDetail = () => {
             setIsSuccessModalOpen(true); 
             fetchVehicleData();
         } catch (error) {
-            alert("Gagal menyimpan beberapa kendaraan.");
+            alert("Gagal menyimpan beberapa kendaraan: " + (error.response?.data?.message || "Server error"));
         } finally {
             setLoading(false);
         }
     };
 
-    // --- FUNGSI UNTUK DELETE ---
     const confirmDelete = (id) => {
         setSelectedVehicleId(id);
         setIsDeleteModalOpen(true);
@@ -87,13 +110,12 @@ const VehicleDetail = () => {
             setIsDeleteModalOpen(false);
             fetchVehicleData();
         } catch (error) {
-            alert("Gagal menghapus data");
+            alert("Gagal menghapus data: " + (error.response?.data?.message || "Server error"));
         } finally {
             setLoading(false);
         }
     };
 
-    // --- FUNGSI BARU UNTUK EDIT ---
     const openEditModal = (vehicle) => {
         setEditData({
             id: vehicle.id,
@@ -105,28 +127,30 @@ const VehicleDetail = () => {
 
     const handleUpdateNopol = async (e) => {
         e.preventDefault();
+        if (!editData.newNopol.trim()) return;
+        
         try {
             setLoading(true);
-            // Sesuaikan endpoint ini dengan backend Anda (biasanya PUT /api/vehicles/:id)
             await axios.put(`http://localhost:3000/api/vehicles/${editData.id}`, {
-                nopol: editData.newNopol.toUpperCase()
+                nopol: editData.newNopol.toUpperCase().trim()
             });
             setIsEditModalOpen(false);
             fetchVehicleData();
         } catch (error) {
-            alert("Gagal memperbarui Nopol");
+            alert("Gagal memperbarui Nopol: " + (error.response?.data?.message || "Server error"));
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDelete = async (id) => {
-        confirmDelete(id);
-    };
-
     useEffect(() => {
-        fetchVehicleData();
-    }, [noPo]);
+    fetchTransportersByPo(); // fetch list transporter
+}, [noPo]);
+
+useEffect(() => {
+    fetchVehicleData(); // fetch kendaraan setiap kali transporter berubah
+}, [noPo, selectedTransporterId]);
+
 
     return (
         <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
@@ -138,9 +162,28 @@ const VehicleDetail = () => {
                 <main className="flex-grow p-6 overflow-y-auto">
                     <div className="max-w-5xl mx-auto bg-white rounded-[2.5rem] shadow-sm p-8 border border-gray-100">
                         <div className="flex justify-between items-start mb-8">
-                            <h3 className="text-2xl font-black text-red-600 uppercase">
-                                {transporterName || 'Loading...'}
-                            </h3>
+                            <div>
+                                <h3 className="text-2xl font-black text-red-600 uppercase">
+                                    {transporterName || 'Loading...'}
+                                </h3>
+                               {transporterList.length > 1 && (
+                                <select
+                                    value={selectedTransporterId}
+                                    onChange={(e) => setSelectedTransporterId(e.target.value)}
+                                    className="mt-3 px-4 py-2 bg-white border border-gray-300 rounded-lg font-bold text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                                >
+                                    <option value="all">Semua Transporter</option>
+                                    {transporterList.map(t => (
+                                    <option key={t.transporter_id} value={t.transporter_id}>
+                                        {t.nama_transporter}
+                                    </option>
+                                    ))}
+                                </select>
+                                )}
+
+                            
+
+                            </div>
                             <div className="flex items-center">
                                 <span className="font-bold text-gray-800 mr-4">No. PO</span>
                                 <div className="bg-white border border-gray-200 shadow-inner px-12 py-2 rounded-lg font-bold text-gray-700">
@@ -164,28 +207,46 @@ const VehicleDetail = () => {
                                     <tr className="border-b border-red-600 bg-red-50/30">
                                         <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">No</th>
                                         <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">Nopol</th>
+                                        <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">Penggunaan</th>
                                         <th className="py-3 px-4 text-red-600 font-black text-sm uppercase">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {loading && vehicles.length === 0 ? (
-                                        <tr><td colSpan="3" className="py-4 italic text-gray-400">Memuat data...</td></tr>
+                                        <tr><td colSpan="4" className="py-4 italic text-gray-400">Memuat data...</td></tr>
                                     ) : vehicles.length > 0 ? (
                                         vehicles.map((v, index) => (
                                             <tr key={v.id} className="border-b border-gray-200 last:border-0 hover:bg-gray-50 transition-colors">
                                                 <td className="py-4 text-gray-600 text-sm font-medium">{index + 1}</td>
                                                 <td className="py-4 text-gray-800 text-sm font-bold uppercase">{v.nopol}</td>
                                                 <td className="py-4">
+                                                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${
+                                                        v.penggunaan === 'digunakan' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                                                    }`}>
+                                                        {v.penggunaan === 'digunakan' ? 'Digunakan' : 'Belum Digunakan'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4">
                                                     <div className="flex justify-center space-x-4">
-                                                        {/* Icon Edit diaktifkan ke openEditModal */}
-                                                        <i onClick={() => openEditModal(v)} className="far fa-edit text-xl text-gray-700 cursor-pointer hover:text-blue-600 transition-colors"></i>
-                                                        <i onClick={() => confirmDelete(v.id)} className="far fa-trash-alt text-xl text-red-500 cursor-pointer hover:text-red-700 transition-colors"></i>
+                                                        <i 
+                                                            onClick={() => openEditModal(v)} 
+                                                            className="far fa-edit text-xl text-gray-700 cursor-pointer hover:text-blue-600 transition-colors"
+                                                        ></i>
+                                                        <i 
+                                                            onClick={() => v.penggunaan !== 'digunakan' && confirmDelete(v.id)} 
+                                                            className={`far fa-trash-alt text-xl transition-colors ${
+                                                                v.penggunaan === 'digunakan' 
+                                                                    ? 'text-gray-300 cursor-not-allowed' 
+                                                                    : 'text-red-500 cursor-pointer hover:text-red-700'
+                                                            }`}
+                                                            title={v.penggunaan === 'digunakan' ? 'Kendaraan sedang digunakan, tidak bisa dihapus' : 'Hapus kendaraan'}
+                                                        ></i>
                                                     </div>
                                                 </td>
                                             </tr>
                                         ))
                                     ) : (
-                                        <tr><td colSpan="3" className="py-10 text-gray-400">Belum ada kendaraan terdaftar.</td></tr>
+                                        <tr><td colSpan="4" className="py-10 text-gray-400">Belum ada kendaraan terdaftar.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -201,7 +262,7 @@ const VehicleDetail = () => {
             {/* MODAL INPUT NOPOL */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-2xl shadow-2xl relative animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-2xl shadow-2xl relative">
                         <h3 className="text-3xl font-black text-red-600 text-center mb-8 uppercase tracking-tighter">
                             Tambah Daftar Nopol
                         </h3>
@@ -234,7 +295,7 @@ const VehicleDetail = () => {
                                 ) : (
                                     <div className="flex flex-col space-y-2">
                                         {tempNopolList.map((n, idx) => (
-                                            <div key={idx} className="bg-white flex justify-between items-center px-5 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 uppercase shadow-sm animate-in fade-in slide-in-from-bottom-1">
+                                            <div key={idx} className="bg-white flex justify-between items-center px-5 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 uppercase shadow-sm">
                                                 <div className="flex items-center">
                                                     <span className="bg-red-50 text-red-600 w-6 h-6 rounded-full flex items-center justify-center text-[10px] mr-3 font-black">{idx + 1}</span>
                                                     {n}
@@ -266,64 +327,63 @@ const VehicleDetail = () => {
                 </div>
             )}
 
-            {/* --- MODAL EDIT NOPOL (Sesuai Desain Gambar 130f49.png) --- */}
-{isEditModalOpen && (
-    <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative animate-in fade-in zoom-in duration-300">
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-gray-800">Edit NOPOL</h3>
-                <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                    <i className="fas fa-times text-xl"></i>
-                </button>
-            </div>
-            
-            <form onSubmit={handleUpdateNopol} className="space-y-6">
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">NOPOL Lama</label>
-                    <input 
-                        type="text" 
-                        disabled 
-                        className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl font-bold text-gray-500 uppercase cursor-not-allowed" 
-                        value={editData.oldNopol} 
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">NOPOL Baru</label>
-                    <input 
-                        type="text" 
-                        required
-                        placeholder="Input Nopol Baru..."
-                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl font-bold text-gray-800 uppercase focus:ring-2 focus:ring-red-500 outline-none transition-all" 
-                        value={editData.newNopol} 
-                        onChange={(e) => setEditData({...editData, newNopol: e.target.value})}
-                    />
-                </div>
+            {/* MODAL EDIT NOPOL */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-gray-800">Edit NOPOL</h3>
+                            <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <i className="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleUpdateNopol} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">NOPOL Lama</label>
+                                <input 
+                                    type="text" 
+                                    disabled 
+                                    className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl font-bold text-gray-500 uppercase cursor-not-allowed" 
+                                    value={editData.oldNopol} 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">NOPOL Baru</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    placeholder="Input Nopol Baru..."
+                                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl font-bold text-gray-800 uppercase focus:ring-2 focus:ring-red-500 outline-none transition-all" 
+                                    value={editData.newNopol} 
+                                    onChange={(e) => setEditData({...editData, newNopol: e.target.value})}
+                                />
+                            </div>
 
-                <div className="flex justify-end space-x-3 pt-4">
-                    <button 
-                        type="button"
-                        onClick={() => setIsEditModalOpen(false)}
-                        className="px-6 py-2.5 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                        Batal
-                    </button>
-                    <button 
-                        type="submit"
-                        // Tombol dinonaktifkan jika input kosong atau hanya spasi
-                        disabled={!editData.newNopol.trim()} 
-                        className={`px-8 py-2.5 rounded-xl font-bold text-white transition-all shadow-lg ${
-                            !editData.newNopol.trim() 
-                            ? 'bg-gray-300 cursor-not-allowed shadow-none' 
-                            : 'bg-red-600 hover:bg-red-700 shadow-red-200'
-                        }`}
-                    >
-                        Simpan
-                    </button>
+                            <div className="flex justify-end space-x-3 pt-4">
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsEditModalOpen(false)}
+                                    className="px-6 py-2.5 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                    Batal
+                                </button>
+                                <button 
+                                    type="submit"
+                                    disabled={!editData.newNopol.trim()} 
+                                    className={`px-8 py-2.5 rounded-xl font-bold text-white transition-all shadow-lg ${
+                                        !editData.newNopol.trim() 
+                                        ? 'bg-gray-300 cursor-not-allowed shadow-none' 
+                                        : 'bg-red-600 hover:bg-red-700 shadow-red-200'
+                                    }`}
+                                >
+                                    Simpan
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            </form>
-        </div>
-    </div>
-)}
+            )}
 
             {/* SUCCESS POPUP */}
             {isSuccessModalOpen && (
@@ -343,7 +403,7 @@ const VehicleDetail = () => {
             {/* MODAL KONFIRMASI DELETE */}
             {isDeleteModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl flex flex-col items-center text-center animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl flex flex-col items-center text-center">
                         <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
                             <i className="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
                         </div>
