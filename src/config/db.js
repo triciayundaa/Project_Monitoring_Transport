@@ -7,17 +7,14 @@ const db = mysql.createPool({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    
-    // --- DARI HEAD (Agar koneksi aman di port 3307) ---
-    port: process.env.DB_PORT || 3306, 
-
+    port: process.env.DB_PORT,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-
-    // --- DARI FATHIYA (Agar Tanggal Jadwal tidak Error/Bergeser) ---
+    
+    // TAMBAHKAN BARIS INI! 
     // Ini memaksa MySQL mengembalikan tanggal sebagai string "YYYY-MM-DD"
-    // Bukan sebagai objek Date yang rawan kena konversi zona waktu.
+    // Bukan sebagai objek Date yang rawan bergeser waktu.
     dateStrings: true 
 });
 
