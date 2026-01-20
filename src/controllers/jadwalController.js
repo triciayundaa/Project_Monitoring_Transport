@@ -41,7 +41,7 @@ const getJadwalByMonth = async (req, res) => {
 };
 
 // ==========================================
-// 3. GENERATE JADWAL (POLA LAMA + NAMA DINAMIS)
+// 3. GENERATE JADWAL (POLA ROTASI 4 FORMATION SETIAP 2 HARI)
 // ==========================================
 const generateJadwalMonth = async (req, res) => {
     const month = req.query.month || (req.body && req.body.month);
@@ -51,7 +51,6 @@ const generateJadwalMonth = async (req, res) => {
     
     try {
         // 1. Ambil Nama Personil dari Database (Dinamis)
-        // Disortir agar urutannya konsisten (Misal A, B, C, D)
         const [users] = await db.query("SELECT nama FROM users WHERE role = 'personil' ORDER BY nama ASC");
         
         if (users.length === 0) {
@@ -59,40 +58,48 @@ const generateJadwalMonth = async (req, res) => {
         }
 
         const personilNames = users.map(u => u.nama); 
-        // Contoh hasil: ['Adit', 'Budi', 'Caca', 'Dedi'] menggantikan ['Personil A', 'Personil B'...]
+        // Contoh: ['Adit', 'Budi', 'Caca', 'Dedi'] -> [A, B, C, D]
 
-        // Pastikan minimal ada 4 personil untuk mengisi 4 slot (S1, S2, S3, Libur)
-        // Jika kurang, isi null agar tidak error array index
+        // Pastikan minimal ada 4 personil untuk mengisi 4 slot
         while(personilNames.length < 4) personilNames.push(null);
 
-        // 2. Buat Grup Rotasi Sesuai Pola Lama
-        // Pola Lama:
-        // Group A: [P1, P2, P3, P4]
-        // Group B: [P2, P3, P4, P1] (Geser 1)
-        
-        const groupA = [personilNames[0], personilNames[1], personilNames[2], personilNames[3]];
-        const groupB = [personilNames[1], personilNames[2], personilNames[3], personilNames[0]];
+        // Ambil 4 orang pertama untuk rotasi
+        const p1 = personilNames[0]; // A
+        const p2 = personilNames[1]; // B
+        const p3 = personilNames[2]; // C
+        const p4 = personilNames[3]; // D
+
+        // 2. Definisikan 4 Pola Formasi (Rotasi ke Kanan)
+        const patterns = [
+            [p1, p2, p3, p4], // Pola 0: A, B, C, D (Hari 1-2)
+            [p4, p1, p2, p3], // Pola 1: D, A, B, C (Hari 3-4)
+            [p3, p4, p1, p2], // Pola 2: C, D, A, B (Hari 5-6)
+            [p2, p3, p4, p1]  // Pola 3: B, C, D, A (Hari 7-8)
+        ];
 
         const result = [];
         const totalDays = getDaysInMonth(year, mon);
         
-        // 3. Loop Hari dengan Logika Lama (2 Hari Ganti Formasi)
+        // 3. Loop Hari
         for (let day = 1; day <= totalDays; day++) {
             const dateKey = `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             
-            const dayIndex = day - 1; 
+            // LOGIKA PENENTUAN POLA:
+            // (day - 1) / 2 di-floor -> Akan menghasilkan angka yang sama setiap 2 hari.
+            // Contoh: 
+            // Hari 1 (0/2 = 0), Hari 2 (1/2 = 0) -> Index 0
+            // Hari 3 (2/2 = 1), Hari 4 (3/2 = 1) -> Index 1
+            // ...
+            // % 4 digunakan agar setelah Index 3 kembali lagi ke 0.
+            const patternIndex = Math.floor((day - 1) / 2) % 4;
             
-            // LOGIKA LAMA YANG DIKEMBALIKAN:
-            // (Math.floor(dayIndex / 2) % 2 === 0) 
-            // Artinya: Hari 1-2 (Grup A), Hari 3-4 (Grup B), Hari 5-6 (Grup A), dst.
-            const slot = (Math.floor(dayIndex / 2) % 2 === 0) ? groupA : groupB;
-            
-            // Clone array slot agar aman
-            result.push({ tanggal: dateKey, slots: [...slot] });
+            const currentSlot = patterns[patternIndex];
+
+            result.push({ tanggal: dateKey, slots: [...currentSlot] });
         }
         
         if (result.length > 0) {
-            // Hapus data lama
+            // Hapus data lama bulan ini
             await db.query(`DELETE FROM jadwal_shift WHERE YEAR(tanggal)=? AND MONTH(tanggal)=?`, [year, mon]);
             
             // Insert data baru

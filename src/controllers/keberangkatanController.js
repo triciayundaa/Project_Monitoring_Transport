@@ -7,14 +7,36 @@ const SHIFT_RULES = {
 };
 
 // --- Helper: Deteksi Shift User ---
+// UPDATE: Logika baru untuk menangani double shift (Lembur)
 const detectUserShift = (jadwalRow, namaPersonil) => {
     // Normalisasi string (hapus spasi depan/belakang)
     const nama = namaPersonil.trim().toLowerCase();
     
+    // Cek jam sekarang
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    // 1. Cek apakah user ada di Shift yang SEDANG BERJALAN saat ini?
+    // Shift 1 (07-15)
+    if (currentHour >= 7 && currentHour < 15) {
+        if (jadwalRow.shift1?.trim().toLowerCase() === nama) return 'Shift 1';
+    }
+    // Shift 2 (15-23)
+    else if (currentHour >= 15 && currentHour < 23) {
+        if (jadwalRow.shift2?.trim().toLowerCase() === nama) return 'Shift 2';
+    }
+    // Shift 3 (23-07)
+    else {
+        if (jadwalRow.shift3?.trim().toLowerCase() === nama) return 'Shift 3';
+    }
+
+    // 2. Jika tidak ada di shift yang sedang berjalan, kembalikan shift apapun yang dia punya hari ini
+    // (Fallback agar label di header tetap muncul, meski jamnya belum/sudah lewat)
     if (jadwalRow.shift1?.trim().toLowerCase() === nama) return 'Shift 1';
     if (jadwalRow.shift2?.trim().toLowerCase() === nama) return 'Shift 2';
     if (jadwalRow.shift3?.trim().toLowerCase() === nama) return 'Shift 3';
     if (jadwalRow.libur?.trim().toLowerCase() === nama) return 'Libur';
+    
     return null; // Tidak ada jadwal
 };
 
@@ -33,6 +55,7 @@ const cekStatusShiftUser = async (req, res) => {
         
         if (jadwal.length === 0) return res.json({ shift: 'Belum Diatur', status: 'No Data' });
 
+        // Panggil helper function yang sudah diperbarui logikanya
         const userShift = detectUserShift(jadwal[0], namaPersonil);
 
         res.json({
@@ -80,7 +103,7 @@ const simpanKeberangkatan = async (req, res) => {
         const [jadwalHarian] = await db.query('SELECT * FROM jadwal_shift WHERE tanggal = ?', [tanggal]);
         if (jadwalHarian.length === 0) return res.status(403).json({ status: 'Error', message: 'Jadwal tanggal ini belum tersedia.' });
 
-        // C. Deteksi Shift
+        // C. Deteksi Shift (Gunakan logika baru yang sama)
         const userShiftName = detectUserShift(jadwalHarian[0], namaPersonil);
 
         if (!userShiftName) return res.status(403).json({ status: 'Error', message: `Nama Anda (${namaPersonil}) tidak terdaftar di jadwal hari ini.` });
