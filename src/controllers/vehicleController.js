@@ -221,3 +221,18 @@ exports.getTransportersByPo = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// 0. GET ALL VEHICLES (UNTUK AUTOCOMPLETE)
+exports.getAllVehicles = async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT id, plat_nomor 
+      FROM kendaraan
+      ORDER BY plat_nomor
+    `);
+
+    res.json(rows);
+  } catch (error) {
+    console.error("getAllVehicles ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+};

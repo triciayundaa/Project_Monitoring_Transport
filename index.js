@@ -40,6 +40,7 @@ app.use('/api/laporan', laporanRoutes); // Pastikan route ini ada jika Anda puny
 // 3. Keberangkatan & Jadwal
 app.use('/api/keberangkatan', keberangkatanRoutes);
 app.use('/api/jadwal', jadwalRoutes);
+app.use('/api/kendaraan', vehicleRoutes);
 
 
 // 4. Kegiatan (PO) - Fitur Olivia
