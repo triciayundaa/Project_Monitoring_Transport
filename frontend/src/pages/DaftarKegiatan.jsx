@@ -1,11 +1,83 @@
 import React, { useEffect, useState } from 'react';
-import { Eye, Edit, Trash2, Plus, Search } from 'lucide-react';
+import { Eye, Edit, Trash2, Plus, Search, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import TambahKegiatan from './TambahKegiatan';
 import { useNavigate } from 'react-router-dom';
 
 const API = 'http://localhost:3000/api/kegiatan';
+
+// Modern Modal Component
+const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
+    if (!isOpen) return null;
+
+    const icons = {
+        success: <CheckCircle className="w-24 h-24 text-green-600" />,
+        error: <XCircle className="w-24 h-24 text-red-600" />,
+        warning: <AlertCircle className="w-24 h-24 text-yellow-600" />
+    };
+
+    const bgColors = {
+        success: 'bg-green-50',
+        error: 'bg-red-50',
+        warning: 'bg-yellow-50'
+    };
+
+    const textColors = {
+        success: 'text-green-600',
+        error: 'text-red-600',
+        warning: 'text-yellow-600'
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-[2.5rem] p-12 w-full max-w-lg shadow-2xl flex flex-col items-center text-center animate-in zoom-in duration-300">
+                <div className={`w-48 h-48 ${bgColors[type]} rounded-full flex items-center justify-center mb-8 shadow-inner`}>
+                    {icons[type]}
+                </div>
+                <h2 className="text-2xl font-black text-gray-800 uppercase mb-2 tracking-tight">{title}</h2>
+                <p className={`${textColors[type]} font-semibold text-lg mb-6`}>{message}</p>
+                <button 
+                    onClick={onClose}
+                    className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 uppercase tracking-wider"
+                >
+                    OK
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// Confirm Modal
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-[2.5rem] p-12 w-full max-w-lg shadow-2xl flex flex-col items-center text-center animate-in zoom-in duration-300">
+                <div className="w-48 h-48 bg-yellow-50 rounded-full flex items-center justify-center mb-8 shadow-inner">
+                    <AlertCircle className="w-24 h-24 text-yellow-600" />
+                </div>
+                <h2 className="text-2xl font-black text-gray-800 uppercase mb-2 tracking-tight">{title}</h2>
+                <p className="text-gray-600 font-medium text-lg mb-8">{message}</p>
+                <div className="flex gap-4 w-full">
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 uppercase tracking-wider"
+                    >
+                        Batal
+                    </button>
+                    <button 
+                        onClick={onConfirm}
+                        className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 uppercase tracking-wider"
+                    >
+                        Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const getStatusColor = (status) => {
     if (!status) return 'bg-gray-100 text-gray-700';
@@ -39,13 +111,32 @@ const DaftarKegiatan = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const navigate = useNavigate();
+    
+    // Modal states
+    const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+
+    const showModal = (type, title, message) => {
+        setModal({ isOpen: true, type, title, message });
+    };
+
+    const closeModal = () => {
+        setModal({ isOpen: false, type: 'success', title: '', message: '' });
+    };
+
+    const showConfirm = (title, message, onConfirm) => {
+        setConfirmModal({ isOpen: true, title, message, onConfirm });
+    };
+
+    const closeConfirm = () => {
+        setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null });
+    };
 
     const loadData = async () => {
         try {
             const res = await fetch(API);
             const json = await res.json();
             
-            // Transform data untuk menyesuaikan dengan format yang diharapkan
             const transformedData = json.map(item => ({
                 ...item,
                 realisasi_truk: item.total_truk || 0,
@@ -57,6 +148,7 @@ const DaftarKegiatan = () => {
             setFilteredData(transformedData);
         } catch (err) {
             console.error('Gagal mengambil data kegiatan', err);
+            showModal('error', 'Gagal Memuat Data', 'Tidak dapat mengambil data kegiatan dari server');
         }
     };
 
@@ -105,43 +197,86 @@ const DaftarKegiatan = () => {
         try {
             const detailRes = await fetch(`${API}/${no_po}`);
             if (!detailRes.ok) {
-                alert('Gagal memeriksa status kegiatan sebelum menghapus');
+                showModal('error', 'Gagal Memeriksa', 'Gagal memeriksa status kegiatan sebelum menghapus');
                 return;
             }
             const detailJson = await detailRes.json();
             
-            // Cek total truk dari statistik
             const totalTruk = detailJson.statistik?.total_truk || 0;
-            
-            // Cek status transporter dari array transporters
             const hasRunning = detailJson.transporters?.some(t => 
                 t.status === 'On Progress' || t.status === 'Completed'
             );
 
             if (hasRunning) {
-                alert('Kegiatan ini memiliki transporter yang sedang berjalan (On Progress/Completed) dan tidak dapat dihapus.');
+                showModal('warning', 'Tidak Dapat Dihapus', 'Kegiatan ini memiliki transporter yang sedang berjalan (On Progress/Completed)');
                 return;
             }
 
             if (Number(totalTruk) > 0) {
-                alert(`Kegiatan ini sudah memiliki ${totalTruk} truk yang masuk dan tidak dapat dihapus.`);
+                showModal('warning', 'Tidak Dapat Dihapus', `Kegiatan ini sudah memiliki ${totalTruk} truk yang masuk`);
                 return;
             }
 
-            if (!confirm(`Hapus kegiatan ${no_po}?`)) return;
+            showConfirm(
+                'Konfirmasi Hapus',
+                `Apakah Anda yakin ingin menghapus kegiatan ${no_po}?`,
+                async () => {
+                    try {
+                        const delRes = await fetch(`${API}/${no_po}`, { method: 'DELETE' });
+                        if (!delRes.ok) {
+                            const text = await delRes.text();
+                            showModal('error', 'Gagal Menghapus', text);
+                            return;
+                        }
+                        
+                        showModal('success', 'Berhasil Dihapus', 'Kegiatan berhasil dihapus dari sistem');
+                        await loadData();
+                        closeConfirm();
+                    } catch (err) {
+                        console.error(err);
+                        showModal('error', 'Terjadi Kesalahan', 'Gagal menghapus kegiatan dari server');
+                    }
+                }
+            );
 
-            const delRes = await fetch(`${API}/${no_po}`, { method: 'DELETE' });
-            if (!delRes.ok) {
-                const text = await delRes.text();
-                alert('Gagal menghapus kegiatan: ' + text);
-                return;
-            }
-            
-            alert('Kegiatan berhasil dihapus');
-            await loadData();
         } catch (err) {
             console.error(err);
-            alert('Terjadi kesalahan saat menghapus kegiatan');
+            showModal('error', 'Terjadi Kesalahan', 'Terjadi kesalahan saat menghapus kegiatan');
+        }
+    };
+
+    const handleEdit = async (item) => {
+        try {
+            const detailRes = await fetch(`${API}/${item.no_po}`);
+            if (!detailRes.ok) {
+                showModal('error', 'Gagal Memuat', 'Gagal mengambil detail kegiatan');
+                return;
+            }
+            const detailJson = await detailRes.json();
+            
+            let earliestTruckDate = null;
+            if (detailJson.truk && detailJson.truk.length > 0) {
+                const dates = detailJson.truk.map(t => new Date(t.tanggal));
+                earliestTruckDate = new Date(Math.min(...dates));
+            }
+
+            const transportersMetadata = detailJson.transporters.map(t => ({
+                kegiatan_transporter_id: t.kegiatan_transporter_id,
+                nama: t.nama_transporter,
+                status: t.status,
+                jumlah_truk: t.jumlah_truk
+            }));
+
+            setSelected({
+                ...item,
+                earliestTruckDate: earliestTruckDate,
+                transporterCount: item.transporters?.length || 0,
+                transportersMetadata: transportersMetadata
+            });
+            setOpenEdit(true);
+        } catch (err) {
+            console.error(err);
+            showModal('error', 'Terjadi Kesalahan', 'Gagal memuat data untuk edit');
         }
     };
 
@@ -149,6 +284,22 @@ const DaftarKegiatan = () => {
 
     return (
         <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
+            <Modal 
+                isOpen={modal.isOpen}
+                onClose={closeModal}
+                type={modal.type}
+                title={modal.title}
+                message={modal.message}
+            />
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={closeConfirm}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+            />
+
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
             <div className="flex-1 flex flex-col min-w-0">
@@ -247,9 +398,6 @@ const DaftarKegiatan = () => {
                                 ) : (
                                     filteredData.map((item, index) => {
                                         const transporterCount = item.transporters?.length || 0;
-                                        const hasRunning = item.statuses?.some(s => 
-                                            s === 'On Progress' || s === 'Completed'
-                                        );
                                         
                                         return (
                                             <React.Fragment key={item.no_po}>
@@ -310,33 +458,26 @@ const DaftarKegiatan = () => {
                                                                             </button>
                                                                             
                                                                             <button
-                                                                                onClick={() => {
-                                                                                    setSelected({
-                                                                                        ...item,
-                                                                                        hasRunningTransporter: hasRunning
-                                                                                    });
-                                                                                    setOpenEdit(true);
-                                                                                }}
-                                                                                disabled={hasRunning}
-                                                                                className={`p-2 rounded transition-colors ${
-                                                                                    hasRunning
-                                                                                        ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                                                                                        : 'hover:bg-blue-100 text-blue-600'
-                                                                                }`}
-                                                                                title={hasRunning ? 'Ada transporter yang sedang berjalan, tidak bisa diedit' : 'Edit kegiatan'}
+                                                                                onClick={() => handleEdit(item)}
+                                                                                className="p-2 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                                                                                title="Edit kegiatan"
                                                                             >
                                                                                 <Edit size={16} />
                                                                             </button>
 
                                                                             <button
                                                                                 onClick={() => handleDelete(item.no_po)}
-                                                                                disabled={hasRunning}
+                                                                                disabled={item.realisasi_truk > 0}
                                                                                 className={`p-2 rounded transition-colors ${
-                                                                                    hasRunning
-                                                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                                                    item.realisasi_truk > 0
+                                                                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                                                                         : 'hover:bg-red-100 text-red-600'
                                                                                 }`}
-                                                                                title={hasRunning ? 'Tidak dapat dihapus' : 'Hapus kegiatan'}
+                                                                                title={
+                                                                                    item.realisasi_truk > 0 
+                                                                                        ? `Tidak dapat dihapus (${item.realisasi_truk} truk sudah masuk)` 
+                                                                                        : 'Hapus kegiatan'
+                                                                                }
                                                                             >
                                                                                 <Trash2 size={16} />
                                                                             </button>
@@ -375,21 +516,30 @@ const DaftarKegiatan = () => {
                                                                 <button
                                                                     className="p-2 rounded hover:bg-gray-200"
                                                                     onClick={() => navigate(`/manajemen-kegiatan/detail/${item.no_po}`)}
+                                                                    title="Lihat detail"
                                                                 >
                                                                     <Eye size={16} />
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => {
-                                                                        setSelected(item);
-                                                                        setOpenEdit(true);
-                                                                    }}
+                                                                    onClick={() => handleEdit(item)}
                                                                     className="p-2 rounded hover:bg-blue-100 text-blue-600"
+                                                                    title="Edit kegiatan"
                                                                 >
                                                                     <Edit size={16} />
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleDelete(item.no_po)}
-                                                                    className="p-2 rounded hover:bg-red-100 text-red-600"
+                                                                    disabled={item.realisasi_truk > 0}
+                                                                    className={`p-2 rounded transition-colors ${
+                                                                        item.realisasi_truk > 0
+                                                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                                            : 'hover:bg-red-100 text-red-600'
+                                                                    }`}
+                                                                    title={
+                                                                        item.realisasi_truk > 0 
+                                                                            ? `Tidak dapat dihapus (${item.realisasi_truk} truk sudah masuk)` 
+                                                                            : 'Hapus kegiatan'
+                                                                    }
                                                                 >
                                                                     <Trash2 size={16} />
                                                                 </button>

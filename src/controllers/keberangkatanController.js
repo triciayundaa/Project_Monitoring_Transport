@@ -157,7 +157,6 @@ const simpanKeberangkatan = async (req, res) => {
     }
 };
 
-// ... (Sisa fungsi getKeberangkatanByDate, hapus, verifikasi, updateTruk TETAP SAMA, tidak perlu diubah) ...
 const getKeberangkatanByDate = async (req, res) => {
     const { tanggal, email_user } = req.query;
     console.log("📥 GET DATA - tanggal:", tanggal, "email_user:", email_user);
@@ -201,8 +200,74 @@ const verifikasiKeberangkatan = async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
+// 7. UPDATE TRUK - PERBAIKAN LENGKAP
+// 7. UPDATE TRUK - STRICT MODE (Tidak Auto-Create)
 const updateTruk = async (req, res) => {
-    res.status(501).json({message: "Fitur update belum disesuaikan"});
+    const { id } = req.params;
+    const { nopol, nama_personil, no_seri_pengantar, keterangan, status } = req.body;
+
+    console.log('📝 UPDATE TRUK REQUEST:', { id, body: req.body });
+
+    try {
+        // Validasi input dasar
+        if (!nopol || !nama_personil) {
+            return res.status(400).json({ message: 'Plat nomor dan nama personil harus diisi' });
+        }
+
+        // 1. 🔥 STRICT CHECK: Cari Kendaraan (JANGAN BUAT BARU)
+        const [existingKendaraan] = await db.query(
+            'SELECT id FROM kendaraan WHERE plat_nomor = ?',
+            [nopol]
+        );
+
+        if (existingKendaraan.length === 0) {
+            // Tolak jika nopol tidak ada di database
+            console.log('❌ Validasi Backend Gagal: Nopol tidak terdaftar');
+            return res.status(400).json({ 
+                message: 'Nomor Polisi tidak terdaftar di sistem master kendaraan.' 
+            });
+        }
+        
+        const kendaraanId = existingKendaraan[0].id;
+
+        // 2. Ambil data keberangkatan lama
+        const [trukData] = await db.query(
+            'SELECT email_user FROM keberangkatan_truk WHERE id = ?',
+            [id]
+        );
+
+        if (trukData.length === 0) {
+            return res.status(404).json({ message: 'Data keberangkatan tidak ditemukan' });
+        }
+
+        const finalKeterangan = keterangan || '';
+
+        // 4. Update Database
+        const [updateTrukResult] = await db.query(
+            `UPDATE keberangkatan_truk 
+             SET kendaraan_id = ?, 
+                 no_seri_pengantar = ?, 
+                 keterangan = ?, 
+                 status = ? 
+             WHERE id = ?`,
+            [kendaraanId, no_seri_pengantar || '', finalKeterangan, status, id]
+        );
+
+        if (updateTrukResult.affectedRows === 0) {
+            return res.status(404).json({ message: 'Gagal update, data tidak ditemukan.' });
+        }
+
+        console.log('Data truk ID', id, 'berhasil diperbarui');
+        
+        return res.status(200).json({ 
+            message: 'Data berhasil diperbarui',
+            data: { id, nopol, nama_personil, status }
+        });
+
+    } catch (error) {
+        console.error('❌ UPDATE TRUK ERROR:', error);
+        return res.status(500).json({ message: error.message });
+    }
 };
 
 module.exports = {

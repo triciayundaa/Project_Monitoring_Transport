@@ -1,9 +1,87 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Truck, CheckCircle, XCircle, Search } from 'lucide-react';
+import { ArrowLeft, Truck, CheckCircle, XCircle, Search, AlertCircle } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 
 const API = 'http://localhost:3000/api/kegiatan';
+
+// ==========================================
+// 1. KOMPONEN MODAL & CONFIRM
+// ==========================================
+
+const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
+  if (!isOpen) return null;
+
+  const icons = {
+    success: <CheckCircle className="w-24 h-24 text-green-600" />,
+    error: <XCircle className="w-24 h-24 text-red-600" />,
+    warning: <AlertCircle className="w-24 h-24 text-yellow-600" />
+  };
+
+  const bgColors = {
+    success: 'bg-green-50',
+    error: 'bg-red-50',
+    warning: 'bg-yellow-50'
+  };
+
+  const textColors = {
+    success: 'text-green-600',
+    error: 'text-red-600',
+    warning: 'text-yellow-600'
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2.5rem] p-12 w-full max-w-lg shadow-2xl flex flex-col items-center text-center animate-in zoom-in duration-300">
+        <div className={`w-48 h-48 ${bgColors[type]} rounded-full flex items-center justify-center mb-8 shadow-inner`}>
+          {icons[type]}
+        </div>
+        <h2 className="text-2xl font-black text-gray-800 uppercase mb-2 tracking-tight">{title}</h2>
+        <p className={`${textColors[type]} font-semibold text-lg mb-6`}>{message}</p>
+        <button 
+          onClick={onClose}
+          className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 uppercase tracking-wider"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2.5rem] p-12 w-full max-w-lg shadow-2xl flex flex-col items-center text-center animate-in zoom-in duration-300">
+        <div className="w-48 h-48 bg-yellow-50 rounded-full flex items-center justify-center mb-8 shadow-inner">
+          <AlertCircle className="w-24 h-24 text-yellow-600" />
+        </div>
+        <h2 className="text-2xl font-black text-gray-800 uppercase mb-2 tracking-tight">{title}</h2>
+        <p className="text-gray-600 font-medium text-lg mb-8">{message}</p>
+        <div className="flex gap-4 w-full">
+          <button 
+            onClick={onClose}
+            className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 uppercase tracking-wider"
+          >
+            Batal
+          </button>
+          <button 
+            onClick={onConfirm}
+            className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 uppercase tracking-wider"
+          >
+            Ya, Lanjutkan
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 2. MAIN COMPONENT
+// ==========================================
 
 const DetailKegiatan = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -26,6 +104,28 @@ const DetailKegiatan = () => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(window.innerWidth <= 640);
 
+  // --- STATE UNTUK MODAL ---
+  const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+
+  // --- HELPER MODAL ---
+  const showModal = (type, title, message) => {
+    setModal({ isOpen: true, type, title, message });
+  };
+
+  const closeModal = () => {
+    setModal({ isOpen: false, type: 'success', title: '', message: '' });
+  };
+
+  const showConfirm = (title, message, onConfirm) => {
+    setConfirmModal({ isOpen: true, title, message, onConfirm });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null });
+  };
+
+  // --- RESIZE HANDLERS ---
   useEffect(() => {
     const onResize = () => setIsSmallScreen(window.innerWidth <= 640);
     window.addEventListener('resize', onResize);
@@ -96,6 +196,7 @@ const DetailKegiatan = () => {
     if (!modalSize.isMax) setModalPos({ x: 20, y: 20 });
   };
 
+  // --- DATA FETCHING ---
   const no_po = window.location.pathname.split('/').pop();
 
   const fetchDetail = async () => {
@@ -103,16 +204,27 @@ const DetailKegiatan = () => {
       setLoading(true);
       const res = await fetch(`${API}/${no_po}`);
       const json = await res.json();
+      console.log('📦 Data fetched:', json);
       setData(json);
       setFilteredTruk(json.truk || []);
     } catch (err) {
       console.error(err);
+      showModal('error', 'Gagal Memuat', 'Tidak dapat mengambil detail kegiatan.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { fetchDetail(); }, [no_po]);
+
+  // ==========================================
+  // 🔥 FIX UTAMA: OTOMATIS PILIH TRANSPORTER JIKA HANYA 1
+  // ==========================================
+  useEffect(() => {
+    if (data?.transporters?.length === 1) {
+      setSelectedTransporter(data.transporters[0].nama_transporter);
+    }
+  }, [data]);
 
   useEffect(() => {
     const fetchDropdownData = async () => {
@@ -136,19 +248,11 @@ const DetailKegiatan = () => {
   const hasMultipleTransporters = transporterList.length > 1;
 
   const computedStatistik = () => {
-    if (!data?.truk) return {
-      total_truk: 0,
-      belum_terverifikasi: 0,
-      terverifikasi: 0,
-      tidak_valid: 0
-    };
-
+    if (!data?.truk) return { total_truk: 0, belum_terverifikasi: 0, terverifikasi: 0, tidak_valid: 0 };
     let truksToCount = data.truk;
-
     if (selectedTransporter !== 'Semua Transporter') {
       truksToCount = data.truk.filter(t => t.nama_transporter === selectedTransporter);
     }
-
     return {
       total_truk: truksToCount.length,
       belum_terverifikasi: truksToCount.filter(t => !t.status || t.status === 'Waiting').length,
@@ -158,19 +262,20 @@ const DetailKegiatan = () => {
   };
 
   const computedStatus = () => {
-    if (!data) return 'Waiting';
-    
+    if (!data) return null;
     if (selectedTransporter === 'Semua Transporter') {
-      const hasAnyTruck = data.truk && data.truk.length > 0;
-      return hasAnyTruck ? 'On Progress' : 'Waiting';
+      return null;
     } else {
-      const truksInTransporter = (data.truk || []).filter(t => t.nama_transporter === selectedTransporter);
-      return truksInTransporter.length > 0 ? 'On Progress' : 'Waiting';
+      const transporterData = transporterList.find(t => t.nama_transporter === selectedTransporter);
+      return transporterData?.status || 'Waiting';
     }
   };
 
   const displayedTransporter = () => {
     if (!transporterList || transporterList.length === 0) return '-';
+    // Jika hanya 1 transporter, tampilkan namanya langsung meski dropdown hidden
+    if (transporterList.length === 1) return transporterList[0].nama_transporter;
+    
     if (selectedTransporter === 'Semua Transporter') {
       return transporterList.map(t => t.nama_transporter).join(', ');
     }
@@ -179,25 +284,18 @@ const DetailKegiatan = () => {
 
   useEffect(() => {
     if (!data?.truk) return;
-
     let temp = [...data.truk];
-
     if (selectedTransporter !== 'Semua Transporter') {
       temp = temp.filter(t => t.nama_transporter === selectedTransporter);
     }
-
     if (statusFilter !== 'Semua Shift') {
       temp = temp.filter(t => t.nama_shift === statusFilter);
     }
-
     if (selectedDate) {
       temp = temp.filter(t => {
-        try {
-          return new Date(t.created_at).toISOString().slice(0,10) === selectedDate;
-        } catch (e) { return false; }
+        try { return new Date(t.created_at).toISOString().slice(0,10) === selectedDate; } catch (e) { return false; }
       });
     }
-
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       temp = temp.filter(t =>
@@ -206,28 +304,17 @@ const DetailKegiatan = () => {
         (t.no_seri_pengantar || '').toLowerCase().includes(q)
       );
     }
-
     setFilteredTruk(temp);
   }, [searchQuery, statusFilter, selectedTransporter, data, selectedDate]);
 
   const formatDate = (date) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
+    return new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const formatDateTime = (date) => {
     if (!date) return '-';
-    return new Date(date).toLocaleString('id-ID', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return new Date(date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   const dataURLToBlob = (dataurl) => {
@@ -236,9 +323,7 @@ const DetailKegiatan = () => {
     const bstr = atob(arr[1]);
     let n = bstr.length;
     const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
+    while (n--) { u8arr[n] = bstr.charCodeAt(n); }
     return new Blob([u8arr], { type: mime });
   };
 
@@ -254,7 +339,6 @@ const DetailKegiatan = () => {
         if (!res.ok) throw new Error('Gagal mengambil file');
         blob = await res.blob();
       }
-
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       const baseName = selectedImage.type === 'foto_truk' ? (selectedImage.nopol || 'foto') : (selectedImage.no_seri_pengantar || 'surat');
@@ -267,45 +351,79 @@ const DetailKegiatan = () => {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      alert('Tidak dapat mendownload gambar. Pastikan file tersedia.');
+      showModal('error', 'Gagal Download', 'Tidak dapat mendownload gambar. Pastikan file tersedia.');
     }
   };
 
+  // ========================================
+  // 🔧 HANDLE TOGGLE COMPLETE
+  // ========================================
   const handleToggleComplete = async () => {
     if (!data?.kegiatan) return;
-    const kegiatan = data.kegiatan;
-    const currentlyCompleted = kegiatan.status === 'Completed';
+
+    // Logic tambahan: Jika hanya 1 transporter, pastikan selectedTransporter terisi otomatis
+    const currentSelected = transporterList.length === 1 ? transporterList[0].nama_transporter : selectedTransporter;
+
+    if (currentSelected === 'Semua Transporter') {
+      showModal('warning', 'Pilih Transporter', "Silakan pilih salah satu transporter terlebih dahulu untuk mengubah status.");
+      return;
+    }
+
+    const transporterData = transporterList.find(t => t.nama_transporter === currentSelected);
+    
+    if (!transporterData) {
+      showModal('error', 'Data Tidak Ditemukan', `Data untuk transporter '${currentSelected}' tidak ditemukan.`);
+      return;
+    }
+
+    const currentStatus = transporterData.status;
     const statistik = computedStatistik();
     const totalTruk = statistik.total_truk;
-    const newStatus = currentlyCompleted ? (totalTruk > 0 ? 'On Progress' : 'Waiting') : 'Completed';
+    
+    const newStatus = currentStatus === 'Completed' 
+      ? (totalTruk > 0 ? 'On Progress' : 'Waiting') 
+      : 'Completed';
 
+    const confirmTitle = newStatus === 'Completed' ? 'Tandai Selesai?' : 'Batalkan Selesai?';
     const confirmMessage = newStatus === 'Completed'
-      ? `Tandai Bahwasannya Kegiatan dengan PO ${kegiatan.no_po} Telah Selesai?`
-      : `Batalkan penandaan kegiatan selesai untuk PO ${kegiatan.no_po}?`;
+      ? `Tandai transporter ${currentSelected} untuk PO ${kegiatan.no_po} telah selesai?`
+      : `Batalkan penandaan selesai untuk transporter ${currentSelected}?`;
 
-    if (!confirm(confirmMessage)) return;
+    showConfirm(confirmTitle, confirmMessage, async () => {
+      setIsUpdatingComplete(true);
+      closeConfirm();
 
-    setIsUpdatingComplete(true);
-    try {
-      const res = await fetch(`http://localhost:3000/api/kegiatan/${kegiatan.no_po}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        console.error('SET STATUS FAILED', res.status, text);
-        throw new Error(`Gagal mengubah status (${res.status}) ${text}`);
+      try {
+        console.log("📤 Mengirim Request ke Backend...");
+        
+        const res = await fetch('http://localhost:3000/api/kegiatan/update-transporter-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            no_po: kegiatan.no_po,
+            transporter_id: transporterData.kegiatan_transporter_id,
+            status: newStatus 
+          })
+        });
+
+        const textResponse = await res.text(); 
+        if (!res.ok) {
+          throw new Error(`Server Error (${res.status}): ${textResponse}`);
+        }
+
+        await fetchDetail(); 
+        showModal('success', 'Berhasil', 'Status berhasil diubah!');
+
+      } catch (err) {
+        console.error('❌ Error Detail:', err);
+        showModal('error', 'Gagal', err.message);
+      } finally {
+        setIsUpdatingComplete(false);
       }
-      await fetchDetail();
-    } catch (err) {
-      console.error(err);
-      alert(err.message || 'Gagal mengubah status kegiatan');
-    } finally {
-      setIsUpdatingComplete(false);
-    }
+    });
   };
 
+  // --- EDIT ROWS ---
   const handleEditRow = (truk) => {
     setEditingRow(truk.id);
     setEditFormData({
@@ -323,50 +441,59 @@ const DetailKegiatan = () => {
   };
 
   const handleSaveEdit = async (trukId) => {
-    if (!confirm('Simpan perubahan data truk ini?')) return;
-
-    try {
-      if (!editFormData.nopol || !editFormData.nama_personil) {
-        alert('Plat nomor dan nama personil harus diisi');
-        return;
-      }
-
-      console.log('Sending update request:', {
-        id: trukId,
-        data: editFormData
-      });
-
-      const res = await fetch(`http://localhost:3000/api/keberangkatan/${trukId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editFormData)
-      });
-
-      console.log('Response status:', res.status);
-      console.log('Response headers:', res.headers);
-
-      // Cek apakah response adalah JSON
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const textResponse = await res.text();
-        console.error('Received non-JSON response:', textResponse);
-        throw new Error('Server mengembalikan response yang tidak valid. Pastikan route API sudah benar.');
-      }
-
-      const responseData = await res.json();
-
-      if (!res.ok) {
-        throw new Error(responseData.message || `Server error: ${res.status}`);
-      }
-
-      await fetchDetail();
-      setEditingRow(null);
-      setEditFormData({});
-      alert('Data berhasil diperbarui');
-    } catch (err) {
-      console.error('Error detail:', err);
-      alert(err.message || 'Gagal menyimpan perubahan');
+    if (!editFormData.nopol || !editFormData.nama_personil) {
+      showModal('warning', 'Data Kurang', 'Plat nomor dan nama personil harus diisi');
+      return;
     }
+
+    const isValidPersonil = availableUsers.some(
+      user => user.nama.trim().toLowerCase() === editFormData.nama_personil.trim().toLowerCase()
+    );
+
+    if (!isValidPersonil) {
+      showModal('error', 'Personil Invalid', 'Nama Personil tidak valid! Harap pilih nama dari daftar yang tersedia.');
+      return;
+    }
+
+    const isValidNopol = availableKendaraan.some(
+      ken => ken.plat_nomor.trim().replace(/\s/g, '').toLowerCase() === editFormData.nopol.trim().replace(/\s/g, '').toLowerCase()
+    );
+
+    if (!isValidNopol) {
+      showModal('error', 'Nopol Invalid', 'Nomor Polisi tidak valid! Harap pilih nopol dari daftar yang tersedia.');
+      return;
+    }
+
+    showConfirm('Simpan Perubahan?', 'Apakah Anda yakin ingin menyimpan perubahan data truk ini?', async () => {
+      closeConfirm();
+      
+      try {
+        console.log('💾 Sending update request:', { id: trukId, data: editFormData });
+
+        const res = await fetch(`http://localhost:3000/api/keberangkatan/${trukId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editFormData)
+        });
+
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const textResponse = await res.text();
+          throw new Error('Server error response (bukan JSON).');
+        }
+
+        const responseData = await res.json();
+        if (!res.ok) throw new Error(responseData.message || `Server error: ${res.status}`);
+
+        await fetchDetail();
+        setEditingRow(null);
+        setEditFormData({});
+        showModal('success', 'Berhasil', 'Data berhasil diperbarui');
+      } catch (err) {
+        console.error('Error detail:', err);
+        showModal('error', 'Gagal Menyimpan', err.message || 'Gagal menyimpan perubahan');
+      }
+    });
   };
 
   if (loading) return <LoadingScreen isSidebarOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />;
@@ -378,6 +505,22 @@ const DetailKegiatan = () => {
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
+      <Modal 
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+      />
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={closeConfirm}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+      />
+
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
@@ -388,6 +531,7 @@ const DetailKegiatan = () => {
             <span className="font-medium">Kembali ke Daftar Kegiatan</span>
           </button>
 
+          {/* Dropdown hanya muncul jika > 1 transporter */}
           {hasMultipleTransporters && (
             <TransporterDropdown 
               transporterList={transporterList}
@@ -430,19 +574,22 @@ const DetailKegiatan = () => {
           />
 
           <div className="flex justify-end mt-4">
-            <button
-              onClick={handleToggleComplete}
-              disabled={!statistik.total_truk || kegiatan.status === 'Waiting' || isUpdatingComplete}
-              className={`px-4 py-2 rounded-lg disabled:opacity-60 ${
-                kegiatan.status === 'Completed'
-                  ? 'bg-gray-500 hover:bg-gray-600 text-white'
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-              }`}
-            >
-              {kegiatan.status === 'Completed'
-                ? 'Batalkan Kegiatan Selesai'
-                : 'Tandai Kegiatan Selesai'}
-            </button>
+            {/* BUTTON LOGIC: Muncul jika BUKAN 'Semua Transporter' (pilihan user) ATAU jika hanya ada 1 transporter (otomatis terpilih) */}
+            {(selectedTransporter !== 'Semua Transporter' || transporterList.length === 1) && (
+              <button
+                onClick={handleToggleComplete}
+                disabled={!statistik.total_truk || isUpdatingComplete}
+                className={`px-4 py-2 rounded-lg disabled:opacity-60 ${
+                  transporterList.find(t => t.nama_transporter === (transporterList.length === 1 ? transporterList[0].nama_transporter : selectedTransporter))?.status === 'Completed'
+                    ? 'bg-gray-500 hover:bg-gray-600 text-white'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+              >
+                {transporterList.find(t => t.nama_transporter === (transporterList.length === 1 ? transporterList[0].nama_transporter : selectedTransporter))?.status === 'Completed'
+                  ? 'Batalkan Kegiatan Selesai'
+                  : 'Tandai Kegiatan Selesai'}
+              </button>
+            )}
           </div>
 
         </div>
@@ -504,6 +651,7 @@ const DetailKegiatan = () => {
   );
 };
 
+// ... (LoadingScreen, NoDataScreen, HeaderPO, TransporterDropdown, StatistikCards, FilterBar, TrukTable, InfoRow, StatusPOBadge, StatCard, Th, Td components remain unchanged)
 const LoadingScreen = ({ isSidebarOpen, onToggle }) => (
   <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
     <Sidebar isOpen={isSidebarOpen} onClose={onToggle} />
@@ -542,7 +690,7 @@ const HeaderPO = ({ kegiatan, formatDate, displayedTransporter, computedStatus }
         <InfoRow label="Quantity" value={`${kegiatan.quantity} Ton`} />
         <InfoRow label="Vendor" value={kegiatan.vendor} />
         <InfoRow label="Nama Kapal" value={kegiatan.nama_kapal || '-'} />
-        <InfoRow label="Status" value={<StatusPOBadge status={computedStatus} />} />
+        {computedStatus && <InfoRow label="Status" value={<StatusPOBadge status={computedStatus} />} />}
         <InfoRow label="Tanggal Mulai" value={formatDate(kegiatan.tanggal_mulai)} />
         <InfoRow label="Tanggal Selesai" value={formatDate(kegiatan.tanggal_selesai)} />
       </div>
@@ -560,7 +708,8 @@ const TransporterDropdown = ({ transporterList, selectedTransporter, setSelected
     >
       <option>Semua Transporter</option>
       {transporterList.map(t => (
-        <option key={t.id}>{t.nama_transporter}</option>
+        <option key={t.kegiatan_transporter_id}>{t.nama_transporter}</option>
+        
       ))}
     </select>
   </div>
@@ -679,19 +828,23 @@ const TrukTable = ({ trukList, setSelectedImage, formatDateTime, editingRow, edi
                 </Td>
                 <Td>{truk.foto_truk ? <button onClick={() => setSelectedImage({ src: truk.foto_truk, type: 'foto_truk', nopol: truk.nopol, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
                 <Td>{truk.foto_surat ? <button onClick={() => setSelectedImage({ src: truk.foto_surat, type: 'foto_surat', no_seri_pengantar: truk.no_seri_pengantar, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
+                
                 <Td>
                   {editingRow === truk.id ? (
                     <input
                       type="text"
-                      value={editFormData.keterangan}
+                      value={editFormData.keterangan || ''}
                       onChange={(e) => setEditFormData(prev => ({ ...prev, keterangan: e.target.value }))}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-300 focus:outline-none"
                       placeholder="Tambahkan keterangan"
                     />
                   ) : (
-                    <span className="text-sm text-gray-600">{truk.keterangan || '-'}</span>
+                    <span className="text-sm font-medium text-gray-700">
+                        {truk.keterangan && truk.keterangan.trim() !== '' ? truk.keterangan : '-'}
+                    </span>
                   )}
                 </Td>
+                
                 <Td>
                   {editingRow === truk.id ? (
                     <select

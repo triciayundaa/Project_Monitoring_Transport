@@ -1,6 +1,9 @@
 const db = require('../config/db');
 
-// 1. AMBIL SEMUA (Read) - dengan multiple transporter dan total truk dari semua transporter
+console.log('🔥 kegiatanController.js loaded');
+
+// 1. AMBIL SEMUA (Read)
+// 1. AMBIL SEMUA (Read)
 const getAll = async (req, res) => {
     try {
         const query = `
@@ -15,11 +18,10 @@ const getAll = async (req, res) => {
                 k.quantity,
                 k.tanggal_mulai,
                 k.tanggal_selesai,
-
+                kt.id AS kegiatan_transporter_id,  -- ✅ TAMBAHKAN INI
                 t.id AS transporter_id,
                 t.nama_transporter,
                 kt.status,
-
                 (
                     SELECT COUNT(*)
                     FROM keberangkatan_truk kbt
@@ -27,7 +29,6 @@ const getAll = async (req, res) => {
                         ON kbt.kegiatan_transporter_id = kt2.id
                     WHERE kt2.kegiatan_id = k.id
                 ) AS total_truk
-
             FROM kegiatan k
             LEFT JOIN vendor v ON k.vendor_id = v.id
             LEFT JOIN kegiatan_transporter kt ON kt.kegiatan_id = k.id
@@ -36,8 +37,6 @@ const getAll = async (req, res) => {
         `;
 
         const [rows] = await db.query(query);
-
-        // 🔁 GROUP MANUAL DI NODE
         const map = {};
 
         for (const row of rows) {
@@ -58,8 +57,10 @@ const getAll = async (req, res) => {
                 };
             }
 
+            // ✅ PERBAIKAN: Gunakan kegiatan_transporter_id
             if (row.transporter_id) {
                 map[row.id].transporters.push({
+                    kegiatan_transporter_id: row.kegiatan_transporter_id, // ✅ TAMBAHKAN
                     id: row.transporter_id,
                     nama: row.nama_transporter,
                     status: row.status || 'Waiting'
@@ -74,8 +75,7 @@ const getAll = async (req, res) => {
     }
 };
 
-
-// 2. AMBIL DETAIL LENGKAP (Kegiatan + Transporters + Truk + Statistik)
+// 2. AMBIL DETAIL LENGKAP
 const getDetailByPO = async (req, res) => {
     const { no_po } = req.params;
     try {
@@ -83,19 +83,18 @@ const getDetailByPO = async (req, res) => {
             SELECT k.*, v.nama_vendor as vendor 
             FROM kegiatan k 
             LEFT JOIN vendor v ON k.vendor_id = v.id 
-            WHERE k.no_po = ?`, [no_po]);
+            WHERE TRIM(k.no_po) = TRIM(?)`, [no_po]);
             
         if (kegiatanRows.length === 0) {
             return res.status(404).json({ message: "Kegiatan tidak ditemukan" });
         }
         const kegiatanData = kegiatanRows[0];
 
-        // Ambil daftar transporter untuk kegiatan ini dengan jumlah truk masing-masing
         const [transporterRows] = await db.query(`
             SELECT 
-                t.id, 
-                t.nama_transporter, 
                 kt.id as kegiatan_transporter_id,
+                t.id as transporter_id,
+                t.nama_transporter, 
                 kt.status,
                 (
                     SELECT COUNT(*) 
@@ -108,11 +107,16 @@ const getDetailByPO = async (req, res) => {
             ORDER BY t.nama_transporter
         `, [kegiatanData.id]);
 
-        // Ambil semua data truk dari SEMUA transporter dalam kegiatan ini
         const [trukRows] = await db.query(`
             SELECT 
-                kbt.id, kbt.created_at, kbt.tanggal, kbt.no_seri_pengantar,
-                kbt.foto_truk, kbt.foto_surat, kbt.status, 
+                kbt.id, 
+                kbt.created_at, 
+                kbt.tanggal, 
+                kbt.no_seri_pengantar,
+                kbt.foto_truk, 
+                kbt.foto_surat, 
+                COALESCE(kbt.keterangan, '') as keterangan, 
+                kbt.status, 
                 u.nama as nama_personil, 
                 s.nama_shift, 
                 ken.plat_nomor as nopol,
@@ -128,7 +132,6 @@ const getDetailByPO = async (req, res) => {
             ORDER BY kbt.created_at DESC
         `, [kegiatanData.id]);
 
-        // Statistik TOTAL dari semua transporter
         const statistik = {
             total_truk: trukRows.length,
             belum_terverifikasi: trukRows.filter(t => !t.status || t.status === 'Waiting').length,
@@ -149,7 +152,7 @@ const getDetailByPO = async (req, res) => {
     }
 };
 
-// 2a. AMBIL SEMUA TRANSPORTER (untuk dropdown)
+// 2a. AMBIL SEMUA TRANSPORTER
 const getAllTransporters = async (req, res) => {
     try {
         const [rows] = await db.query('SELECT id, nama_transporter FROM transporter ORDER BY nama_transporter');
@@ -160,23 +163,19 @@ const getAllTransporters = async (req, res) => {
     }
 };
 
-// 3. TAMBAH KEGIATAN (Create) - dengan multiple transporter
+// 3. TAMBAH KEGIATAN
 const create = async (req, res) => {
     try {
         const no_po = req.body.no_po || req.body.noPo || req.body.nomor_po;
         const nama_vendor = req.body.nama_vendor || req.body.vendor || req.body.namaVendor;
-        const transporters = req.body.transporters || []; // Array of transporter names
+        const transporters = req.body.transporters || [];
         
-        const { 
-            nama_kapal, material, incoterm, 
-            no_bl, quantity, tanggal_mulai, tanggal_selesai 
-        } = req.body;
+        const { nama_kapal, material, incoterm, no_bl, quantity, tanggal_mulai, tanggal_selesai } = req.body;
 
         if (!no_po || !nama_vendor) {
             return res.status(400).json({ message: "Gagal: No PO dan Vendor wajib diisi." });
         }
 
-        // Handle Vendor
         let vendorId;
         const [existingVendor] = await db.query('SELECT id FROM vendor WHERE nama_vendor = ?', [nama_vendor]);
         if (existingVendor.length > 0) {
@@ -186,7 +185,6 @@ const create = async (req, res) => {
             vendorId = newVendor.insertId;
         }
 
-        // Insert Kegiatan
         const [kegiatanResult] = await db.query(
             `INSERT INTO kegiatan 
             (no_po, vendor_id, nama_kapal, material, incoterm, no_bl, quantity, tanggal_mulai, tanggal_selesai) 
@@ -196,7 +194,6 @@ const create = async (req, res) => {
 
         const kegiatanId = kegiatanResult.insertId;
 
-        // Handle Multiple Transporters
         if (transporters && transporters.length > 0) {
             for (const transporterName of transporters) {
                 if (!transporterName || transporterName.trim() === '') continue;
@@ -217,7 +214,6 @@ const create = async (req, res) => {
                     transporterId = newTransporter.insertId;
                 }
 
-                // Insert ke kegiatan_transporter
                 await db.query(
                     'INSERT INTO kegiatan_transporter (kegiatan_id, transporter_id, status) VALUES (?, ?, ?)',
                     [kegiatanId, transporterId, 'Waiting']
@@ -236,7 +232,7 @@ const create = async (req, res) => {
     }
 };
 
-// 4. UPDATE STATUS KEGIATAN_TRANSPORTER (PATCH)
+// 4. UPDATE STATUS
 const updateStatus = async (req, res) => {
     const { no_po } = req.params;
     const { transporter_id, status } = req.body;
@@ -268,7 +264,7 @@ const updateStatus = async (req, res) => {
     }
 };
 
-// 5. UPDATE DATA KEGIATAN (PUT) - Edit PO dengan multiple transporter
+// 5. UPDATE DATA KEGIATAN (FIXED: SUPPORT EDIT/REPLACE TRANSPORTER)
 const update = async (req, res) => {
     const { no_po } = req.params; 
     const body = req.body;      
@@ -282,22 +278,9 @@ const update = async (req, res) => {
 
         const oldData = existingData[0];
 
-        // Cek apakah ada transporter yang sudah On Progress atau Completed
-        const [transporterStatus] = await db.query(
-            `SELECT status FROM kegiatan_transporter WHERE kegiatan_id = ? AND status IN ('On Progress', 'Completed')`,
-            [oldData.id]
-        );
-
-        if (transporterStatus.length > 0) {
-            return res.status(403).json({ 
-                message: "Gagal: Ada transporter yang sudah berjalan/selesai. Kegiatan tidak dapat diedit." 
-            });
-        }
-
         let final_no_po = body.no_po || oldData.no_po;
         let final_tanggal_mulai = body.tanggal_mulai || oldData.tanggal_mulai;
 
-        // Handle Vendor
         let vendorId = oldData.vendor_id; 
         if (body.nama_vendor) {
             const [existingVendor] = await db.query('SELECT id FROM vendor WHERE nama_vendor = ?', [body.nama_vendor]);
@@ -309,41 +292,58 @@ const update = async (req, res) => {
             }
         }
 
-        // Update Kegiatan
         const query = `
             UPDATE kegiatan SET 
-                no_po = ?, 
-                vendor_id = ?, 
-                nama_kapal = ?, 
-                material = ?, 
-                incoterm = ?, 
-                no_bl = ?, 
-                quantity = ?, 
-                tanggal_mulai = ?, 
-                tanggal_selesai = ?
+                no_po = ?, vendor_id = ?, nama_kapal = ?, material = ?, 
+                incoterm = ?, no_bl = ?, quantity = ?, 
+                tanggal_mulai = ?, tanggal_selesai = ?
             WHERE no_po = ?
         `;
 
         await db.query(query, [
-            final_no_po,            
-            vendorId, 
-            body.nama_kapal, 
-            body.material, 
-            body.incoterm, 
-            body.no_bl, 
-            body.quantity, 
-            final_tanggal_mulai,    
-            body.tanggal_selesai, 
-            no_po                   
+            final_no_po, vendorId, body.nama_kapal, body.material, 
+            body.incoterm, body.no_bl, body.quantity, 
+            final_tanggal_mulai, body.tanggal_selesai, no_po
         ]);
 
-        // Update Transporters - hapus semua lalu insert ulang
+        // ✅ PERBAIKAN UTAMA: Handle transporters dengan mapping
         if (body.transporters && Array.isArray(body.transporters)) {
-            await db.query('DELETE FROM kegiatan_transporter WHERE kegiatan_id = ?', [oldData.id]);
+            // Format: body.transporters = [
+            //   { kegiatan_transporter_id: 123, nama: "PT New Name" },
+            //   { nama: "PT Brand New" }  // Transporter baru (tidak ada kegiatan_transporter_id)
+            // ]
 
-            for (const transporterName of body.transporters) {
+            // Ambil daftar transporter yang sudah ada
+            const [existingTransporters] = await db.query(`
+                SELECT kt.id as kegiatan_transporter_id, t.nama_transporter, kt.status,
+                (SELECT COUNT(*) FROM keberangkatan_truk WHERE kegiatan_transporter_id = kt.id) as jumlah_truk
+                FROM kegiatan_transporter kt
+                JOIN transporter t ON kt.transporter_id = t.id
+                WHERE kt.kegiatan_id = ?
+            `, [oldData.id]);
+
+            // Buat map dari existing transporters
+            const existingMap = {};
+            existingTransporters.forEach(et => {
+                existingMap[et.kegiatan_transporter_id] = et;
+            });
+
+            // Track transporter IDs yang masih digunakan
+            const usedKegiatanTransporterIds = new Set();
+
+            // Process setiap transporter dari request
+            for (const transporterData of body.transporters) {
+                // ✅ Support both formats:
+                // - String: "PT ABC" (from add mode)
+                // - Object: { kegiatan_transporter_id: 123, nama: "PT ABC" } (from edit mode)
+                
+                const transporterName = typeof transporterData === 'string' 
+                    ? transporterData 
+                    : transporterData.nama;
+
                 if (!transporterName || transporterName.trim() === '') continue;
 
+                // Cari atau buat transporter master
                 let transporterId;
                 const [existingTransporter] = await db.query(
                     'SELECT id FROM transporter WHERE nama_transporter = ?', 
@@ -360,10 +360,51 @@ const update = async (req, res) => {
                     transporterId = newTransporter.insertId;
                 }
 
-                await db.query(
-                    'INSERT INTO kegiatan_transporter (kegiatan_id, transporter_id, status) VALUES (?, ?, ?)',
-                    [oldData.id, transporterId, 'Waiting']
-                );
+                // ✅ CASE 1: Transporter LAMA yang di-REPLACE (ada kegiatan_transporter_id)
+                if (typeof transporterData === 'object' && transporterData.kegiatan_transporter_id) {
+                    const ktId = transporterData.kegiatan_transporter_id;
+                    usedKegiatanTransporterIds.add(ktId);
+
+                    // Update relasi transporter (ganti transporter_id)
+                    await db.query(
+                        'UPDATE kegiatan_transporter SET transporter_id = ? WHERE id = ?',
+                        [transporterId, ktId]
+                    );
+
+                    console.log(`✅ Updated kegiatan_transporter ${ktId} to transporter ${transporterId} (${transporterName})`);
+                }
+                // ✅ CASE 2: Transporter BARU (tidak ada kegiatan_transporter_id)
+                else {
+                    // Cek apakah relasi sudah ada (untuk avoid duplicate)
+                    const [existingRelation] = await db.query(
+                        'SELECT id FROM kegiatan_transporter WHERE kegiatan_id = ? AND transporter_id = ?',
+                        [oldData.id, transporterId]
+                    );
+
+                    if (existingRelation.length === 0) {
+                        const [insertResult] = await db.query(
+                            'INSERT INTO kegiatan_transporter (kegiatan_id, transporter_id, status) VALUES (?, ?, ?)',
+                            [oldData.id, transporterId, 'Waiting']
+                        );
+                        usedKegiatanTransporterIds.add(insertResult.insertId);
+                        console.log(`✅ Added new transporter ${transporterId} (${transporterName})`);
+                    } else {
+                        usedKegiatanTransporterIds.add(existingRelation[0].id);
+                    }
+                }
+            }
+
+            // ✅ HAPUS transporter yang:
+            // - Tidak ada di list baru (tidak di usedKegiatanTransporterIds)
+            // - Status = Waiting (belum ada truk)
+            for (const et of existingTransporters) {
+                if (!usedKegiatanTransporterIds.has(et.kegiatan_transporter_id)) {
+                    // Hanya hapus jika status Waiting DAN tidak ada truk
+                    if (et.status === 'Waiting' && et.jumlah_truk === 0) {
+                        await db.query('DELETE FROM kegiatan_transporter WHERE id = ?', [et.kegiatan_transporter_id]);
+                        console.log(`✅ Deleted unused transporter ${et.kegiatan_transporter_id} (${et.nama_transporter})`);
+                    }
+                }
             }
         }
 
@@ -378,13 +419,11 @@ const update = async (req, res) => {
     }
 };
 
-// 6. HAPUS KEGIATAN (DELETE)
-// 6. HAPUS KEGIATAN (DELETE) - Perbaikan dengan CASCADE delete
+// 6. HAPUS KEGIATAN
 const deleteData = async (req, res) => {
     const { no_po } = req.params;
 
     try {
-        // Ambil kegiatan_id
         const [kegiatan] = await db.query('SELECT id FROM kegiatan WHERE no_po = ?', [no_po]);
         
         if (kegiatan.length === 0) {
@@ -393,7 +432,6 @@ const deleteData = async (req, res) => {
 
         const kegiatanId = kegiatan[0].id;
 
-        // Cek apakah ada transporter dengan status berjalan
         const [transporters] = await db.query(
             'SELECT status FROM kegiatan_transporter WHERE kegiatan_id = ?',
             [kegiatanId]
@@ -409,7 +447,6 @@ const deleteData = async (req, res) => {
             });
         }
 
-        // Cek apakah ada truk yang sudah masuk
         const [trukCount] = await db.query(
             `SELECT COUNT(*) as total 
              FROM keberangkatan_truk kbt
@@ -424,10 +461,7 @@ const deleteData = async (req, res) => {
             });
         }
 
-        // Hapus relasi kegiatan_transporter terlebih dahulu
         await db.query('DELETE FROM kegiatan_transporter WHERE kegiatan_id = ?', [kegiatanId]);
-
-        // Baru hapus kegiatan
         await db.query('DELETE FROM kegiatan WHERE id = ?', [kegiatanId]);
 
         res.json({ message: 'Kegiatan berhasil dihapus' });
@@ -438,7 +472,37 @@ const deleteData = async (req, res) => {
     }
 };
 
+// 7. UPDATE TRANSPORTER STATUS
+const updateTransporterStatus = async (req, res) => {
+    const { no_po, transporter_id, status } = req.body;
 
+    console.log('🔄 Update Transporter Status Request:', { no_po, transporter_id, status });
+
+    try {
+        if (!['Waiting', 'On Progress', 'Completed'].includes(status)) {
+            return res.status(400).json({ message: 'Status tidak valid' });
+        }
+
+        const [result] = await db.query(
+            'UPDATE kegiatan_transporter SET status = ? WHERE id = ?',
+            [status, transporter_id]
+        );
+
+        if (result.affectedRows === 0) {
+            console.log('❌ Gagal update: Transporter ID (Relasi) tidak ditemukan:', transporter_id);
+            return res.status(404).json({ message: 'Transporter tidak ditemukan atau ID salah' });
+        }
+
+        console.log('✅ Status updated to:', status);
+        res.json({ message: 'Status transporter berhasil diperbarui', status });
+
+    } catch (error) {
+        console.error('❌ Error Update Status:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+console.log('📦 Exporting functions...');
 
 module.exports = {
     getAll,
@@ -447,5 +511,8 @@ module.exports = {
     create,
     updateStatus,
     update,
-    deleteData
+    deleteData,
+    updateTransporterStatus
 };
+
+console.log('✅ Controller exported successfully');
