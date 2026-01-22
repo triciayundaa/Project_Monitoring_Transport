@@ -76,7 +76,7 @@ const cekStatusShiftUser = async (req, res) => {
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
-        // 1. Ambil Data Kegiatan
+        // 1. Ambil Data Kegiatan berdasarkan No PO
         const [kegiatan] = await db.query(
             `SELECT k.*, v.nama_vendor FROM kegiatan k LEFT JOIN vendor v ON k.vendor_id = v.id WHERE TRIM(k.no_po) = TRIM(?)`,
             [no_po?.trim()]
@@ -86,17 +86,55 @@ const cekPO = async (req, res) => {
             return res.status(404).json({ status: 'Error', message: 'Nomor PO Tidak Ditemukan' });
         }
 
-        // 2. Ambil Daftar Transporter (Untuk Dropdown di Frontend)
-        // Kita ambil SEMUA transporter agar personil bisa memilih
-        const [transporters] = await db.query('SELECT id, nama_transporter FROM transporter ORDER BY nama_transporter ASC');
+        const kegiatanId = kegiatan[0].id;
+
+        // 2. Ambil Transporter KHUSUS untuk Kegiatan ini
+        // Kita Join ke tabel kegiatan_transporter
+        const [transporters] = await db.query(`
+            SELECT t.id, t.nama_transporter 
+            FROM transporter t
+            JOIN kegiatan_transporter kt ON t.id = kt.transporter_id
+            WHERE kt.kegiatan_id = ?
+            GROUP BY t.id, t.nama_transporter
+            ORDER BY t.nama_transporter ASC
+        `, [kegiatanId]);
+
+        // Jika tidak ada transporter yang ditugaskan ke PO ini
+        if (transporters.length === 0) {
+            return res.status(200).json({
+                status: 'Success',
+                data: kegiatan[0],
+                transporters: [] // List kosong
+            });
+        }
+
+        // 3. Ambil Kendaraan milik Transporter yang terpilih di atas
+        const transporterIds = transporters.map(t => t.id);
+        
+        // Query kendaraan hanya untuk transporter_id yang relevan
+        const [vehicles] = await db.query(
+            `SELECT id, plat_nomor, transporter_id FROM kendaraan WHERE transporter_id IN (?) ORDER BY plat_nomor ASC`,
+            [transporterIds]
+        );
+
+        // 4. Gabungkan Data (Mapping)
+        const transporterData = transporters.map(t => {
+            return {
+                id: t.id,
+                nama_transporter: t.nama_transporter,
+                // Masukkan kendaraan yang sesuai ID transporter-nya
+                vehicles: vehicles.filter(v => v.transporter_id === t.id)
+            };
+        });
 
         res.status(200).json({ 
             status: 'Success', 
             data: kegiatan[0],
-            transporters: transporters // Kirim list transporter ke frontend
+            transporters: transporterData 
         });
 
     } catch (error) {
+        console.error("Error Cek PO:", error);
         res.status(500).json({ message: error.message });
     }
 };
