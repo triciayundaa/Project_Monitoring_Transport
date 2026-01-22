@@ -62,13 +62,6 @@ const KeberangkatanTruk = () => {
     });
     const [loading, setLoading] = useState(false);
 
-    // ... (UseEffect 1, 2, 3, 4 SAMA SEPERTI SEBELUMNYA)
-    // Agar singkat saya skip paste ulang useEffect yang tidak berubah. 
-    // PASTIKAN ANDA TETAP MEMILIKI useEffect Login, Load Data, Cek Shift, Load Jadwal.
-    // ...
-    // ... Copy dari file sebelumnya ...
-    // ...
-
     // 1. Cek Login User
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -288,6 +281,21 @@ const KeberangkatanTruk = () => {
         // Validasi Tambahan: Transporter harus dipilih
         if (!formData.transporter_id) { setWarningMessage('Mohon pilih Transporter.'); setShowModalWarning(true); return; }
         if (!formData.no_polisi.trim()) { setWarningMessage('Mohon masukkan Nomor Polisi kendaraan.'); setShowModalWarning(true); return; }
+        
+        // --- VALIDASI PENTING: APAKAH PLAT NOMOR SESUAI DENGAN TRANSPORTER? ---
+        const selectedTransporter = transporterList.find(t => String(t.id) === String(formData.transporter_id));
+        const vehicles = selectedTransporter?.vehicles || [];
+        
+        // Cek apakah yang diketik user ada di dalam daftar kendaraan transporter tsb
+        const isVehicleValid = vehicles.some(v => v.plat_nomor === formData.no_polisi.trim());
+
+        if (!isVehicleValid) {
+            setWarningMessage(`Nomor Polisi '${formData.no_polisi}' TIDAK TERDAFTAR pada transporter ${selectedTransporter?.nama_transporter || ''}. Mohon pilih data yang tersedia.`);
+            setShowModalWarning(true);
+            return; // BERHENTI DI SINI, JANGAN SIMPAN
+        }
+        // -------------------------------------------------------------------------
+
         if (!formData.no_seri_pengantar.trim()) { setWarningMessage('Mohon masukkan Nomor Seri Pengantar.'); setShowModalWarning(true); return; }
         if (!formData.foto_truk) { setWarningMessage('Silakan ambil Foto Truk terlebih dahulu.'); setShowModalWarning(true); return; }
         if (!formData.foto_surat) { setWarningMessage('Silakan ambil Foto Surat Pengantar terlebih dahulu.'); setShowModalWarning(true); return; }
@@ -296,7 +304,7 @@ const KeberangkatanTruk = () => {
         try {
             const response = await axios.post('http://localhost:3000/api/keberangkatan', {
                 kegiatan_id: poData.id,
-                transporter_id: formData.transporter_id, // KIRIM KE BACKEND
+                transporter_id: formData.transporter_id,
                 no_polisi: formData.no_polisi.trim(),
                 email_user: user.email,
                 tanggal: selectedDate, 
@@ -536,11 +544,17 @@ const KeberangkatanTruk = () => {
                                     <div><label className="block text-sm font-semibold text-red-600 mb-2">Shift</label><input type="text" value={currentShiftLabel} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
                                     
                                     {/* DROPDOWN TRANSPORTER */}
-                                    <div>
+                                    <div className="mb-4">
                                         <label className="block text-sm font-semibold text-red-600 mb-2">Transporter</label>
                                         <select 
                                             value={formData.transporter_id}
-                                            onChange={(e) => setFormData(prev => ({...prev, transporter_id: e.target.value}))}
+                                            onChange={(e) => {
+                                                setFormData(prev => ({
+                                                    ...prev, 
+                                                    transporter_id: e.target.value,
+                                                    no_polisi: '' 
+                                                }));
+                                            }}
                                             className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none bg-white"
                                         >
                                             <option value="">-- Pilih Transporter --</option>
@@ -550,7 +564,43 @@ const KeberangkatanTruk = () => {
                                         </select>
                                     </div>
 
-                                    <div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Polisi</label><input type="text" value={formData.no_polisi} onChange={(e) => setFormData(prev => ({ ...prev, no_polisi: e.target.value }))} placeholder="Masukkan nomor polisi" className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" /></div>
+                                    {/* --- 2. INPUT NOMOR POLISI (Bisa Ketik & Validasi) --- */}
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-semibold text-red-600 mb-2">Nomor Polisi</label>
+                                        
+                                        {/* Input Field yang bisa diketik */}
+                                        <input 
+                                            list="vehicle-options" 
+                                            type="text"
+                                            value={formData.no_polisi} 
+                                            onChange={(e) => setFormData(prev => ({ ...prev, no_polisi: e.target.value.toUpperCase() }))}
+                                            disabled={!formData.transporter_id} 
+                                            placeholder={!formData.transporter_id ? "Pilih Transporter Dulu" : "Ketik atau Pilih Nomor Polisi"}
+                                            className={`w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none ${!formData.transporter_id ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                        />
+
+                                        {/* Datalist untuk pilihan dropdown otomatis */}
+                                        <datalist id="vehicle-options">
+                                            {(() => {
+                                                const selectedTransporter = transporterList.find(t => String(t.id) === String(formData.transporter_id));
+                                                const vehicles = selectedTransporter?.vehicles || []; 
+                                                return vehicles.map((v, index) => (
+                                                    <option key={index} value={v.plat_nomor} />
+                                                ));
+                                            })()}
+                                        </datalist>
+
+                                        {/* Pesan Error Real-time (Opsional) */}
+                                        {formData.transporter_id && formData.no_polisi && (() => {
+                                            const selectedTransporter = transporterList.find(t => String(t.id) === String(formData.transporter_id));
+                                            const vehicles = selectedTransporter?.vehicles || [];
+                                            const isValid = vehicles.some(v => v.plat_nomor === formData.no_polisi);
+                                            if (!isValid) {
+                                                return <p className="text-xs text-red-600 mt-1">* Data tidak ditemukan / Tidak sesuai transporter</p>;
+                                            }
+                                        })()}
+                                    </div>
+
                                     <div><label className="block text-sm font-semibold text-red-600 mb-2">Tanggal</label><input type="text" value={formatDateForDisplay(selectedDate)} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
                                     <div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Seri Pengantar</label><input type="text" value={formData.no_seri_pengantar} onChange={(e) => setFormData(prev => ({ ...prev, no_seri_pengantar: e.target.value }))} placeholder="Masukkan nomor seri pengantar" className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" /></div>
                                     
