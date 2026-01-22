@@ -12,6 +12,7 @@ import VehicleDetail from "./pages/VehicleManagement/VehicleDetail";
 import UserList from "./pages/UserList";
 import LaporanList from "./pages/Laporan/LaporanList";
 import LaporanDetail from "./pages/Laporan/LaporanDetail";
+import LaporanPeriodik from "./pages/Laporan/LaporanPeriodik";
 import KeberangkatanTruk from "./pages/KeberangkatanTruk";
 import ManajemenJadwal from "./pages/ManajemenJadwal";
 
@@ -79,7 +80,7 @@ function App() {
         {/* Path disesuaikan dengan Sidebar: /manajemen-kegiatan */}
         <Route path="/manajemen-kegiatan" element={<AdminRoute><DaftarKegiatan /></AdminRoute>} />
         <Route path="/manajemen-kegiatan/detail/:no_po" element={<AdminRoute><DetailKegiatan /></AdminRoute>} />
-
+        
         {/* 2. Manajemen Kendaraan */}
         <Route path="/manajemen-kendaraan" element={<AdminRoute><VehicleList /></AdminRoute>} />
         <Route path="/vehicle-management/:noPo/:transporterId" element={<AdminRoute><VehicleDetail /></AdminRoute>} />
@@ -90,6 +91,7 @@ function App() {
         {/* 4. Laporan */}
         <Route path="/laporan" element={<AdminRoute><LaporanList /></AdminRoute>} />
         <Route path="/laporan/detail/:id" element={<AdminRoute><LaporanDetail /></AdminRoute>} />
+        <Route path="/laporan/periodik" element={<AdminRoute><LaporanPeriodik /></AdminRoute>} />
 
         {/* 5. Manajemen Jadwal */}
         <Route path="/manajemen-jadwal" element={<AdminRoute><ManajemenJadwal /></AdminRoute>} />

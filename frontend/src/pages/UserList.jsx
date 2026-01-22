@@ -40,6 +40,7 @@ const UserList = () => {
     useEffect(() => { fetchUsers(); }, []);
 
     const openAddModal = () => {
+        // PERBAIKAN: Memastikan state benar-benar kosong saat buka modal tambah
         setFormData({ nama: '', email: '', no_telp: '', password: '', role: '' });
         setShowNewPassword(false);
         setModalType('add');
@@ -82,12 +83,10 @@ const UserList = () => {
 
     return (
         <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
-            {/* Sidebar dengan z-index tinggi agar menimpa konten di mobile */}
             <div className={`fixed inset-y-0 left-0 z-50 transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
                 <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
             </div>
 
-            {/* Overlay untuk menutup sidebar di mobile */}
             {isSidebarOpen && (
                 <div 
                     className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
@@ -101,17 +100,14 @@ const UserList = () => {
                 <main className="flex-grow p-4 md:p-6 overflow-y-auto w-full">
                     <div className="max-w-7xl mx-auto w-full">
                         
-                        {/* Header & Tombol Tambah */}
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                            <div className="w-full sm:w-auto">
-                                {/* Search bar bisa disini */}
-                            </div>
+                            <div className="w-full sm:w-auto"></div>
                             <button onClick={openAddModal} className="w-full sm:w-auto bg-cyan-400 hover:bg-cyan-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all uppercase text-sm flex items-center justify-center gap-2">
                                 <i className="fas fa-plus"></i> Tambah Akun
                             </button>
                         </div>
 
-                        {/* --- TAMPILAN MOBILE (KARTU) - Muncul di layar < 1024px --- */}
+                        {/* MOBILE VIEW */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:hidden">
                             {users.map((user) => (
                                 <div key={user.email} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3">
@@ -124,25 +120,19 @@ const UserList = () => {
                                             {user.role}
                                         </span>
                                     </div>
-                                    
                                     <div className="flex items-center text-gray-600 text-sm gap-2 bg-gray-50 p-2 rounded-lg mt-1">
                                         <i className="fas fa-phone text-gray-400"></i>
                                         <span>{user.no_telp || '-'}</span>
                                     </div>
-
                                     <div className="flex gap-2 mt-2 pt-3 border-t border-gray-100">
-                                        <button onClick={() => openEditModal(user)} className="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-2 rounded-lg font-bold text-sm transition-colors">
-                                            Edit
-                                        </button>
-                                        <button onClick={() => openDeleteModal(user)} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-2 rounded-lg font-bold text-sm transition-colors">
-                                            Hapus
-                                        </button>
+                                        <button onClick={() => openEditModal(user)} className="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-2 rounded-lg font-bold text-sm transition-colors">Edit</button>
+                                        <button onClick={() => openDeleteModal(user)} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-2 rounded-lg font-bold text-sm transition-colors">Hapus</button>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        {/* --- TAMPILAN DESKTOP (TABEL) - Muncul di layar >= 1024px --- */}
+                        {/* DESKTOP VIEW */}
                         <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-sm border border-gray-50 overflow-hidden w-full">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
@@ -176,38 +166,47 @@ const UserList = () => {
                                 </table>
                             </div>
                         </div>
-
                         {users.length === 0 && !loading && (
                             <div className="text-center py-12 text-gray-400">Belum ada data pengguna.</div>
                         )}
-
                     </div>
                 </main>
             </div>
 
-            {/* MODAL (Responsive Width) */}
+            {/* MODAL ADD / EDIT */}
             {(modalType === 'add' || modalType === 'edit') && (
                 <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh]">
                         <h3 className="text-2xl font-black text-red-600 text-center mb-6 uppercase tracking-tighter">
                             {modalType === 'add' ? 'Tambah Akun' : 'Edit Akun'}
                         </h3>
+                        {/* PERBAIKAN: Menambahkan autoComplete off pada form utama */}
                         <form onSubmit={handleAction} className="grid grid-cols-1 gap-4" autoComplete="off">
-                            {['nama', 'email'].map((field) => (
-                                <div key={field}>
-                                    <label className="block text-red-600 font-bold mb-1 uppercase text-xs">{field}</label>
-                                    <input 
-                                        type={field === 'email' ? 'email' : 'text'}
-                                        required
-                                        autoComplete="off"
-                                        disabled={modalType === 'edit' && field === 'email'} 
-                                        placeholder={`Masukkan ${field}...`}
-                                        className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-red-600 font-bold text-gray-700 bg-white disabled:text-gray-400"
-                                        value={formData[field]}
-                                        onChange={(e) => setFormData({...formData, [field]: e.target.value})}
-                                    />
-                                </div>
-                            ))}
+                            <div>
+                                <label className="block text-red-600 font-bold mb-1 uppercase text-xs">Nama</label>
+                                <input 
+                                    type="text"
+                                    required
+                                    placeholder="Masukkan nama..."
+                                    className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-red-600 font-bold text-gray-700 bg-white"
+                                    value={formData.nama}
+                                    onChange={(e) => setFormData({...formData, nama: e.target.value})}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-red-600 font-bold mb-1 uppercase text-xs">Email</label>
+                                <input 
+                                    type="email"
+                                    required
+                                    autoComplete="off"
+                                    disabled={modalType === 'edit'} 
+                                    placeholder="Masukkan email..."
+                                    className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-red-600 font-bold text-gray-700 bg-white disabled:text-gray-400"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                />
+                            </div>
 
                             <div>
                                 <label className="block text-red-600 font-bold mb-1 uppercase text-xs">No. Telepon</label>
@@ -234,13 +233,14 @@ const UserList = () => {
                                     <input 
                                         type={showNewPassword ? "text" : "password"}
                                         required={modalType === 'add'}
-                                        placeholder={modalType === 'edit' ? "Biarkan kosong jika tidak ubah" : "Min. 12 Karakter"}
+                                        /* PERBAIKAN: Menggunakan new-password untuk mematikan autofill browser */
+                                        autoComplete="new-password" 
+                                        placeholder={modalType === 'edit' ? "Biarkan kosong jika tidak ubah" : "Min. 12 Karakter dengan salah satu Huruf Kapital"}
                                         className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-red-600 font-bold text-gray-700 bg-white pr-10"
                                         value={formData.password}
                                         onChange={(e) => setFormData({...formData, password: e.target.value})}
                                     />
                                     <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-600">
-                                        <i className={`fas ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                                     </button>
                                 </div>
                             </div>
@@ -256,7 +256,7 @@ const UserList = () => {
 
                             <div className="flex items-center justify-between mt-6 gap-4">
                                 <button type="button" onClick={() => setModalType(null)} className="text-gray-500 font-bold text-sm hover:text-red-600 transition-colors uppercase">Batal</button>
-                                <button type="submit" className="bg-cyan-400 text-white px-6 py-3 rounded-xl font-bold uppercase shadow-lg hover:bg-cyan-500 flex-1">{modalType === 'add' ? 'Simpan' : 'Update'}</button>
+                                <button type="submit" className="bg-cyan-400 text-white px-6 py-3 rounded-xl font-bold uppercase shadow-lg hover:bg-cyan-500 flex-1">{modalType === 'add' ? 'Tambahkan' : 'Update'}</button>
                             </div>
                         </form>
                     </div>

@@ -2,16 +2,11 @@ const express = require('express');
 const router = express.Router();
 const laporanController = require('../controllers/laporanController');
 
-// GET semua laporan
 router.get('/', laporanController.getAllLaporan);
-
-// GET detail laporan
-router.get('/:id', laporanController.getLaporanById);
-
-// POST tambah laporan
-router.post('/', laporanController.createLaporan);
-
-// DELETE hapus laporan
+router.get('/detail/:id', laporanController.getLaporanDetail); // Pastikan ini ada
+router.post('/add', laporanController.createLaporan);
 router.delete('/:id', laporanController.deleteLaporan);
+router.get('/detail/:id', laporanController.getLaporanDetail);
+router.get('/periodik', laporanController.getLaporanPeriodik);
 
 module.exports = router;
