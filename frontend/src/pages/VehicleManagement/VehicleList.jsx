@@ -7,7 +7,7 @@ import Topbar from '../../components/Topbar';
 const VehicleList = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [transporters, setTransporters] = useState([]);
-    const [groupedData, setGroupedData] = useState({}); // State baru untuk data terkelompok
+    const [groupedData, setGroupedData] = useState({}); // State untuk data terkelompok
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
@@ -15,6 +15,7 @@ const VehicleList = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
+            // Memanggil endpoint yang sudah diperbarui logic count-nya di backend
             const response = await axios.get('http://localhost:3000/api/vehicles/transporters');
             console.log('📦 Data dari API Transporters:', response.data); 
             setTransporters(response.data);
@@ -73,7 +74,7 @@ const VehicleList = () => {
                                 <h2 className="text-3xl font-black text-red-600 uppercase tracking-tighter">
                                     Manajemen Unit
                                 </h2>
-                                <p className="text-sm text-gray-500 font-medium tracking-tight">Kelola armada berdasarkan alokasi Nomor PO</p>
+                                <p className="text-sm text-gray-500 font-medium tracking-tight">Kelola armada yang dialokasikan khusus per Nomor PO</p>
                             </div>
                             
                             <div className="relative group">
@@ -93,14 +94,14 @@ const VehicleList = () => {
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-red-600 mb-4"></div>
                                 <p className="text-gray-500 font-bold italic animate-pulse">Menyingkronkan data...</p>
                             </div>
-                        ) : Object.keys(groupedData).length === 0 ? (
+                        ) : filteredPoKeys.length === 0 ? (
                             <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-gray-200 shadow-inner flex flex-col items-center">
                                 <div className="bg-red-50 w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-sm">
                                     <i className="fas fa-database text-red-300 text-4xl"></i>
                                 </div>
-                                <p className="text-gray-600 font-black text-2xl mb-2 uppercase tracking-tighter">Data Kosong</p>
+                                <p className="text-gray-600 font-black text-2xl mb-2 uppercase tracking-tighter">Data Tidak Ditemukan</p>
                                 <p className="text-gray-400 text-base max-w-sm mx-auto font-medium text-center">
-                                    Belum ada data kegiatan yang diinputkan.
+                                    Belum ada data kegiatan atau hasil pencarian tidak ditemukan.
                                 </p>
                             </div>
                         ) : (
@@ -110,7 +111,7 @@ const VehicleList = () => {
                                         {/* HEADER PO SECTION */}
                                         <div className="bg-gray-900 p-6 flex flex-col md:flex-row justify-between md:items-center gap-4">
                                             <div className="flex items-center gap-4">
-                                                <div className="bg-red-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">PO ACTIVE</div>
+                                                <div className="bg-red-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">ALOKASI AKTIF</div>
                                                 <h3 className="text-xl font-black text-white uppercase tracking-tight">
                                                     NO. PO: {poKey}
                                                 </h3>
@@ -138,7 +139,7 @@ const VehicleList = () => {
                                                             <i className="fas fa-truck-moving text-white text-xs"></i>
                                                         </div>
                                                         <div>
-                                                            <p className="text-[10px] text-gray-400 uppercase leading-none mb-1">Total Armada</p>
+                                                            <p className="text-[10px] text-gray-400 uppercase leading-none mb-1">Unit di PO Ini</p>
                                                             <p className="text-xl text-red-600 leading-none">
                                                                 {item.total_kendaraan_vendor || 0} <span className="text-xs font-bold uppercase tracking-tighter">Unit</span>
                                                             </p>
@@ -157,12 +158,6 @@ const VehicleList = () => {
                                         </div>
                                     </div>
                                 ))}
-                                
-                                {filteredPoKeys.length === 0 && (
-                                    <div className="text-center py-10 bg-white rounded-3xl border-2 border-dashed font-bold text-gray-400">
-                                        Hasil pencarian "{searchTerm}" tidak ditemukan.
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
