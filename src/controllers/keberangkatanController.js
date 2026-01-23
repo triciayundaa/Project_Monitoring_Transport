@@ -1,5 +1,6 @@
 const db = require('../config/db');
 
+// --- HELPER FUNCTIONS ---
 const SHIFT_RULES = {
     'Shift 1': { start: 7, end: 15 },
     'Shift 2': { start: 15, end: 23 },
@@ -26,28 +27,24 @@ const detectUserShift = (jadwalRow, namaPersonil) => {
     return null;
 };
 
-// --- FUNGSI PENGHUBUNG (KEGIATAN-TRANSPORTER) ---
+// --- FUNGSI UTAMA ---
+
 const getOrCreateKegiatanTransporterId = async (kegiatanId, transporterId) => {
     try {
-        // Cek apakah hubungan sudah ada
         const [existing] = await db.query(
             'SELECT id FROM kegiatan_transporter WHERE kegiatan_id = ? AND transporter_id = ?',
             [kegiatanId, transporterId]
         );
 
-        if (existing.length > 0) {
-            return existing[0].id;
-        }
+        if (existing.length > 0) return existing[0].id;
 
-        // Jika belum, buat baru
         const [result] = await db.query(
             'INSERT INTO kegiatan_transporter (kegiatan_id, transporter_id, status) VALUES (?, ?, ?)',
             [kegiatanId, transporterId, 'On Progress']
         );
         return result.insertId;
-
     } catch (error) {
-        // Retry jika race condition
+        // Retry logic for race condition
         const [retry] = await db.query(
             'SELECT id FROM kegiatan_transporter WHERE kegiatan_id = ? AND transporter_id = ?',
             [kegiatanId, transporterId]
@@ -73,10 +70,11 @@ const cekStatusShiftUser = async (req, res) => {
     }
 };
 
+// 🔥 FUNGSI INI YANG DIPERBAIKI TOTAL 🔥
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
-        // 1. Ambil Data Kegiatan berdasarkan No PO
+        // 1. Ambil Data Kegiatan
         const [kegiatan] = await db.query(
             `SELECT k.*, v.nama_vendor FROM kegiatan k LEFT JOIN vendor v ON k.vendor_id = v.id WHERE TRIM(k.no_po) = TRIM(?)`,
             [no_po?.trim()]
@@ -88,8 +86,8 @@ const cekPO = async (req, res) => {
 
         const kegiatanId = kegiatan[0].id;
 
-        // 2. Ambil Transporter KHUSUS untuk Kegiatan ini
-        // Kita Join ke tabel kegiatan_transporter
+        // 2. Ambil Transporter KHUSUS untuk Kegiatan ini (Filter by PO)
+        // Kita Join ke tabel kegiatan_transporter untuk mendapatkan hanya yang ditugaskan
         const [transporters] = await db.query(`
             SELECT t.id, t.nama_transporter 
             FROM transporter t
@@ -99,25 +97,19 @@ const cekPO = async (req, res) => {
             ORDER BY t.nama_transporter ASC
         `, [kegiatanId]);
 
-        // Jika tidak ada transporter yang ditugaskan ke PO ini
-        if (transporters.length === 0) {
-            return res.status(200).json({
-                status: 'Success',
-                data: kegiatan[0],
-                transporters: [] // List kosong
-            });
+        // 3. Ambil Kendaraan milik Transporter yang terpilih saja
+        let vehicles = [];
+        if (transporters.length > 0) {
+            const transporterIds = transporters.map(t => t.id);
+            // Query kendaraan in list ID
+            const [vehicleRows] = await db.query(
+                `SELECT id, plat_nomor, transporter_id FROM kendaraan WHERE transporter_id IN (?) ORDER BY plat_nomor ASC`,
+                [transporterIds]
+            );
+            vehicles = vehicleRows;
         }
 
-        // 3. Ambil Kendaraan milik Transporter yang terpilih di atas
-        const transporterIds = transporters.map(t => t.id);
-        
-        // Query kendaraan hanya untuk transporter_id yang relevan
-        const [vehicles] = await db.query(
-            `SELECT id, plat_nomor, transporter_id FROM kendaraan WHERE transporter_id IN (?) ORDER BY plat_nomor ASC`,
-            [transporterIds]
-        );
-
-        // 4. Gabungkan Data (Mapping)
+        // 4. Gabungkan Data (Mapping di JS agar aman dari error SQL JSON)
         const transporterData = transporters.map(t => {
             return {
                 id: t.id,
@@ -130,7 +122,7 @@ const cekPO = async (req, res) => {
         res.status(200).json({ 
             status: 'Success', 
             data: kegiatan[0],
-            transporters: transporterData 
+            transporters: transporterData // Data ini sekarang TERFILTER sesuai PO
         });
 
     } catch (error) {
@@ -140,13 +132,12 @@ const cekPO = async (req, res) => {
 };
 
 const simpanKeberangkatan = async (req, res) => {
-    // TAMBAHAN: terima transporter_id dari frontend
     const { kegiatan_id, transporter_id, no_polisi, email_user, tanggal, no_seri_pengantar, foto_truk, foto_surat } = req.body;
 
     console.log("🔥 REQUEST SAVE:", req.body);
 
     try {
-        // A. Validasi
+        // Validasi User & Jadwal
         const [users] = await db.query('SELECT nama FROM users WHERE email = ?', [email_user]);
         const [jadwal] = await db.query('SELECT * FROM jadwal_shift WHERE tanggal = ?', [tanggal]);
         
@@ -158,22 +149,32 @@ const simpanKeberangkatan = async (req, res) => {
 
         if (!transporter_id) return res.status(400).json({ message: 'Transporter wajib dipilih!' });
 
-        // B. Validasi Nomor Polisi - HARUS SUDAH TERDAFTAR DI DATABASE
-        const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
+        // 🔥 VALIDASI KETAT: Cek apakah Nopol ini benar milik Transporter yang dipilih?
+        // Cari ID kendaraan berdasarkan plat nomor
+        const [existingKendaraan] = await db.query('SELECT id, transporter_id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
         
         if (existingKendaraan.length === 0) {
-            return res.status(400).json({ message: `Nomor Polisi '${no_polisi}' tidak terdaftar di database. Silakan hubungi admin untuk mendaftarkan kendaraan.` });
+            return res.status(400).json({ message: `Nomor Polisi '${no_polisi}' tidak terdaftar di database.` });
+        }
+
+        // Cek kesesuaian Transporter
+        // (Pastikan transporter_id dari frontend sama dengan pemilik kendaraan di DB)
+        // Note: Kita convert ke String biar aman bandinginnya
+        if (String(existingKendaraan[0].transporter_id) !== String(transporter_id)) {
+             return res.status(400).json({ 
+                 message: `Nomor Polisi '${no_polisi}' bukan milik transporter yang dipilih. Mohon cek kembali.` 
+             });
         }
 
         const kendaraanId = existingKendaraan[0].id;
 
-        // C. Cari ID Shift
+        // Cari ID Shift
         const [mstShift] = await db.query('SELECT id FROM shift WHERE nama_shift = ?', [userShiftName]);
         
-        // D. DAPATKAN ID PENGHUBUNG (KEGIATAN_TRANSPORTER)
+        // Dapatkan ID Penghubung
         const finalKegiatanTransporterId = await getOrCreateKegiatanTransporterId(kegiatan_id, transporter_id);
         
-        // E. Simpan Data
+        // Simpan Data
         const [result] = await db.query(
             `INSERT INTO keberangkatan_truk 
              (kegiatan_transporter_id, kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, status) 
@@ -181,7 +182,7 @@ const simpanKeberangkatan = async (req, res) => {
             [finalKegiatanTransporterId, kendaraanId, email_user, mstShift[0].id, tanggal, no_seri_pengantar, foto_truk, foto_surat]
         );
 
-        // F. Update Status (FIXED: Update di tabel kegiatan_transporter, BUKAN kegiatan)
+        // Update Status
         await db.query(
             'UPDATE kegiatan_transporter SET status = ? WHERE id = ? AND status = ?', 
             ['On Progress', finalKegiatanTransporterId, 'Waiting']
@@ -238,8 +239,6 @@ const verifikasiKeberangkatan = async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
-// 7. UPDATE TRUK - PERBAIKAN LENGKAP
-// 7. UPDATE TRUK - STRICT MODE (Tidak Auto-Create)
 const updateTruk = async (req, res) => {
     const { id } = req.params;
     const { nopol, nama_personil, no_seri_pengantar, keterangan, status } = req.body;
@@ -247,20 +246,16 @@ const updateTruk = async (req, res) => {
     console.log('📝 UPDATE TRUK REQUEST:', { id, body: req.body });
 
     try {
-        // Validasi input dasar
         if (!nopol || !nama_personil) {
             return res.status(400).json({ message: 'Plat nomor dan nama personil harus diisi' });
         }
 
-        // 1. 🔥 STRICT CHECK: Cari Kendaraan (JANGAN BUAT BARU)
         const [existingKendaraan] = await db.query(
             'SELECT id FROM kendaraan WHERE plat_nomor = ?',
             [nopol]
         );
 
         if (existingKendaraan.length === 0) {
-            // Tolak jika nopol tidak ada di database
-            console.log('❌ Validasi Backend Gagal: Nopol tidak terdaftar');
             return res.status(400).json({ 
                 message: 'Nomor Polisi tidak terdaftar di sistem master kendaraan.' 
             });
@@ -268,7 +263,6 @@ const updateTruk = async (req, res) => {
         
         const kendaraanId = existingKendaraan[0].id;
 
-        // 2. Ambil data keberangkatan lama
         const [trukData] = await db.query(
             'SELECT email_user FROM keberangkatan_truk WHERE id = ?',
             [id]
@@ -280,7 +274,6 @@ const updateTruk = async (req, res) => {
 
         const finalKeterangan = keterangan || '';
 
-        // 4. Update Database
         const [updateTrukResult] = await db.query(
             `UPDATE keberangkatan_truk 
              SET kendaraan_id = ?, 

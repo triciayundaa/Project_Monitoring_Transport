@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db'); // ⬅️ PENTING
+const db = require('../config/db');
 const vehicleController = require('../controllers/vehicleController');
 
 /* ================================
-   GET ALL KENDARAAN (DROPDOWN)
+    GET ALL KENDARAAN (DROPDOWN)
 ================================ */
 router.get('/', async (req, res) => {
   try {
@@ -20,9 +20,25 @@ router.get('/', async (req, res) => {
   }
 });
 
-/* ===== ROUTE LAIN JANGAN DIPINDAH ===== */
+/* ========================================
+    PENGELOLAAN TRANSPORTER & PO
+======================================== */
 router.get('/transporters', vehicleController.getTransporters);
 router.get('/transporters/:no_po', vehicleController.getTransportersByPo);
+
+/* ========================================
+    LOGIKA MASTER KATALOG & ALOKASI
+======================================== */
+
+// Ambil semua katalog Nopol yang pernah didaftarkan oleh Transporter tertentu
+router.get('/master/:transporterId', vehicleController.getMasterAsset);
+
+// Alokasikan kendaraan yang sudah ada di katalog ke PO saat ini (Bulk Assign)
+router.post('/assign-master', vehicleController.assignFromMaster);
+
+/* ========================================
+    OPERASI CRUD KENDARAAN (PER PO)
+======================================== */
 router.get('/:noPo', vehicleController.getVehiclesByPo);
 router.post('/add', vehicleController.addVehicle);
 router.delete('/:id', vehicleController.deleteVehicle);

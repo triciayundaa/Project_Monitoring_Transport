@@ -72,48 +72,62 @@ const initDb = async () => {
       );
     `;
 
-    // ================= 7. KENDARAAN =================
+    // ================= 7. KENDARAAN (MASTER KATALOG) =================
     const createKendaraanTable = `
-  CREATE TABLE IF NOT EXISTS kendaraan (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    transporter_id INT NOT NULL, 
-    plat_nomor VARCHAR(15) NOT NULL,
-    status ENUM('aktif', 'non-aktif') DEFAULT 'aktif',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_kendaraan_transporter FOREIGN KEY (transporter_id) REFERENCES transporter(id)
-  );
-`;
+      CREATE TABLE IF NOT EXISTS kendaraan (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        transporter_id INT NOT NULL, 
+        plat_nomor VARCHAR(20) NOT NULL, 
+        status ENUM('aktif', 'non-aktif') DEFAULT 'aktif',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_kendaraan_transporter FOREIGN KEY (transporter_id) REFERENCES transporter(id),
+        UNIQUE KEY uniq_nopol_per_transporter (plat_nomor, transporter_id)
+      );
+    `;
+
+    // ================= 7.5 KEGIATAN KENDARAAN (ALOKASI PO) =================
+    // TABEL BARU: Menghubungkan Truk ke PO tertentu agar data mandiri per PO
+    const createKegiatanKendaraanTable = `
+      CREATE TABLE IF NOT EXISTS kegiatan_kendaraan (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kegiatan_transporter_id INT NOT NULL,
+        kendaraan_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (kegiatan_transporter_id) REFERENCES kegiatan_transporter(id) ON DELETE CASCADE,
+        FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_kegiatan_nopol (kegiatan_transporter_id, kendaraan_id)
+      );
+    `;
 
     // ================= 8. KEBERANGKATAN TRUK =================
-    // (BELUM pakai kegiatan_transporter sesuai permintaan)
     const createKeberangkatanTable = `
-  CREATE TABLE IF NOT EXISTS keberangkatan_truk (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    kegiatan_transporter_id INT NOT NULL,
-    kendaraan_id INT NOT NULL,
-    email_user VARCHAR(100) NOT NULL,
-    shift_id INT NOT NULL,
-    tanggal DATE NOT NULL,
-    keterangan TEXT,
-    no_seri_pengantar VARCHAR(50),
-    foto_truk LONGTEXT,
-    foto_surat LONGTEXT,
-    status ENUM('Valid', 'Tolak') DEFAULT 'Valid',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CREATE TABLE IF NOT EXISTS keberangkatan_truk (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kegiatan_transporter_id INT NOT NULL,
+        kendaraan_id INT NOT NULL,
+        email_user VARCHAR(100) NOT NULL,
+        shift_id INT NOT NULL,
+        tanggal DATE NOT NULL,
+        keterangan TEXT,
+        no_seri_pengantar VARCHAR(50),
+        foto_truk LONGTEXT,
+        foto_surat LONGTEXT,
+        status ENUM('Valid', 'Tolak') DEFAULT 'Valid',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (kegiatan_transporter_id)
-      REFERENCES kegiatan_transporter(id),
+        FOREIGN KEY (kegiatan_transporter_id)
+          REFERENCES kegiatan_transporter(id),
 
-    FOREIGN KEY (kendaraan_id)
-      REFERENCES kendaraan(id),
+        FOREIGN KEY (kendaraan_id)
+          REFERENCES kendaraan(id),
 
-    FOREIGN KEY (email_user)
-      REFERENCES users(email),
+        FOREIGN KEY (email_user)
+          REFERENCES users(email),
 
-    FOREIGN KEY (shift_id)
-      REFERENCES shift(id)
-  );
-`;
+        FOREIGN KEY (shift_id)
+          REFERENCES shift(id)
+      );
+    `;
 
     // ================= 9. JADWAL SHIFT =================
     const createJadwalTable = `
@@ -149,6 +163,7 @@ const initDb = async () => {
     await db.query(createKegiatanTable);
     await db.query(createKegiatanTransporterTable);
     await db.query(createKendaraanTable);
+    await db.query(createKegiatanKendaraanTable); // Eksekusi Tabel Baru
     await db.query(createKeberangkatanTable);
     await db.query(createJadwalTable);
     await db.query(createReportTable);
