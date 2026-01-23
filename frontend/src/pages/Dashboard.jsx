@@ -214,6 +214,8 @@ const Dashboard = () => {
                     }
                 });
 
+
+
                 setKpiStats([
                     { label: 'Total Kegiatan', value: totalKegiatan, color: 'bg-red-50', iconColor: 'text-red-600', icon: Package },
                     { label: 'Total Transportir', value: totalTransportir, color: 'bg-purple-50', iconColor: 'text-purple-600', icon: Truck },
@@ -261,7 +263,7 @@ const Dashboard = () => {
                     { name: 'Shift 3', value: shiftMap['Shift 3'], color: '#1e40af' },
                 ]);
 
-                // Weekly data
+                // Weekly data dengan detail transportir
                 const today = new Date();
                 const startOfWeek = new Date(today);
                 const day = today.getDay();
@@ -273,12 +275,76 @@ const Dashboard = () => {
                 const dayLabels = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
                 for (let i = 0; i < 7; i++) {
+                    const isToday = i === (new Date().getDay() === 0 ? 6 : new Date().getDay() - 1);
                     const currentDay = new Date(startOfWeek);
                     currentDay.setDate(startOfWeek.getDate() + i);
+                    currentDay.setHours(0, 0, 0, 0);
                     
+                    const currentDayEnd = new Date(currentDay);
+                    currentDayEnd.setHours(23, 59, 59, 999);
+                    
+                    // Filter kegiatan yang overlap dengan hari ini
                     const kegiatanHariIni = filteredKegiatan.filter(k => {
-                        const kDate = new Date(k.tanggal_mulai);
-                        return kDate.toDateString() === currentDay.toDateString();
+                        const startDate = new Date(k.tanggal_mulai);
+                        const endDate = k.tanggal_selesai ? new Date(k.tanggal_selesai) : startDate;
+                        
+                        // Kegiatan tampil jika tanggal mulai <= hari ini <= tanggal selesai
+                        return startDate <= currentDayEnd && endDate >= currentDay;
+                    });
+
+                    // Hitung detail per kegiatan dengan info transportir
+                    const kegiatanDetails = kegiatanHariIni.map(k => {
+                        const transporterInfo = {};
+                        let totalTrukMasuk = 0;
+                        
+                        console.log(`📊 Processing Kegiatan: ${k.no_po}`);
+                        console.log('Transporters:', k.transporters);
+                        
+                        if (k.transporters && Array.isArray(k.transporters)) {
+                            k.transporters.forEach(t => {
+                                const namaTransporter = t.nama_transporter || t.nama || 'Unknown';
+                                
+                                if (!transporterInfo[namaTransporter]) {
+                                    transporterInfo[namaTransporter] = {
+                                        masuk: 0
+                                    };
+                                }
+                                
+                                console.log(`🔍 Checking Transporter: ${namaTransporter}`);
+                                console.log(`Filtering from ${rawKeberangkatan.length} keberangkatan records`);
+                                
+                                // Hitung truk yang sudah masuk dari keberangkatan
+                                const trukMasuk = rawKeberangkatan.filter(kb => {
+                                    const matchPO = kb.no_po === k.no_po;
+                                    // FIX: Gunakan field 'transporter' bukan 'nama_transporter'
+                                    const matchTransporter = kb.transporter === namaTransporter;
+                                    
+                                    if (matchPO) {
+                                        console.log(`  ✓ Match PO: ${kb.no_po}, Transporter: ${kb.transporter}`);
+                                    }
+                                    
+                                    return matchPO && matchTransporter;
+                                }).length;
+
+                                console.log(`  ➡️ Truk masuk untuk ${namaTransporter}: ${trukMasuk}`);
+                                
+                                transporterInfo[namaTransporter].masuk += trukMasuk;
+                                totalTrukMasuk += trukMasuk;
+                            });
+                        }
+                        
+                        console.log(`✅ Total Truk Masuk untuk ${k.no_po}: ${totalTrukMasuk}`);
+                        
+                        return {
+                            no_po: k.no_po,
+                            vendor: k.vendor,
+                            tanggal_mulai: new Date(k.tanggal_mulai).toLocaleDateString('id-ID'),
+                            tanggal_selesai: k.tanggal_selesai ? new Date(k.tanggal_selesai).toLocaleDateString('id-ID') : '-',
+                            total_transportir: Object.keys(transporterInfo).length,
+                            transporterInfo: transporterInfo,
+                            total_truk: k.transporters ? k.transporters.length : 0,
+                            total_truk_masuk: totalTrukMasuk
+                        };
                     });
 
                     weeklyData.push({
@@ -286,12 +352,13 @@ const Dashboard = () => {
                         kegiatan: kegiatanHariIni.length,
                         transportir: kegiatanHariIni.reduce((total, k) => {
                             return total + (k.transporters && Array.isArray(k.transporters) ? k.transporters.length : 0);
-                        }, 0)
+                        }, 0),
+                        activities: kegiatanDetails
                     });
                 }
                 setDataWeekly(weeklyData);
 
-                // ✅ KEGIATAN MENDATANG - Gunakan data transporters yang sudah ada di rawKegiatan
+                // Kegiatan Mendatang
                 const upcomingKegiatan = rawKegiatan
                     .filter(k => {
                         const startDate = new Date(k.tanggal_mulai);
@@ -300,9 +367,7 @@ const Dashboard = () => {
                     .sort((a, b) => new Date(a.tanggal_mulai) - new Date(b.tanggal_mulai))
                     .slice(0, 10);
 
-                // Map data kegiatan dengan transporters yang sudah ada
                 const upcomingWithTransporters = upcomingKegiatan.map(k => {
-                    // Ambil data transporter dari property transporters yang sudah ada
                     let transporterNames = '-';
                     
                     if (k.transporters && Array.isArray(k.transporters) && k.transporters.length > 0) {
@@ -334,6 +399,115 @@ const Dashboard = () => {
 
         processData();
     }, [selectedYear, selectedMonth, selectedPeriod, rawKegiatan, rawKeberangkatan, loading]);
+
+    // Custom Tooltip untuk grafik mingguan
+    const CustomWeeklyTooltip = ({ active, payload }) => {
+        if (!active || !payload || !payload.length) return null;
+        
+        const data = payload[0].payload;
+        
+        if (!data.activities || data.activities.length === 0) {
+            return (
+                <div className="bg-white p-4 rounded-xl shadow-xl border-2 border-gray-200 max-w-md">
+                    <div className="font-bold text-gray-900 mb-2 text-base">
+                        {data.day}
+                    </div>
+                    <p className="text-sm text-gray-500">Tidak ada kegiatan</p>
+                </div>
+            );
+        }
+
+        return (
+            <div 
+                className="bg-white rounded-xl shadow-xl border-2 border-gray-200 max-w-2xl"
+                style={{ 
+                    maxHeight: '450px',
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}
+            >
+                {/* Header Sticky */}
+                <div className="p-4 border-b-2 bg-white sticky top-0 z-10">
+                    <div className="font-bold text-gray-900 text-base mb-1">
+                        {data.day}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                        {data.kegiatan} Kegiatan • {data.transportir} Transportir
+                    </div>
+                </div>
+                
+                {/* Scrollable Content */}
+                <div 
+                    className="overflow-y-auto p-4 pt-2"
+                    style={{ 
+                        maxHeight: '390px',
+                        overflowY: 'scroll',
+                        WebkitOverflowScrolling: 'touch'
+                    }}
+                    onWheel={(e) => e.stopPropagation()}
+                    onTouchMove={(e) => e.stopPropagation()}
+                >
+                    <div className="space-y-4">
+                        {data.activities.map((activity, idx) => (
+                            <div key={idx} className="p-4 bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 hover:shadow-md transition-all">
+                                <div className="flex items-start justify-between mb-3">
+                                    <div className="flex-1">
+                                        <div className="font-bold text-sm text-gray-900 mb-1">
+                                            PO {activity.no_po}
+                                        </div>
+                                        <div className="text-sm text-gray-700 mb-2">
+                                            {activity.vendor}
+                                        </div>
+                                        <div className="text-xs text-gray-500 mb-2">
+                                            {activity.tanggal_mulai} — {activity.tanggal_selesai}
+                                        </div>
+
+                                    </div>
+                                    <div className="ml-3 text-right">
+                                        <div className="text-xs text-gray-500 mb-1">Total Truk</div>
+                                        <div className="text-2xl font-black text-red-600">
+                                            {activity.total_truk_masuk}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Detail Transportir */}
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                    <div className="text-xs font-bold text-gray-600 mb-2 uppercase">
+                                        Detail Transportir ({activity.total_transportir})
+                                    </div>
+                                    <div className="space-y-2">
+                                        {Object.entries(activity.transporterInfo).map(([nama, info], tIdx) => (
+                                            <div key={tIdx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-gray-100">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                                    <span className="text-xs font-semibold text-gray-800">
+                                                        {nama}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-right">
+                                                        <div className="text-xs text-gray-500">Truk Masuk</div>
+                                                        <div className="text-sm font-bold text-green-600">
+                                                            {info.masuk} 
+                                                        </div>
+
+                                                    </div>
+                                                  
+                                                       
+                                                 
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
@@ -480,9 +654,19 @@ const Dashboard = () => {
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="day" fontSize={11} fontWeight="600" stroke="#94a3b8" />
                                         <YAxis fontSize={11} fontWeight="600" stroke="#94a3b8" />
-                                        <Tooltip />
-                                        <Bar dataKey="kegiatan" fill="#ef4444" radius={[10, 10, 0, 0]} barSize={20} name="Kegiatan" />
-                                        <Bar dataKey="transportir" fill="#8b5cf6" radius={[10, 10, 0, 0]} barSize={20} name="Transportir" />
+                                        <Tooltip 
+                                            content={<CustomWeeklyTooltip />} 
+                                            cursor={{ fill: '#fef2f2' }}
+                                            wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
+                                        />
+                                       
+                                        <Bar 
+                                            dataKey="kegiatan"
+                                            fill="#ef4444"
+                                            radius={[10, 10, 0, 0]}
+                                            barSize={30}
+                                            name="Total Kegiatan"
+                                        />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
