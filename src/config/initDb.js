@@ -134,12 +134,15 @@ const initDb = async () => {
       CREATE TABLE IF NOT EXISTS jadwal_shift (
         id INT AUTO_INCREMENT PRIMARY KEY,
         tanggal DATE NOT NULL,
-        shift1 VARCHAR(100),
-        shift2 VARCHAR(100),
-        shift3 VARCHAR(100),
-        libur VARCHAR(100),
+        email_user VARCHAR(100) NOT NULL,
+        shift_id INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uniq_tanggal (tanggal)
+        
+        FOREIGN KEY (email_user) REFERENCES users(email) ON DELETE CASCADE,
+        FOREIGN KEY (shift_id) REFERENCES shift(id) ON DELETE CASCADE,
+        
+        -- Mencegah input ganda (Orang sama, Shift sama, Hari sama)
+        UNIQUE KEY uniq_jadwal_user (tanggal, email_user, shift_id)
       );
     `;
 
