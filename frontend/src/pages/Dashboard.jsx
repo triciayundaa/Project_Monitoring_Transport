@@ -266,19 +266,20 @@ const Dashboard = () => {
                     { name: 'Shift 3', value: shiftMap['Shift 3'], color: '#1e40af' },
                 ]);
 
-                // Weekly data dengan detail transportir
+               // --- AWAL PERBAIKAN LOGIKA GRAFIK MINGGUAN (FIX: TETAP 7 HARI) ---
                 const today = new Date();
+                const weeklyData = [];
+                const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+                // Hitung awal minggu (Senin)
+                const d = today.getDay();
+                const diffToMonday = today.getDate() - d + (d === 0 ? -6 : 1);
                 const startOfWeek = new Date(today);
-                const day = today.getDay();
-                const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-                startOfWeek.setDate(diff);
+                startOfWeek.setDate(diffToMonday);
                 startOfWeek.setHours(0, 0, 0, 0);
 
-                const weeklyData = [];
-                const dayLabels = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-
+                // KITA TETAP PAKAI 7 ITERASI (Agar Senin-Minggu muncul di Sumbu X)
                 for (let i = 0; i < 7; i++) {
-                    const isToday = i === (new Date().getDay() === 0 ? 6 : new Date().getDay() - 1);
                     const currentDay = new Date(startOfWeek);
                     currentDay.setDate(startOfWeek.getDate() + i);
                     currentDay.setHours(0, 0, 0, 0);
@@ -286,58 +287,43 @@ const Dashboard = () => {
                     const currentDayEnd = new Date(currentDay);
                     currentDayEnd.setHours(23, 59, 59, 999);
                     
-                    // Filter kegiatan yang overlap dengan hari ini
-                    const kegiatanHariIni = filteredKegiatan.filter(k => {
+                    // Ambil tanggal real hari ini untuk pembanding
+                    const realToday = new Date();
+                    realToday.setHours(0, 0, 0, 0);
+
+                    // FILTER STRICT: Jika filter 'today' dipilih, data hanya masuk ke batang 'Hari Ini'
+                    const kegiatanHariIni = rawKegiatan.filter(k => {
                         const startDate = new Date(k.tanggal_mulai);
                         const endDate = k.tanggal_selesai ? new Date(k.tanggal_selesai) : startDate;
                         
-                        // Kegiatan tampil jika tanggal mulai <= hari ini <= tanggal selesai
+                        // Cek apakah batang yang sedang di-loop (currentDay) adalah hari ini?
+                        const isChartDayToday = currentDay.getTime() === realToday.getTime();
+
+                        // LOGIKA KUNCI: 
+                        // Jika user pilih filter "today", maka batang lain selain hari ini dipaksa kosong (return false)
+                        if (selectedPeriod === 'today' && !isChartDayToday) {
+                            return false; 
+                        }
+
+                        // Tetap cek apakah kegiatan aktif di rentang tanggal tersebut
                         return startDate <= currentDayEnd && endDate >= currentDay;
                     });
 
-                    // Hitung detail per kegiatan dengan info transportir
+                    // Mapping detail seperti biasa
                     const kegiatanDetails = kegiatanHariIni.map(k => {
                         const transporterInfo = {};
                         let totalTrukMasuk = 0;
-                        
-                        console.log(`📊 Processing Kegiatan: ${k.no_po}`);
-                        console.log('Transporters:', k.transporters);
-                        
                         if (k.transporters && Array.isArray(k.transporters)) {
                             k.transporters.forEach(t => {
                                 const namaTransporter = t.nama_transporter || t.nama || 'Unknown';
-                                
-                                if (!transporterInfo[namaTransporter]) {
-                                    transporterInfo[namaTransporter] = {
-                                        masuk: 0
-                                    };
-                                }
-                                
-                                console.log(`🔍 Checking Transporter: ${namaTransporter}`);
-                                console.log(`Filtering from ${rawKeberangkatan.length} keberangkatan records`);
-                                
-                                // Hitung truk yang sudah masuk dari keberangkatan
-                                const trukMasuk = rawKeberangkatan.filter(kb => {
-                                    const matchPO = kb.no_po === k.no_po;
-                                    // FIX: Gunakan field 'transporter' bukan 'nama_transporter'
-                                    const matchTransporter = kb.transporter === namaTransporter;
-                                    
-                                    if (matchPO) {
-                                        console.log(`  ✓ Match PO: ${kb.no_po}, Transporter: ${kb.transporter}`);
-                                    }
-                                    
-                                    return matchPO && matchTransporter;
-                                }).length;
-
-                                console.log(`  ➡️ Truk masuk untuk ${namaTransporter}: ${trukMasuk}`);
-                                
+                                if (!transporterInfo[namaTransporter]) transporterInfo[namaTransporter] = { masuk: 0 };
+                                const trukMasuk = rawKeberangkatan.filter(kb => 
+                                    kb.no_po === k.no_po && kb.transporter === namaTransporter
+                                ).length;
                                 transporterInfo[namaTransporter].masuk += trukMasuk;
                                 totalTrukMasuk += trukMasuk;
                             });
                         }
-                        
-                        console.log(`✅ Total Truk Masuk untuk ${k.no_po}: ${totalTrukMasuk}`);
-                        
                         return {
                             no_po: k.no_po,
                             vendor: k.vendor,
@@ -345,20 +331,23 @@ const Dashboard = () => {
                             tanggal_selesai: k.tanggal_selesai ? new Date(k.tanggal_selesai).toLocaleDateString('id-ID') : '-',
                             total_transportir: Object.keys(transporterInfo).length,
                             transporterInfo: transporterInfo,
-                            total_truk: k.transporters ? k.transporters.length : 0,
                             total_truk_masuk: totalTrukMasuk
                         };
                     });
 
                     weeklyData.push({
-                        day: dayLabels[i],
+                        // Nama hari tetap Senin, Selasa, dst agar sumbu X konsisten
+                        day: dayLabels[currentDay.getDay()],
                         kegiatan: kegiatanHariIni.length,
                         transportir: kegiatanHariIni.reduce((total, k) => {
-                            return total + (k.transporters && Array.isArray(k.transporters) ? k.transporters.length : 0);
+                            return total + (k.transporters ? k.transporters.length : 0);
                         }, 0),
                         activities: kegiatanDetails
                     });
                 }
+                setDataWeekly(weeklyData);
+          
+                // --- AKHIR PERBAIKAN ---
                 setDataWeekly(weeklyData);
 
                 // Kegiatan Mendatang

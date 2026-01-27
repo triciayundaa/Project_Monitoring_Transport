@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const initDb = require('./src/config/initDb'); 
+const path = require('path');
 require('dotenv').config();
 
 // --- IMPORT ROUTES ---
@@ -21,6 +22,8 @@ const app = express();
 // --- Middleware (WAJIB DI ATAS ROUTES) ---
 app.use(cors()); // Mengizinkan akses dari port berbeda (Frontend 5173)
 app.use(express.json()); // Membaca data JSON dari body request
+
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // --- Jalankan Inisialisasi Database ---
 initDb()
