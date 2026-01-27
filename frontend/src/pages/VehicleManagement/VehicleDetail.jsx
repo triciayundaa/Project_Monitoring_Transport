@@ -34,13 +34,15 @@ const VehicleDetail = () => {
     const [transporterList, setTransporterList] = useState([]);
     const [selectedTransporterId, setSelectedTransporterId] = useState(transporterId || 'all');
 
+    // --- PERBAIKAN DI SINI: FORMAT NOPOL ---
+    // Sekarang hanya mengubah ke Huruf Besar dan menghapus karakter aneh (selain huruf/angka/spasi)
     const formatNopol = (value) => {
-        const rawValue = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-        let formatted = "";
-        if (rawValue.length > 0) formatted += rawValue.substring(0, 2);
-        if (rawValue.length > 2) formatted += "-" + rawValue.substring(2, 6);
-        if (rawValue.length > 6) formatted += "-" + rawValue.substring(6, 10);
-        return formatted;
+        // Opsi 1: Hapus spasi juga (misal: "B 1234 ABC" -> "B1234ABC")
+        // return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+
+        // Opsi 2 (Yang Anda Minta): Biarkan apa adanya tapi UpperCase (misal: "b 1234 abc" -> "B 1234 ABC")
+        // Saya pakai Opsi 2 agar lebih fleksibel sesuai permintaan Anda "bisa B saja"
+        return value.toUpperCase(); 
     };
 
     const fetchVehicleData = async () => {
@@ -220,7 +222,7 @@ const VehicleDetail = () => {
                                 <h3 className="text-2xl font-black text-red-600 uppercase">{transporterName || 'Loading...'}</h3>
                                 {transporterList.length > 0 && (
                                     <select value={selectedTransporterId} onChange={(e) => setSelectedTransporterId(e.target.value)}
-                                        className="mt-3 px-4 py-2 bg-white border border-gray-300 rounded-lg font-bold text-sm focus:ring-2 focus:ring-red-500 outline-none">
+                                            className="mt-3 px-4 py-2 bg-white border border-gray-300 rounded-lg font-bold text-sm focus:ring-2 focus:ring-red-500 outline-none">
                                         <option value="all">Semua Transporter</option>
                                         {transporterList.map(t => (<option key={t.transporter_id} value={t.transporter_id}>{t.nama_transporter}</option>))}
                                     </select>
@@ -327,7 +329,7 @@ const VehicleDetail = () => {
                                 <label className="block text-red-600 font-bold mb-1 uppercase text-xs">Input No. Polisi Baru</label>
                                 <div className="flex space-x-2">
                                     <input type="text" className="flex-1 border-b-2 border-gray-300 py-2 outline-none focus:border-red-600 font-bold uppercase"
-                                        placeholder="Ketik Nopol (Contoh: BA9090QB)" value={newNopol}
+                                        placeholder="Ketik Nopol (Contoh: B 1234 ABC)" value={newNopol}
                                         onChange={(e) => setNewNopol(formatNopol(e.target.value))}
                                         onKeyPress={(e) => e.key === 'Enter' && addTempNopol()}
                                     />
