@@ -99,33 +99,32 @@ const initDb = async () => {
       );
     `;
 
-    // ================= 8. KEBERANGKATAN TRUK =================
+    // ================= 8. KEBERANGKATAN TRUK (VERSI OPTIMASI) =================
     const createKeberangkatanTable = `
       CREATE TABLE IF NOT EXISTS keberangkatan_truk (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        kegiatan_transporter_id INT NOT NULL,
-        kendaraan_id INT NOT NULL,
+        
+        -- 🔥 OPTIMASI: Menyimpan ID dari tabel alokasi (kegiatan_kendaraan)
+        kegiatan_kendaraan_id INT NOT NULL, 
+        
         email_user VARCHAR(100) NOT NULL,
         shift_id INT NOT NULL,
         tanggal DATE NOT NULL,
         keterangan TEXT,
         no_seri_pengantar VARCHAR(50),
-        foto_truk LONGTEXT,
-        foto_surat LONGTEXT,
+        foto_truk VARCHAR(255), -- Simpan PATH file saja
+  foto_surat VARCHAR(255), -- Simpan PATH file sajaTEXT,
         status ENUM('Valid', 'Tolak') DEFAULT 'Valid',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-        FOREIGN KEY (kegiatan_transporter_id)
-          REFERENCES kegiatan_transporter(id),
+        -- Relasi Utama
+        FOREIGN KEY (kegiatan_kendaraan_id) 
+          REFERENCES kegiatan_kendaraan(id) 
+          ON DELETE CASCADE,
 
-        FOREIGN KEY (kendaraan_id)
-          REFERENCES kendaraan(id),
-
-        FOREIGN KEY (email_user)
-          REFERENCES users(email),
-
-        FOREIGN KEY (shift_id)
-          REFERENCES shift(id)
+        -- Relasi Snapshot
+        FOREIGN KEY (email_user) REFERENCES users(email),
+        FOREIGN KEY (shift_id) REFERENCES shift(id)
       );
     `;
 

@@ -26,7 +26,7 @@ exports.getTransporters = async (req, res) => {
   }
 };
 
-// 2. GET VEHICLES BY PO (DIPERBARUI: Mengambil dari tabel alokasi kegiatan_kendaraan)
+// 2. GET VEHICLES BY PO (DIPERBARUI: Sesuaikan Cek Penggunaan dengan DB Baru)
 exports.getVehiclesByPo = async (req, res) => {
     const { noPo } = req.params; 
     const { transporter_id } = req.query;
@@ -73,13 +73,13 @@ exports.getVehiclesByPo = async (req, res) => {
             vehicles = allVehicles;
         } else {
             // Ambil kendaraan yang teralokasi KHUSUS untuk transporter ini di PO ini
+            // 🔥 PERBAIKAN QUERY DISINI: Cek keberangkatan_truk pakai kegiatan_kendaraan_id
             const [specificVehicles] = await db.query(`
                 SELECT kk.id, ken.plat_nomor, ken.status,
                     CASE 
                         WHEN EXISTS (
                             SELECT 1 FROM keberangkatan_truk kbt
-                            WHERE kbt.kendaraan_id = ken.id
-                            AND kbt.kegiatan_transporter_id = kk.kegiatan_transporter_id
+                            WHERE kbt.kegiatan_kendaraan_id = kk.id
                         )
                         THEN 'digunakan'
                         ELSE 'belum_digunakan'

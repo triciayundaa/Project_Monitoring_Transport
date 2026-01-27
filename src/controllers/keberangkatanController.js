@@ -1,39 +1,48 @@
 const db = require('../config/db');
+const fs = require('fs');
+const path = require('path');
 
-// --- HELPER FUNCTIONS ---
-const SHIFT_RULES = {
-    'Shift 1': { start: 7, end: 15 },
-    'Shift 2': { start: 15, end: 23 },
-    'Shift 3': { start: 23, end: 7 }
+// --- HELPER: CONVERT BASE64 KE FILE ---
+const saveBase64ToFile = (base64String, prefix) => {
+    if (!base64String || !base64String.includes('base64')) return null;
+
+    try {
+        // 1. Buat folder uploads jika belum ada
+        const uploadDir = path.join(__dirname, '../../public/uploads'); // Sesuaikan path folder public
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        // 2. Bersihkan string base64
+        const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) return null;
+        
+        const imageBuffer = Buffer.from(matches[2], 'base64');
+        
+        // 3. Buat nama file unik
+        const fileName = `${prefix}-${Date.now()}.jpg`;
+        const filePath = path.join(uploadDir, fileName);
+
+        // 4. Simpan file ke folder
+        fs.writeFileSync(filePath, imageBuffer);
+
+        // 5. Kembalikan URL/Path untuk database (Sangat Pendek, Aman untuk VARCHAR 255)
+        return `/uploads/${fileName}`; 
+    } catch (error) {
+        console.error("Gagal save gambar:", error);
+        return null;
+    }
 };
 
+// --- HELPER: CEK JAM SHIFT ---
 const getShiftFromTime = (currentHour) => {
     if (currentHour >= 7 && currentHour < 15) return 'Shift 1';
     if (currentHour >= 15 && currentHour < 23) return 'Shift 2';
-    return 'Shift 3'; // 23.00 - 07.00
-};
-
-const detectUserShift = (jadwalRow, namaPersonil) => {
-    const nama = namaPersonil.trim().toLowerCase();
-    const now = new Date();
-    const currentHour = now.getHours();
-
-    if (currentHour >= 7 && currentHour < 15) {
-        if (jadwalRow.shift1?.trim().toLowerCase() === nama) return 'Shift 1';
-    } else if (currentHour >= 15 && currentHour < 23) {
-        if (jadwalRow.shift2?.trim().toLowerCase() === nama) return 'Shift 2';
-    } else {
-        if (jadwalRow.shift3?.trim().toLowerCase() === nama) return 'Shift 3';
-    }
-
-    if (jadwalRow.shift1?.trim().toLowerCase() === nama) return 'Shift 1';
-    if (jadwalRow.shift2?.trim().toLowerCase() === nama) return 'Shift 2';
-    if (jadwalRow.shift3?.trim().toLowerCase() === nama) return 'Shift 3';
-    if (jadwalRow.libur?.trim().toLowerCase() === nama) return 'Libur';
-    return null;
+    return 'Shift 3'; 
 };
 
 // --- FUNGSI UTAMA ---
+
 const getOrCreateKegiatanTransporterId = async (kegiatanId, transporterId) => {
     try {
         const [existing] = await db.query(
@@ -58,14 +67,13 @@ const getOrCreateKegiatanTransporterId = async (kegiatanId, transporterId) => {
     }
 };
 
-// 🔥 API 1: CEK STATUS SHIFT (SMART FALLBACK) 🔥
+// API 1: CEK STATUS SHIFT
 const cekStatusShiftUser = async (req, res) => {
     const { email, tanggal } = req.query;
     try {
         const [users] = await db.query('SELECT nama FROM users WHERE email = ?', [email]);
         if (users.length === 0) return res.json({ shift: 'Unknown' });
         
-        // 1. Ambil SEMUA shift user di tanggal ini
         const [jadwal] = await db.query(`
             SELECT s.nama_shift 
             FROM jadwal_shift js
@@ -77,59 +85,35 @@ const cekStatusShiftUser = async (req, res) => {
             return res.json({ status: 'Success', data: { nama: users[0].nama, shift: 'Tidak Terdaftar' } });
         }
 
-        // --- UPDATE 1: URUTKAN JADWAL (Shift 1 -> Shift 2 -> Shift 3) ---
-        // Biar kita yakin jadwal[0] itu pasti shift pagi, jadwal[terakhir] itu shift malam
         const shiftOrder = { 'Shift 1': 1, 'Shift 2': 2, 'Shift 3': 3, 'Libur': 4 };
         jadwal.sort((a, b) => shiftOrder[a.nama_shift] - shiftOrder[b.nama_shift]);
 
-        // 2. Tentukan Shift Aktif Berdasarkan Jam WIB
         const now = new Date();
         const jakartaTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
         const currentHour = jakartaTime.getHours();
-
         const currentShiftScope = getShiftFromTime(currentHour); 
 
-        console.log(`🕒 Jam: ${currentHour}:00 WIB | Target: ${currentShiftScope}`);
-        console.log(`📋 Jadwal User: ${jadwal.map(j => j.nama_shift).join(', ')}`);
-
-        // 3. Cek Exact Match
         const activeShift = jadwal.find(j => j.nama_shift === currentShiftScope);
 
         if (activeShift) {
-            // KASUS A: Cocok Sempurna (Misal jam 10 pagi, punya Shift 1)
             res.json({ status: 'Success', data: { nama: users[0].nama, shift: activeShift.nama_shift } });
         } else {
-            // KASUS B: Tidak Cocok (Misal jam 23:00 [Shift 3], tapi cuma punya Shift 1 & 2)
-            
-            let selectedFallback;
-
-            if (currentHour >= 12) {
-                // Jika sudah siang/malam, ambil shift TERAKHIR yang dia punya (Shift 2)
-                selectedFallback = jadwal[jadwal.length - 1];
-            } else {
-                // Jika masih pagi (misal jam 06:00 tapi jadwalnya Shift 2), ambil yg PERTAMA
-                selectedFallback = jadwal[0];
-            }
-
-            console.log(`⚠️ Fallback aktif! Memilih: ${selectedFallback.nama_shift}`);
-
+            let selectedFallback = (currentHour >= 12) ? jadwal[jadwal.length - 1] : jadwal[0];
             res.json({ 
                 status: 'Success', 
                 data: { 
                     nama: users[0].nama, 
-                    shift: selectedFallback.nama_shift, // Ini akan otomatis jadi Shift 2 di kasus Anda
-                    warning: `Sekarang jam ${currentHour}, jadwal Anda: ${jadwal.map(j=>j.nama_shift).join(', ')}`
+                    shift: selectedFallback.nama_shift,
+                    warning: `Jadwal Anda: ${jadwal.map(j=>j.nama_shift).join(', ')}`
                 } 
             });
         }
-
     } catch (error) {
-        console.error(error);
         res.status(500).json({ message: error.message });
     }
 };
 
-// 🔥 API 2: CEK PO (TETAP SAMA DENGAN YG ANDA KIRIM - SUDAH BENAR) 🔥
+// API 2: CEK PO
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
@@ -155,7 +139,6 @@ const cekPO = async (req, res) => {
             return res.status(200).json({ status: 'Success', data: kegiatan[0], transporters: [] });
         }
 
-        // AMBIL KENDARAAN SESUAI TABEL 7.5 (kegiatan_kendaraan)
         const kegiatanTransporterIds = transporters.map(t => t.kegiatan_transporter_id);
         
         let vehicles = [];
@@ -181,74 +164,65 @@ const cekPO = async (req, res) => {
         res.status(200).json({ status: 'Success', data: kegiatan[0], transporters: transporterData });
 
     } catch (error) {
-        console.error("Error Cek PO:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
-// 🔥 API 3: SIMPAN DATA (UPDATE SHIFT RELASIONAL & TETAPKAN VALIDASI KENDARAAN) 🔥
+// 🔥 API 3: SIMPAN DATA (AUTO CONVERT BASE64 KE FILE) 🔥
 const simpanKeberangkatan = async (req, res) => {
     const { kegiatan_id, transporter_id, no_polisi, email_user, tanggal, no_seri_pengantar, foto_truk, foto_surat } = req.body;
 
-    console.log("🔥 REQUEST SAVE:", req.body);
-
     try {
+        // 1. Validasi User & Jadwal
         const [users] = await db.query('SELECT nama FROM users WHERE email = ?', [email_user]);
         if (users.length === 0) return res.status(401).json({ message: 'User invalid' });
 
-        // --- UPDATE LOGIC SHIFT (RELASIONAL) ---
         const [jadwal] = await db.query(`
             SELECT s.id as shift_id, s.nama_shift 
-            FROM jadwal_shift js
-            JOIN shift s ON js.shift_id = s.id
-            WHERE js.tanggal = ? AND js.email_user = ?
-            LIMIT 1
+            FROM jadwal_shift js JOIN shift s ON js.shift_id = s.id
+            WHERE js.tanggal = ? AND js.email_user = ? LIMIT 1
         `, [tanggal, email_user]);
         
-        if (jadwal.length === 0) return res.status(403).json({ message: 'Anda tidak memiliki jadwal shift pada tanggal ini.' });
-
-        const userShiftName = jadwal[0].nama_shift;
-        const userShiftId = jadwal[0].shift_id; // Kita butuh ID ini untuk foreign key
-
-        if (userShiftName === 'Libur') return res.status(403).json({ message: 'Jadwal Anda hari ini adalah Libur.' });
-
-        // --- VALIDASI KENDARAAN ---
-        if (!transporter_id) return res.status(400).json({ message: 'Transporter wajib dipilih!' });
-
-        const [existingKendaraan] = await db.query('SELECT id, transporter_id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
+        if (jadwal.length === 0) return res.status(403).json({ message: 'Tidak ada jadwal shift.' });
         
-        if (existingKendaraan.length === 0) {
-            return res.status(400).json({ message: `Nomor Polisi '${no_polisi}' tidak terdaftar di database Master Kendaraan.` });
+        const userShiftId = jadwal[0].shift_id;
+
+        // 2. PROSES FOTO (BASE64 -> FILE -> PATH)
+        // Ini yang bikin database jadi RINGAN
+        const fotoTrukPath = saveBase64ToFile(foto_truk, 'truk');
+        const fotoSuratPath = saveBase64ToFile(foto_surat, 'surat');
+
+        if (!fotoTrukPath || !fotoSuratPath) {
+            return res.status(400).json({ message: 'Gagal memproses foto. Pastikan foto diambil dengan benar.' });
         }
 
+        // 3. Validasi & Relasi
+        const [existingKendaraan] = await db.query('SELECT id, transporter_id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
+        if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol tidak terdaftar.' });
+        
         const kendaraanId = existingKendaraan[0].id;
-
-        if (String(existingKendaraan[0].transporter_id) !== String(transporter_id)) {
-             return res.status(400).json({ 
-                 message: `Nomor Polisi '${no_polisi}' bukan milik transporter yang dipilih. Mohon cek kembali.` 
-             });
-        }
-
         const finalKegiatanTransporterId = await getOrCreateKegiatanTransporterId(kegiatan_id, transporter_id);
 
-        // --- VALIDASI ALOKASI (Tabel 7.5) ---
-        const [alokasiCheck] = await db.query(
+        const [alokasi] = await db.query(
             'SELECT id FROM kegiatan_kendaraan WHERE kegiatan_transporter_id = ? AND kendaraan_id = ?',
             [finalKegiatanTransporterId, kendaraanId]
         );
 
-        if (alokasiCheck.length === 0) {
-             return res.status(400).json({ 
-                 message: `Nomor Polisi '${no_polisi}' belum dialokasikan untuk PO ini. Silakan hubungi Admin.` 
-             });
+        let kegiatanKendaraanId;
+        if (alokasi.length === 0) {
+             // Jika belum dialokasikan, insert otomatis (opsional, tergantung kebijakan)
+             // Di sini kita return error agar sesuai flow
+             return res.status(400).json({ message: 'Truk belum dialokasikan untuk PO ini.' });
+        } else {
+            kegiatanKendaraanId = alokasi[0].id;
         }
 
-        // --- SIMPAN (Pakai shift_id dari query relasional) ---
+        // 4. INSERT PATH KE DATABASE (BUKAN BASE64)
         const [result] = await db.query(
             `INSERT INTO keberangkatan_truk 
-             (kegiatan_transporter_id, kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, status) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Valid')`,
-            [finalKegiatanTransporterId, kendaraanId, email_user, userShiftId, tanggal, no_seri_pengantar, foto_truk, foto_surat]
+             (kegiatan_kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'Valid')`,
+            [kegiatanKendaraanId, email_user, userShiftId, tanggal, no_seri_pengantar, fotoTrukPath, fotoSuratPath]
         );
 
         await db.query(
@@ -259,24 +233,98 @@ const simpanKeberangkatan = async (req, res) => {
         res.status(200).json({ status: 'Success', message: 'Data berhasil disimpan', data: { id: result.insertId } });
 
     } catch (error) {
-        console.error('❌ FATAL ERROR SAVE:', error);
+        console.error('❌ SAVE ERROR:', error);
         res.status(500).json({ status: 'Error', message: error.sqlMessage || error.message });
     }
 };
 
-// --- API LAIN (TIDAK ADA PERUBAHAN) ---
+// 🔥 API 4: UPDATE DATA (EDIT) 🔥
+const updateTruk = async (req, res) => {
+    const { id } = req.params;
+    const { kegiatan_id, transporter_id, no_polisi, no_seri_pengantar } = req.body;
 
+    try {
+        // 1. Ambil data lama sebelum diupdate untuk mengetahui siapa transporter sebelumnya
+        const [oldRecord] = await db.query(`
+            SELECT kk.kegiatan_transporter_id 
+            FROM keberangkatan_truk kt
+            JOIN kegiatan_kendaraan kk ON kt.kegiatan_kendaraan_id = kk.id
+            WHERE kt.id = ?`, [id]);
+
+        if (oldRecord.length === 0) return res.status(404).json({ message: 'Data keberangkatan tidak ditemukan.' });
+        const oldKTId = oldRecord[0].kegiatan_transporter_id;
+
+        // 2. Validasi Nopol Baru
+        const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
+        if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol tidak terdaftar.' });
+        
+        const kendaraanId = existingKendaraan[0].id;
+        const finalKegiatanTransporterId = await getOrCreateKegiatanTransporterId(kegiatan_id, transporter_id);
+
+        // 3. Cari Relasi Kendaraan Baru
+        const [alokasi] = await db.query(
+            'SELECT id FROM kegiatan_kendaraan WHERE kegiatan_transporter_id = ? AND kendaraan_id = ?',
+            [finalKegiatanTransporterId, kendaraanId]
+        );
+
+        if (alokasi.length === 0) return res.status(400).json({ message: 'Alokasi kendaraan tidak valid atau truk belum didaftarkan ke transporter ini.' });
+        const newKegiatanKendaraanId = alokasi[0].id;
+
+        // 4. Update Data Keberangkatan
+        await db.query(
+            `UPDATE keberangkatan_truk 
+             SET kegiatan_kendaraan_id = ?, no_seri_pengantar = ?
+             WHERE id = ?`,
+            [newKegiatanKendaraanId, no_seri_pengantar, id]
+        );
+
+        // 5. LOGIKA STATUS TRANSPORTER BARU: Set ke 'On Progress'
+        await db.query(
+            'UPDATE kegiatan_transporter SET status = "On Progress" WHERE id = ?',
+            [finalKegiatanTransporterId]
+        );
+
+        // 6. LOGIKA STATUS TRANSPORTER LAMA: 
+        // Cek apakah masih ada truk lain yang menggunakan kegiatan_transporter_id yang lama
+        if (oldKTId !== finalKegiatanTransporterId) {
+            const [remainingTrucks] = await db.query(`
+                SELECT COUNT(*) as total 
+                FROM keberangkatan_truk kt
+                JOIN kegiatan_kendaraan kk ON kt.kegiatan_kendaraan_id = kk.id
+                WHERE kk.kegiatan_transporter_id = ?`, [oldKTId]);
+
+            if (remainingTrucks[0].total === 0) {
+                // Jika sudah tidak ada truk lagi, kembalikan ke 'Waiting'
+                await db.query('UPDATE kegiatan_transporter SET status = "Waiting" WHERE id = ?', [oldKTId]);
+            }
+        }
+
+        res.status(200).json({ status: 'Success', message: 'Data berhasil diperbarui dan status disinkronkan' });
+
+    } catch (error) {
+        console.error('❌ UPDATE ERROR:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// API 5: GET DATA
 const getKeberangkatanByDate = async (req, res) => {
     const { tanggal, email_user, all } = req.query;
     try {
         let query = `
-            SELECT kt.*, k.no_po, k.material, k.nama_kapal, v.nama_vendor, kd.plat_nomor, u.nama as nama_personil, s.nama_shift, tr.nama_transporter as transporter
+            SELECT 
+                kt.id, kt.tanggal, kt.created_at, kt.status, kt.no_seri_pengantar, kt.keterangan, 
+                kt.foto_truk, kt.foto_surat,
+                kd.plat_nomor, tr.id as transporter_id, tr.nama_transporter as nama_vendor, 
+                k.id as kegiatan_id, k.no_po, k.material, k.nama_kapal,
+                v.nama_vendor as vendor_po, u.nama as nama_personil, s.nama_shift
             FROM keberangkatan_truk kt
-            LEFT JOIN kegiatan_transporter kt_link ON kt.kegiatan_transporter_id = kt_link.id
-            LEFT JOIN kegiatan k ON kt_link.kegiatan_id = k.id
-            LEFT JOIN transporter tr ON kt_link.transporter_id = tr.id
+            JOIN kegiatan_kendaraan kk ON kt.kegiatan_kendaraan_id = kk.id
+            JOIN kendaraan kd ON kk.kendaraan_id = kd.id
+            JOIN kegiatan_transporter ktrans ON kk.kegiatan_transporter_id = ktrans.id
+            JOIN transporter tr ON ktrans.transporter_id = tr.id
+            JOIN kegiatan k ON ktrans.kegiatan_id = k.id
             LEFT JOIN vendor v ON k.vendor_id = v.id
-            LEFT JOIN kendaraan kd ON kt.kendaraan_id = kd.id
             LEFT JOIN users u ON kt.email_user = u.email
             LEFT JOIN shift s ON kt.shift_id = s.id
         `;
@@ -302,7 +350,24 @@ const getKeberangkatanByDate = async (req, res) => {
 const hapusKeberangkatan = async (req, res) => {
     const { id } = req.params;
     try {
+        // Ambil path foto dulu untuk dihapus dari folder
+        const [data] = await db.query('SELECT foto_truk, foto_surat FROM keberangkatan_truk WHERE id = ?', [id]);
+        
         await db.query('DELETE FROM keberangkatan_truk WHERE id = ?', [id]);
+        
+        // Hapus file fisik jika ada
+        if (data.length > 0) {
+            const publicDir = path.join(__dirname, '../../public');
+            if (data[0].foto_truk) {
+                const p = path.join(publicDir, data[0].foto_truk);
+                if (fs.existsSync(p)) fs.unlinkSync(p);
+            }
+            if (data[0].foto_surat) {
+                const p = path.join(publicDir, data[0].foto_surat);
+                if (fs.existsSync(p)) fs.unlinkSync(p);
+            }
+        }
+
         res.status(200).json({ status: 'Success', message: 'Data berhasil dihapus' });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -314,32 +379,6 @@ const verifikasiKeberangkatan = async (req, res) => {
         await db.query('UPDATE keberangkatan_truk SET status = ? WHERE id = ?', [status, id]);
         res.json({ message: 'Status berhasil diperbarui' });
     } catch (err) { res.status(500).json({ message: err.message }); }
-};
-
-const updateTruk = async (req, res) => {
-    const { id } = req.params;
-    const { nopol, nama_personil, no_seri_pengantar, keterangan, status } = req.body;
-    try {
-        if (!nopol || !nama_personil) return res.status(400).json({ message: 'Plat nomor dan nama personil harus diisi' });
-
-        const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [nopol]);
-        if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nomor Polisi tidak terdaftar.' });
-        
-        const kendaraanId = existingKendaraan[0].id;
-        const [trukData] = await db.query('SELECT email_user FROM keberangkatan_truk WHERE id = ?', [id]);
-        if (trukData.length === 0) return res.status(404).json({ message: 'Data tidak ditemukan' });
-
-        const [updateResult] = await db.query(
-            `UPDATE keberangkatan_truk SET kendaraan_id = ?, no_seri_pengantar = ?, keterangan = ?, status = ? WHERE id = ?`,
-            [kendaraanId, no_seri_pengantar || '', keterangan || '', status, id]
-        );
-
-        if (updateResult.affectedRows === 0) return res.status(404).json({ message: 'Gagal update.' });
-        
-        return res.status(200).json({ message: 'Data berhasil diperbarui', data: { id, nopol, status } });
-    } catch (error) {
-        return res.status(500).json({ message: error.message });
-    }
 };
 
 module.exports = {

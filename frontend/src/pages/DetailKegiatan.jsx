@@ -6,6 +6,17 @@ import Topbar from '../components/Topbar';
 const API = 'http://localhost:3000/api/kegiatan';
 
 // ==========================================
+// 0. HELPER URL FOTO (PENAMBAHAN BARU)
+// ==========================================
+const getPhotoUrl = (path) => {
+  if (!path) return null;
+  // Jika path sudah format base64 atau http (url lengkap), biarkan
+  if (path.startsWith('data:') || path.startsWith('http')) return path;
+  // Jika path relatif (dari database), tambahkan domain backend
+  return `http://localhost:3000${path}`;
+};
+
+// ==========================================
 // 1. KOMPONEN MODAL & CONFIRM
 // ==========================================
 
@@ -217,9 +228,6 @@ const DetailKegiatan = () => {
 
   useEffect(() => { fetchDetail(); }, [no_po]);
 
-  // ==========================================
-  // 🔥 FIX UTAMA: OTOMATIS PILIH TRANSPORTER JIKA HANYA 1
-  // ==========================================
   useEffect(() => {
     if (data?.transporters?.length === 1) {
       setSelectedTransporter(data.transporters[0].nama_transporter);
@@ -273,7 +281,6 @@ const DetailKegiatan = () => {
 
   const displayedTransporter = () => {
     if (!transporterList || transporterList.length === 0) return '-';
-    // Jika hanya 1 transporter, tampilkan namanya langsung meski dropdown hidden
     if (transporterList.length === 1) return transporterList[0].nama_transporter;
     
     if (selectedTransporter === 'Semua Transporter') {
@@ -335,6 +342,7 @@ const DetailKegiatan = () => {
       if (src.startsWith('data:')) {
         blob = dataURLToBlob(src);
       } else {
+        // Fetch gambar dari URL backend yang sudah lengkap
         const res = await fetch(src);
         if (!res.ok) throw new Error('Gagal mengambil file');
         blob = await res.blob();
@@ -355,13 +363,9 @@ const DetailKegiatan = () => {
     }
   };
 
-  // ========================================
-  // 🔧 HANDLE TOGGLE COMPLETE
-  // ========================================
   const handleToggleComplete = async () => {
     if (!data?.kegiatan) return;
 
-    // Logic tambahan: Jika hanya 1 transporter, pastikan selectedTransporter terisi otomatis
     const currentSelected = transporterList.length === 1 ? transporterList[0].nama_transporter : selectedTransporter;
 
     if (currentSelected === 'Semua Transporter') {
@@ -423,7 +427,6 @@ const DetailKegiatan = () => {
     });
   };
 
-  // --- EDIT ROWS ---
   const handleEditRow = (truk) => {
     setEditingRow(truk.id);
     setEditFormData({
@@ -531,7 +534,6 @@ const DetailKegiatan = () => {
             <span className="font-medium">Kembali ke Daftar Kegiatan</span>
           </button>
 
-          {/* Dropdown hanya muncul jika > 1 transporter */}
           {hasMultipleTransporters && (
             <TransporterDropdown 
               transporterList={transporterList}
@@ -574,7 +576,6 @@ const DetailKegiatan = () => {
           />
 
           <div className="flex justify-end mt-4">
-            {/* BUTTON LOGIC: Muncul jika BUKAN 'Semua Transporter' (pilihan user) ATAU jika hanya ada 1 transporter (otomatis terpilih) */}
             {(selectedTransporter !== 'Semua Transporter' || transporterList.length === 1) && (
               <button
                 onClick={handleToggleComplete}
@@ -651,7 +652,6 @@ const DetailKegiatan = () => {
   );
 };
 
-// ... (LoadingScreen, NoDataScreen, HeaderPO, TransporterDropdown, StatistikCards, FilterBar, TrukTable, InfoRow, StatusPOBadge, StatCard, Th, Td components remain unchanged)
 const LoadingScreen = ({ isSidebarOpen, onToggle }) => (
   <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
     <Sidebar isOpen={isSidebarOpen} onClose={onToggle} />
@@ -709,7 +709,6 @@ const TransporterDropdown = ({ transporterList, selectedTransporter, setSelected
       <option>Semua Transporter</option>
       {transporterList.map(t => (
         <option key={t.kegiatan_transporter_id}>{t.nama_transporter}</option>
-        
       ))}
     </select>
   </div>
@@ -826,8 +825,8 @@ const TrukTable = ({ trukList, setSelectedImage, formatDateTime, editingRow, edi
                     <span className="text-gray-500">{truk.no_seri_pengantar || '-'}</span>
                   )}
                 </Td>
-                <Td>{truk.foto_truk ? <button onClick={() => setSelectedImage({ src: truk.foto_truk, type: 'foto_truk', nopol: truk.nopol, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
-                <Td>{truk.foto_surat ? <button onClick={() => setSelectedImage({ src: truk.foto_surat, type: 'foto_surat', no_seri_pengantar: truk.no_seri_pengantar, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
+                <Td>{truk.foto_truk ? <button onClick={() => setSelectedImage({ src: getPhotoUrl(truk.foto_truk), type: 'foto_truk', nopol: truk.nopol, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
+                <Td>{truk.foto_surat ? <button onClick={() => setSelectedImage({ src: getPhotoUrl(truk.foto_surat), type: 'foto_surat', no_seri_pengantar: truk.no_seri_pengantar, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
                 
                 <Td>
                   {editingRow === truk.id ? (
