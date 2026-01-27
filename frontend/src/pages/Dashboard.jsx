@@ -15,8 +15,11 @@ const Dashboard = () => {
     const [error, setError] = useState(null);
     
     // Filter States - DEFAULT HARI INI
-    const [selectedYear, setSelectedYear] = useState('');
-    const [selectedMonth, setSelectedMonth] = useState('');
+
+    // Filter States - DEFAULT HARI INI (dengan tahun dan bulan otomatis)
+    const today = new Date();
+    const [selectedYear, setSelectedYear] = useState(today.getFullYear().toString());
+    const [selectedMonth, setSelectedMonth] = useState(today.getMonth().toString());
     const [selectedPeriod, setSelectedPeriod] = useState('today');
     const [availableYears, setAvailableYears] = useState([]);
     const [availableMonths, setAvailableMonths] = useState([]);
@@ -640,70 +643,184 @@ const Dashboard = () => {
                             );
                         })}
                     </div>
+{/* 1. KEGIATAN MINGGU INI + STATUS TRANSPORTIR */}
+<div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+    {/* BAR CHART - 3 kolom (lebih lebar) */}
+    <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center gap-3 mb-6">
+            <div className="w-1 h-8 bg-red-600 rounded-full"></div>
+            <h3 className="text-lg font-black text-gray-900">Kegiatan Minggu Ini</h3>
+        </div>
+        <div style={{ height: '280px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dataWeekly}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="day" fontSize={11} fontWeight="600" stroke="#94a3b8" />
+                    <YAxis fontSize={11} fontWeight="600" stroke="#94a3b8" />
+                    <Tooltip 
+                        content={<CustomWeeklyTooltip />} 
+                        cursor={{ fill: '#fef2f2' }}
+                        wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
+                    />
+                    <Bar 
+                        dataKey="kegiatan"
+                        fill="#ef4444"
+                        radius={[10, 10, 0, 0]}
+                        barSize={30}
+                        name="Total Kegiatan"
+                    />
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    </div>
 
-                    {/* 1. KEGIATAN MINGGU INI + STATUS TRANSPORTIR */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-1 h-8 bg-red-600 rounded-full"></div>
-                                <h3 className="text-lg font-black text-gray-900">Kegiatan Minggu Ini</h3>
-                            </div>
-                            <div style={{ height: '280px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={dataWeekly}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="day" fontSize={11} fontWeight="600" stroke="#94a3b8" />
-                                        <YAxis fontSize={11} fontWeight="600" stroke="#94a3b8" />
-                                        <Tooltip 
-                                            content={<CustomWeeklyTooltip />} 
-                                            cursor={{ fill: '#fef2f2' }}
-                                            wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
-                                        />
-                                       
-                                        <Bar 
-                                            dataKey="kegiatan"
-                                            fill="#ef4444"
-                                            radius={[10, 10, 0, 0]}
-                                            barSize={30}
-                                            name="Total Kegiatan"
-                                        />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-1 h-8 bg-red-600 rounded-full"></div>
-                                <h3 className="text-lg font-black text-gray-900">Status Transportir</h3>
-                            </div>
-                            <div style={{ height: '280px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie 
-                                            data={dataPie} 
-                                            innerRadius={70} 
-                                            outerRadius={110} 
-                                            dataKey="value" 
-                                            stroke="none" 
-                                            paddingAngle={5}
-                                        >
-                                            {dataPie.map((entry, index) => (
-                                                <Cell key={index} fill={entry.color} />
+    {/* PIE CHART - 2 kolom (lebih kecil) */}
+    <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center gap-3 mb-6">
+            <div className="w-1 h-8 bg-red-600 rounded-full"></div>
+            <h3 className="text-lg font-black text-gray-900">Status Transportir</h3>
+        </div>
+        <div style={{ height: '280px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                    <Pie 
+                        data={dataPie} 
+                        innerRadius={60} 
+                        outerRadius={90} 
+                        dataKey="value" 
+                        stroke="none" 
+                        paddingAngle={5}
+                    >
+                        {dataPie.map((entry, index) => (
+                            <Cell key={index} fill={entry.color} />
+                        ))}
+                    </Pie>
+                    <Tooltip 
+                        content={(props) => {
+                            if (!props.active || !props.payload || !props.payload.length) return null;
+                            
+                            const status = props.payload[0].name;
+                            const count = props.payload[0].value;
+                            
+                            if (count === 0) return null;
+                            
+                            // Ambil data detail
+                            const detailData = [];
+                            
+                            rawKegiatan.forEach(kegiatan => {
+                                if (kegiatan.transporters && Array.isArray(kegiatan.transporters)) {
+                                    kegiatan.transporters.forEach(t => {
+                                        if (t.status === status) {
+                                            detailData.push({
+                                                no_po: kegiatan.no_po,
+                                                vendor: kegiatan.vendor,
+                                                kapal: kegiatan.nama_kapal || '-',
+                                                transporter: t.nama_transporter || t.nama || '-',
+                                                material: kegiatan.material || '-',
+                                                tanggal_mulai: kegiatan.tanggal_mulai,
+                                                tanggal_selesai: kegiatan.tanggal_selesai
+                                            });
+                                        }
+                                    });
+                                }
+                            });
+                            
+                            return (
+                                <div 
+                                    className="bg-white rounded-xl shadow-xl border-2 border-gray-200"
+                                    style={{ 
+                                        width: '380px',
+                                        maxHeight: '450px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        position: 'relative'
+                                    }}
+                                    onWheel={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                    {/* Header - NON sticky */}
+                                    <div className="p-4 border-b-2 bg-gradient-to-r from-gray-50 to-white">
+                                        <div className="font-bold text-gray-900 text-base mb-1">
+                                            Status: {status}
+                                        </div>
+                                        <div className="text-sm text-gray-600">
+                                            Total: {count} Transportir
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Scrollable Content */}
+                                    <div 
+                                        className="p-4 pt-2"
+                                        style={{ 
+                                            maxHeight: '380px',
+                                            overflowY: 'auto',
+                                            overflowX: 'hidden'
+                                        }}
+                                    >
+                                        <div className="space-y-3">
+                                            {detailData.map((item, idx) => (
+                                                <div key={idx} className="p-3 bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 hover:shadow-md transition-all">
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <div className="font-bold text-sm text-gray-900">
+                                                            PO {item.no_po}
+                                                        </div>
+                                                        <div className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${
+                                                            status === 'Completed' ? 'bg-green-100 text-green-700' :
+                                                            status === 'On Progress' ? 'bg-blue-100 text-blue-700' :
+                                                            'bg-yellow-100 text-yellow-700'
+                                                        }`}>
+                                                            {status}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-start gap-2">
+                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Vendor:</span>
+                                                            <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.vendor}</span>
+                                                        </div>
+                                                        <div className="flex items-start gap-2">
+                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Kapal:</span>
+                                                            <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.kapal}</span>
+                                                        </div>
+                                                        <div className="flex items-start gap-2">
+                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Material:</span>
+                                                            <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.material}</span>
+                                                        </div>
+                                                        <div className="flex items-start gap-2">
+                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Transporter:</span>
+                                                            <span className="text-xs text-gray-900 font-semibold flex-1 text-purple-700 break-words">{item.transporter}</span>
+                                                        </div>
+                                                        <div className="flex items-start gap-2">
+                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Periode:</span>
+                                                            <span className="text-xs text-gray-700 flex-1">
+                                                                {new Date(item.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} - {item.tanggal_selesai ? new Date(item.tanggal_selesai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             ))}
-                                        </Pie>
-                                        <Tooltip content={<CustomTooltip />} />
-                                        <Legend 
-                                            iconType="circle" 
-                                            layout="horizontal" 
-                                            verticalAlign="bottom"
-                                            wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-                    </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        }} 
+                        wrapperStyle={{ 
+                            zIndex: 9999,
+                            pointerEvents: 'auto'
+                        }}
+                        cursor={{ fill: 'rgba(239, 68, 68, 0.1)' }}
+                    />
+                    <Legend 
+                        iconType="circle" 
+                        layout="horizontal" 
+                        verticalAlign="bottom"
+                        wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                    />
+                </PieChart>
+            </ResponsiveContainer>
+        </div>
+    </div>
+</div>
 
                     {/* 2. DISTRIBUSI JAM KEBERANGKATAN TRUK */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
