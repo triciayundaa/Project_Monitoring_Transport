@@ -90,7 +90,6 @@ const cekStatusShiftUser = async (req, res) => {
         if (activeShift) {
             res.json({ status: 'Success', data: { nama: users[0].nama, shift: activeShift.nama_shift } });
         } else {
-            // Fallback Info Only
             const shiftOrder = { 'Shift 1': 1, 'Shift 2': 2, 'Shift 3': 3, 'Libur': 4 };
             jadwal.sort((a, b) => shiftOrder[a.nama_shift] - shiftOrder[b.nama_shift]);
             let selectedFallback = (currentHour >= 12) ? jadwal[jadwal.length - 1] : jadwal[0];
@@ -109,7 +108,7 @@ const cekStatusShiftUser = async (req, res) => {
     }
 };
 
-// API 2: CEK PO
+// API 2: CEK PO (UPDATED: LOGIKA CEK STATUS COMPLETED)
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
@@ -122,17 +121,35 @@ const cekPO = async (req, res) => {
 
         const kegiatanId = kegiatan[0].id;
 
+        // Ambil Transporter beserta statusnya di tabel kegiatan_transporter
         const [transporters] = await db.query(`
-            SELECT t.id, t.nama_transporter, kt.id as kegiatan_transporter_id 
+            SELECT t.id, t.nama_transporter, kt.id as kegiatan_transporter_id,
+            kt.status 
             FROM transporter t
             JOIN kegiatan_transporter kt ON t.id = kt.transporter_id
             WHERE kt.kegiatan_id = ?
-            GROUP BY t.id, t.nama_transporter, kt.id
+            GROUP BY t.id, t.nama_transporter, kt.id, kt.status
             ORDER BY t.nama_transporter ASC
         `, [kegiatanId]);
 
+        // --- LOGIKA BARU: HITUNG STATUS PO ---
+        // Jika PO punya transporter DAN semua transporter statusnya 'Completed', maka PO dianggap 'Completed'
+        let poStatus = 'On Progress'; // Default
+        if (transporters.length > 0) {
+            const allCompleted = transporters.every(t => t.status === 'Completed');
+            if (allCompleted) {
+                poStatus = 'Completed';
+            }
+        }
+        
+        // Gabungkan status hitungan ke data PO
+        const finalDataPO = {
+            ...kegiatan[0],
+            status: poStatus // Kirim status ini ke frontend agar ditangkap validasi
+        };
+
         if (transporters.length === 0) {
-            return res.status(200).json({ status: 'Success', data: kegiatan[0], transporters: [] });
+            return res.status(200).json({ status: 'Success', data: finalDataPO, transporters: [] });
         }
 
         const kegiatanTransporterIds = transporters.map(t => t.kegiatan_transporter_id);
@@ -157,19 +174,18 @@ const cekPO = async (req, res) => {
             };
         });
 
-        res.status(200).json({ status: 'Success', data: kegiatan[0], transporters: transporterData });
+        res.status(200).json({ status: 'Success', data: finalDataPO, transporters: transporterData });
 
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// 🔥 API 3: SIMPAN DATA (VALIDASI SHIFT DIPERKETAT) 🔥
+// API 3: SIMPAN DATA
 const simpanKeberangkatan = async (req, res) => {
     const { kegiatan_id, transporter_id, no_polisi, email_user, tanggal, no_seri_pengantar, foto_truk, foto_surat } = req.body;
 
     try {
-        // 1. Validasi User & Jadwal
         const [users] = await db.query('SELECT nama FROM users WHERE email = ?', [email_user]);
         if (users.length === 0) return res.status(401).json({ message: 'User invalid' });
 
@@ -180,36 +196,28 @@ const simpanKeberangkatan = async (req, res) => {
         `, [tanggal, email_user]);
         
         if (jadwal.length === 0) return res.status(403).json({ message: 'Tidak ada jadwal shift pada tanggal ini.' });
-        
-        // Cek Libur
         if (jadwal[0].nama_shift === 'Libur') return res.status(403).json({ message: 'Anda tidak bisa input data karena jadwal Anda LIBUR.' });
 
-        // 🛑 VALIDASI JAM SERVER (AGAR TIDAK BISA INPUT DI LUAR JAM SHIFT)
-        const scheduledShift = jadwal[0].nama_shift; // Jadwal User (Misal: Shift 1)
-        
+        const scheduledShift = jadwal[0].nama_shift; 
         const now = new Date();
         const jakartaTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
         const currentHour = jakartaTime.getHours();
         
-        // Pastikan input dilakukan di tanggal yang sama (mencegah backdate/future date di luar shift)
         const serverDateStr = jakartaTime.toISOString().split('T')[0];
         if (tanggal !== serverDateStr) {
              return res.status(403).json({ message: 'Input data hanya diperbolehkan untuk tanggal hari ini.' });
         }
 
-        const currentRealShift = getShiftFromTime(currentHour); // Shift Aktual berdasarkan jam (Misal: Shift 2)
+        const currentRealShift = getShiftFromTime(currentHour); 
 
-        // Bandingkan: Jika Jadwal User BEDA dengan Shift Sekarang -> TOLAK
         if (scheduledShift !== currentRealShift) {
             return res.status(403).json({ 
                 message: `GAGAL: Jadwal Anda ${scheduledShift}, tapi sekarang jam ${currentHour}:00 (${currentRealShift}). Anda hanya bisa input sesuai jam shift.` 
             });
         }
-        // 🛑 END VALIDASI
 
         const userShiftId = jadwal[0].shift_id;
 
-        // 2. PROSES FOTO
         const fotoTrukPath = saveBase64ToFile(foto_truk, 'truk');
         const fotoSuratPath = saveBase64ToFile(foto_surat, 'surat');
 
@@ -217,7 +225,6 @@ const simpanKeberangkatan = async (req, res) => {
             return res.status(400).json({ message: 'Gagal memproses foto. Pastikan foto diambil dengan benar.' });
         }
 
-        // 3. Validasi & Relasi Kendaraan
         const [existingKendaraan] = await db.query('SELECT id, transporter_id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
         if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol tidak terdaftar.' });
         
@@ -236,7 +243,6 @@ const simpanKeberangkatan = async (req, res) => {
             kegiatanKendaraanId = alokasi[0].id;
         }
 
-        // 4. INSERT DATA
         const [result] = await db.query(
             `INSERT INTO keberangkatan_truk 
              (kegiatan_kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, status) 
@@ -257,13 +263,12 @@ const simpanKeberangkatan = async (req, res) => {
     }
 };
 
-// API 4: UPDATE DATA (EDIT)
+// API 4: UPDATE DATA
 const updateTruk = async (req, res) => {
-    const { id } = req.params; // ID dari tabel keberangkatan_truk
+    const { id } = req.params; 
     const { kegiatan_id, transporter_id, no_polisi, no_seri_pengantar, keterangan, status } = req.body;
 
     try {
-        // 1. Ambil data lama sebelum diupdate untuk sinkronisasi status nantinya
         const [oldRecord] = await db.query(`
             SELECT kk.kegiatan_transporter_id
             FROM keberangkatan_truk kbt
@@ -273,17 +278,12 @@ const updateTruk = async (req, res) => {
         if (oldRecord.length === 0) return res.status(404).json({ message: 'Data keberangkatan tidak ditemukan.' });
         const oldKTId = oldRecord[0].kegiatan_transporter_id;
 
-        // 2. Validasi apakah Nopol ada di Master Tabel Kendaraan
         const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
         if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol ini tidak terdaftar di sistem master kendaraan.' });
         
         const kendaraanId = existingKendaraan[0].id;
-
-        // 3. Cari atau Buat relasi kegiatan_transporter_id
         const finalKegiatanTransporterId = await getOrCreateKegiatanTransporterId(kegiatan_id, transporter_id);
 
-        // 4. LOGIKA PENTING: Cari atau BUAT OTOMATIS alokasi di kegiatan_kendaraan
-        // Ini solusi agar tidak muncul error "Nopol tidak terdaftar" jika truk baru dipindah ke PO ini
         const [alokasi] = await db.query(
             'SELECT id FROM kegiatan_kendaraan WHERE kegiatan_transporter_id = ? AND kendaraan_id = ?',
             [finalKegiatanTransporterId, kendaraanId]
@@ -291,7 +291,6 @@ const updateTruk = async (req, res) => {
 
         let targetKegiatanKendaraanId;
         if (alokasi.length === 0) {
-            // Jika belum dialokasikan di PO ini, kita buatkan otomatis barisnya agar tersimpan ke database baru
             const [insertAlokasi] = await db.query(
                 'INSERT INTO kegiatan_kendaraan (kegiatan_transporter_id, kendaraan_id) VALUES (?, ?)',
                 [finalKegiatanTransporterId, kendaraanId]
@@ -301,7 +300,6 @@ const updateTruk = async (req, res) => {
             targetKegiatanKendaraanId = alokasi[0].id;
         }
 
-        // 5. Update Data Utama di keberangkatan_truk
         await db.query(
             `UPDATE keberangkatan_truk 
              SET kegiatan_kendaraan_id = ?, no_seri_pengantar = ?, keterangan = ?, status = ?
@@ -309,13 +307,11 @@ const updateTruk = async (req, res) => {
             [targetKegiatanKendaraanId, no_seri_pengantar, keterangan || '', status || 'Valid', id]
         );
 
-        // 6. Sinkronisasi Status Transporter Baru jadi 'On Progress'
         await db.query(
             'UPDATE kegiatan_transporter SET status = "On Progress" WHERE id = ?',
             [finalKegiatanTransporterId]
         );
 
-        // 7. Sinkronisasi Status Transporter Lama (Jika truk terakhir dipindah, balikkan ke 'Waiting')
         if (oldKTId !== finalKegiatanTransporterId) {
             const [remainingTrucks] = await db.query(`
                 SELECT COUNT(*) as total 
@@ -335,6 +331,7 @@ const updateTruk = async (req, res) => {
         res.status(500).json({ status: 'Error', message: 'Gagal memperbarui data: ' + error.message });
     }
 };
+
 // API 5: GET DATA
 const getKeberangkatanByDate = async (req, res) => {
     const { tanggal, email_user, all } = req.query;

@@ -269,19 +269,28 @@ const KeberangkatanTruk = () => {
             const response = await axios.post('http://localhost:3000/api/keberangkatan/cek-po', { no_po: noPOTrimmed });
             if (response.data.status === 'Success') {
                 const dataPO = response.data.data;
+
+                // 🔥 LOGIKA PENGECEKAN STATUS PO 🔥
+                // Jika PO sudah Completed, munculkan modal warning dan jangan lanjut ke form
                 if (dataPO.status === 'Completed') {
-                    setWarningMessage(`Nomor PO ${dataPO.no_po} sudah berstatus COMPLETED (Selesai).`);
+                    setWarningMessage(`Nomor PO ${dataPO.no_po} sudah berstatus COMPLETED (Selesai). Data tidak dapat ditambah lagi.`);
                     setShowModalWarning(true);
-                    return;
+                    return; // Berhenti di sini, modal form tidak akan terbuka
                 }
+
                 setPoData(dataPO);
                 setTransporterList(response.data.transporters || []); 
                 setShowModalPO(false);
                 setShowModalForm(true);
             }
         } catch (error) {
-            if (error.response?.status === 404) { setShowModalPO(false); setShowModalError(true); } 
-            else { setWarningMessage(error.response?.data?.message || 'Terjadi kesalahan saat mengecek PO'); setShowModalWarning(true); }
+            if (error.response?.status === 404) { 
+                setShowModalPO(false); 
+                setShowModalError(true); 
+            } else { 
+                setWarningMessage(error.response?.data?.message || 'Terjadi kesalahan saat mengecek PO'); 
+                setShowModalWarning(true); 
+            }
         } finally { setLoading(false); }
     };
 
