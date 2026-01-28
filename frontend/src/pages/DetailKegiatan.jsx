@@ -6,6 +6,15 @@ import Topbar from '../components/Topbar';
 const API = 'http://localhost:3000/api/kegiatan';
 
 // ==========================================
+// 0. HELPER URL FOTO
+// ==========================================
+const getPhotoUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('data:') || path.startsWith('http')) return path;
+  return `http://localhost:3000${path}`;
+};
+
+// ==========================================
 // 1. KOMPONEN MODAL & CONFIRM
 // ==========================================
 
@@ -103,6 +112,10 @@ const DetailKegiatan = () => {
   const [modalPos, setModalPos] = useState({ x: (window.innerWidth - 520) / 2, y: 80 });
   const [isMinimized, setIsMinimized] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(window.innerWidth <= 640);
+
+  // 🔥 PERBAIKAN: State untuk truk tersedia per baris dengan loading state
+  const [trukTersediaPerBaris, setTrukTersediaPerBaris] = useState([]);
+  const [isLoadingTruk, setIsLoadingTruk] = useState(false);
 
   // --- STATE UNTUK MODAL ---
   const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
@@ -217,9 +230,6 @@ const DetailKegiatan = () => {
 
   useEffect(() => { fetchDetail(); }, [no_po]);
 
-  // ==========================================
-  // 🔥 FIX UTAMA: OTOMATIS PILIH TRANSPORTER JIKA HANYA 1
-  // ==========================================
   useEffect(() => {
     if (data?.transporters?.length === 1) {
       setSelectedTransporter(data.transporters[0].nama_transporter);
@@ -273,7 +283,6 @@ const DetailKegiatan = () => {
 
   const displayedTransporter = () => {
     if (!transporterList || transporterList.length === 0) return '-';
-    // Jika hanya 1 transporter, tampilkan namanya langsung meski dropdown hidden
     if (transporterList.length === 1) return transporterList[0].nama_transporter;
     
     if (selectedTransporter === 'Semua Transporter') {
@@ -355,13 +364,9 @@ const DetailKegiatan = () => {
     }
   };
 
-  // ========================================
-  // 🔧 HANDLE TOGGLE COMPLETE
-  // ========================================
   const handleToggleComplete = async () => {
     if (!data?.kegiatan) return;
 
-    // Logic tambahan: Jika hanya 1 transporter, pastikan selectedTransporter terisi otomatis
     const currentSelected = transporterList.length === 1 ? transporterList[0].nama_transporter : selectedTransporter;
 
     if (currentSelected === 'Semua Transporter') {
@@ -423,44 +428,101 @@ const DetailKegiatan = () => {
     });
   };
 
-  // --- EDIT ROWS ---
-  const handleEditRow = (truk) => {
+  // 🔥 PERBAIKAN UTAMA: handleEditRow dengan error handling yang lebih baik
+  const handleEditRow = async (truk) => {
+    console.log('🔧 Edit Row Clicked:', truk);
+    
+    // 1. Validasi keamanan
+    if (!truk || !data?.kegiatan?.id) {
+        showModal('error', 'Gagal', 'Data kegiatan belum siap.');
+        return;
+    }
+
+    // 2. Validasi transporter_id
+    if (!truk.transporter_id) {
+        console.error('❌ transporter_id tidak ditemukan pada truk:', truk);
+        showModal('error', 'Gagal', 'ID Transporter tidak ditemukan. Refresh halaman dan coba lagi.');
+        return;
+    }
+
     setEditingRow(truk.id);
+    setTrukTersediaPerBaris([]); // Reset daftar
+    setIsLoadingTruk(true); // Tambahkan loading indicator
+
     setEditFormData({
-      nopol: truk.nopol || '',
-      nama_personil: truk.nama_personil || '',
-      no_seri_pengantar: truk.no_seri_pengantar || '',
-      keterangan: truk.keterangan || '',
-      status: truk.status || 'Valid'
+        nopol: truk.nopol || '',
+        nama_personil: truk.nama_personil || '',
+        no_seri_pengantar: truk.no_seri_pengantar || '',
+        keterangan: truk.keterangan || '',
+        status: truk.status || 'Valid'
     });
+
+    try {
+        console.log(`📡 Fetching truk alokasi: kegiatan_id=${data.kegiatan.id}, transporter_id=${truk.transporter_id}`);
+        
+        // 3. Gunakan URL yang benar sesuai route backend
+        const url = `http://localhost:3000/api/kegiatan/truk-alokasi/${data.kegiatan.id}/${truk.transporter_id}`;
+        console.log('🌐 URL:', url);
+        
+        const res = await fetch(url);
+        
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error('❌ Response Error:', res.status, errorText);
+            throw new Error(`API Error ${res.status}: ${errorText}`);
+        }
+        
+        const json = await res.json();
+        console.log('✅ Data truk alokasi berhasil dimuat:', json);
+        
+        // 4. Set data dengan validasi
+        if (Array.isArray(json) && json.length > 0) {
+            setTrukTersediaPerBaris(json);
+        } else {
+            console.warn('⚠️ Tidak ada truk teralokasi, gunakan fallback');
+            setTrukTersediaPerBaris([{ id: 0, plat_nomor: truk.nopol }]);
+        }
+    } catch (err) {
+        console.error("❌ Error fetch alokasi:", err);
+        showModal('error', 'Gagal Memuat Data', `Tidak dapat memuat daftar truk: ${err.message}`);
+        
+        // Fallback: Gunakan nopol yang ada
+        setTrukTersediaPerBaris([{ id: 0, plat_nomor: truk.nopol }]);
+    } finally {
+        setIsLoadingTruk(false);
+    }
   };
 
   const handleCancelEdit = () => {
     setEditingRow(null);
     setEditFormData({});
+    setTrukTersediaPerBaris([]);
+    setIsLoadingTruk(false);
   };
 
   const handleSaveEdit = async (trukId) => {
+    // 1. Validasi Input Dasar
     if (!editFormData.nopol || !editFormData.nama_personil) {
       showModal('warning', 'Data Kurang', 'Plat nomor dan nama personil harus diisi');
       return;
     }
 
-    const isValidPersonil = availableUsers.some(
-      user => user.nama.trim().toLowerCase() === editFormData.nama_personil.trim().toLowerCase()
-    );
+    // 2. Cari data truk yang sedang diedit
+    const targetTruk = data.truk.find(t => t.id === trukId);
+    const transporterId = targetTruk?.transporter_id;
 
-    if (!isValidPersonil) {
-      showModal('error', 'Personil Invalid', 'Nama Personil tidak valid! Harap pilih nama dari daftar yang tersedia.');
+    if (!transporterId) {
+      showModal('error', 'Gagal', 'ID Transporter tidak ditemukan. Coba refresh halaman.');
       return;
     }
 
-    const isValidNopol = availableKendaraan.some(
-      ken => ken.plat_nomor.trim().replace(/\s/g, '').toLowerCase() === editFormData.nopol.trim().replace(/\s/g, '').toLowerCase()
+    // 3. Validasi strict berdasarkan alokasi
+    const isValidNopol = trukTersediaPerBaris.some(
+      ken => ken.plat_nomor.trim().toLowerCase() === editFormData.nopol.trim().toLowerCase()
     );
 
     if (!isValidNopol) {
-      showModal('error', 'Nopol Invalid', 'Nomor Polisi tidak valid! Harap pilih nopol dari daftar yang tersedia.');
+      showModal('error', 'Nopol Tidak Valid', `Nomor polisi ${editFormData.nopol} tidak terdaftar untuk transporter ${targetTruk.nama_transporter} di PO ini.`);
       return;
     }
 
@@ -468,30 +530,31 @@ const DetailKegiatan = () => {
       closeConfirm();
       
       try {
-        console.log('💾 Sending update request:', { id: trukId, data: editFormData });
+        const payload = {
+          kegiatan_id: data.kegiatan.id,
+          transporter_id: transporterId,
+          no_polisi: editFormData.nopol,
+          no_seri_pengantar: editFormData.no_seri_pengantar,
+          keterangan: editFormData.keterangan,
+          status: editFormData.status
+        };
 
         const res = await fetch(`http://localhost:3000/api/keberangkatan/${trukId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editFormData)
+          body: JSON.stringify(payload)
         });
-
-        const contentType = res.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          const textResponse = await res.text();
-          throw new Error('Server error response (bukan JSON).');
-        }
 
         const responseData = await res.json();
         if (!res.ok) throw new Error(responseData.message || `Server error: ${res.status}`);
 
-        await fetchDetail();
+        await fetchDetail(); 
         setEditingRow(null);
         setEditFormData({});
+        setTrukTersediaPerBaris([]);
         showModal('success', 'Berhasil', 'Data berhasil diperbarui');
       } catch (err) {
-        console.error('Error detail:', err);
-        showModal('error', 'Gagal Menyimpan', err.message || 'Gagal menyimpan perubahan');
+        showModal('error', 'Gagal Menyimpan', err.message);
       }
     });
   };
@@ -531,7 +594,6 @@ const DetailKegiatan = () => {
             <span className="font-medium">Kembali ke Daftar Kegiatan</span>
           </button>
 
-          {/* Dropdown hanya muncul jika > 1 transporter */}
           {hasMultipleTransporters && (
             <TransporterDropdown 
               transporterList={transporterList}
@@ -571,10 +633,11 @@ const DetailKegiatan = () => {
             handleSaveEdit={handleSaveEdit}
             availableUsers={availableUsers}
             availableKendaraan={availableKendaraan}
+            trukTersediaPerBaris={trukTersediaPerBaris}
+            isLoadingTruk={isLoadingTruk}
           />
 
           <div className="flex justify-end mt-4">
-            {/* BUTTON LOGIC: Muncul jika BUKAN 'Semua Transporter' (pilihan user) ATAU jika hanya ada 1 transporter (otomatis terpilih) */}
             {(selectedTransporter !== 'Semua Transporter' || transporterList.length === 1) && (
               <button
                 onClick={handleToggleComplete}
@@ -651,7 +714,6 @@ const DetailKegiatan = () => {
   );
 };
 
-// ... (LoadingScreen, NoDataScreen, HeaderPO, TransporterDropdown, StatistikCards, FilterBar, TrukTable, InfoRow, StatusPOBadge, StatCard, Th, Td components remain unchanged)
 const LoadingScreen = ({ isSidebarOpen, onToggle }) => (
   <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
     <Sidebar isOpen={isSidebarOpen} onClose={onToggle} />
@@ -709,7 +771,6 @@ const TransporterDropdown = ({ transporterList, selectedTransporter, setSelected
       <option>Semua Transporter</option>
       {transporterList.map(t => (
         <option key={t.kegiatan_transporter_id}>{t.nama_transporter}</option>
-        
       ))}
     </select>
   </div>
@@ -738,7 +799,21 @@ const FilterBar = ({ shifts, searchQuery, setSearchQuery, statusFilter, setStatu
   </div>
 );
 
-const TrukTable = ({ trukList, setSelectedImage, formatDateTime, editingRow, editFormData, setEditFormData, handleEditRow, handleCancelEdit, handleSaveEdit, availableUsers, availableKendaraan }) => (
+const TrukTable = ({ 
+  trukList, 
+  setSelectedImage, 
+  formatDateTime, 
+  editingRow, 
+  editFormData, 
+  setEditFormData, 
+  handleEditRow, 
+  handleCancelEdit, 
+  handleSaveEdit, 
+  availableUsers, 
+  availableKendaraan,
+  trukTersediaPerBaris,
+  isLoadingTruk
+}) => (
   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -768,7 +843,7 @@ const TrukTable = ({ trukList, setSelectedImage, formatDateTime, editingRow, edi
             </tr>
           ) : (
             trukList.map((truk, index) => (
-              <tr key={index} className={`border-b ${editingRow === truk.id ? 'border-gray-400' : 'border-gray-200'} hover:bg-gray-50`}>
+              <tr key={index} className={`border-b ${editingRow === truk.id ? 'border-gray-400 bg-blue-50' : 'border-gray-200'} hover:bg-gray-50`}>
                 <Td><span className="inline-flex px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">{truk.nama_transporter || '-'}</span></Td>
                 <Td>{formatDateTime(truk.created_at)}</Td>
                 <Td><span className="inline-flex px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">{truk.nama_shift}</span></Td>
@@ -796,19 +871,26 @@ const TrukTable = ({ trukList, setSelectedImage, formatDateTime, editingRow, edi
                 <Td>
                   {editingRow === truk.id ? (
                     <div className="relative">
-                      <input
-                        list={`kendaraan-${truk.id}`}
-                        type="text"
-                        value={editFormData.nopol}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, nopol: e.target.value }))}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-300 focus:outline-none"
-                        placeholder="Ketik atau pilih nopol"
-                      />
-                      <datalist id={`kendaraan-${truk.id}`}>
-                        {availableKendaraan.map(ken => (
-                          <option key={ken.id} value={ken.plat_nomor} />
-                        ))}
-                      </datalist>
+                      {isLoadingTruk ? (
+                        <div className="px-2 py-1 text-sm text-gray-500 italic">Memuat...</div>
+                      ) : (
+                        <>
+                          <input
+                            list={`kendaraan-${truk.id}`}
+                            type="text"
+                            value={editFormData.nopol || ''}
+                            onChange={(e) => setEditFormData(prev => ({ ...prev, nopol: e.target.value }))}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                            placeholder="Pilih nopol..."
+                            disabled={isLoadingTruk}
+                          />
+                          <datalist id={`kendaraan-${truk.id}`}>
+                            {trukTersediaPerBaris && trukTersediaPerBaris.length > 0 && trukTersediaPerBaris.map(ken => (
+                              <option key={ken.id} value={ken.plat_nomor} />
+                            ))}
+                          </datalist>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <span className="font-medium text-gray-900">{truk.nopol}</span>
@@ -826,8 +908,8 @@ const TrukTable = ({ trukList, setSelectedImage, formatDateTime, editingRow, edi
                     <span className="text-gray-500">{truk.no_seri_pengantar || '-'}</span>
                   )}
                 </Td>
-                <Td>{truk.foto_truk ? <button onClick={() => setSelectedImage({ src: truk.foto_truk, type: 'foto_truk', nopol: truk.nopol, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
-                <Td>{truk.foto_surat ? <button onClick={() => setSelectedImage({ src: truk.foto_surat, type: 'foto_surat', no_seri_pengantar: truk.no_seri_pengantar, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
+                <Td>{truk.foto_truk ? <button onClick={() => setSelectedImage({ src: getPhotoUrl(truk.foto_truk), type: 'foto_truk', nopol: truk.nopol, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
+                <Td>{truk.foto_surat ? <button onClick={() => setSelectedImage({ src: getPhotoUrl(truk.foto_surat), type: 'foto_surat', no_seri_pengantar: truk.no_seri_pengantar, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-sm">-</span>}</Td>
                 
                 <Td>
                   {editingRow === truk.id ? (
@@ -876,6 +958,7 @@ const TrukTable = ({ trukList, setSelectedImage, formatDateTime, editingRow, edi
                         onClick={() => handleSaveEdit(truk.id)}
                         className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700"
                         title="Simpan"
+                        disabled={isLoadingTruk}
                       >
                         <CheckCircle className="w-4 h-4" />
                       </button>
