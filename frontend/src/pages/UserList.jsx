@@ -116,9 +116,11 @@ const UserList = () => {
                                             <h3 className="font-bold text-gray-800 text-lg truncate">{user.nama}</h3>
                                             <p className="text-xs text-gray-500 break-words">{user.email}</p>
                                         </div>
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase shrink-0 ${user.role === 'admin' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                                            {user.role}
-                                        </span>
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase shrink-0 
+    ${user.role === 'admin' ? 'bg-red-100 text-red-600' : 
+      user.role === 'patroler' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'}`}>
+    {user.role}
+</span>
                                     </div>
                                     <div className="flex items-center text-gray-600 text-sm gap-2 bg-gray-50 p-2 rounded-lg mt-1">
                                         <i className="fas fa-phone text-gray-400"></i>
@@ -246,13 +248,19 @@ const UserList = () => {
                             </div>
 
                             <div>
-                                <label className="block text-red-600 font-bold mb-1 uppercase text-xs">Role</label>
-                                <select required className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-red-600 font-bold text-gray-700 bg-transparent" value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})}>
-                                    <option value="">Pilih Role</option>
-                                    <option value="admin">Admin</option>
-                                    <option value="personil">Personil</option>
-                                </select>
-                            </div>
+    <label className="block text-red-600 font-bold mb-1 uppercase text-xs">Role</label>
+    <select 
+        required 
+        className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-red-600 font-bold text-gray-700 bg-transparent" 
+        value={formData.role} 
+        onChange={(e) => setFormData({...formData, role: e.target.value})}
+    >
+        <option value="">Pilih Role</option>
+        <option value="admin">Admin</option>
+        <option value="personil">Personil</option>
+        <option value="patroler">Patroler</option> {/* value otomatis 'patroler' (kecil) */}
+    </select>
+</div>
 
                             <div className="flex items-center justify-between mt-6 gap-4">
                                 <button type="button" onClick={() => setModalType(null)} className="text-gray-500 font-bold text-sm hover:text-red-600 transition-colors uppercase">Batal</button>

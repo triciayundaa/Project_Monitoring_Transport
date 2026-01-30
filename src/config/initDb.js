@@ -3,45 +3,46 @@ const bcrypt = require('bcryptjs');
 
 const initDb = async () => {
   try {
+    console.log("Starting Database Initialization...");
 
-    // ================= 1. USERS =================
-    const createUsersTable = `
+    // 1. USERS (Induk Utama)
+    await db.query(`
       CREATE TABLE IF NOT EXISTS users (
         email VARCHAR(100) PRIMARY KEY,
         nama VARCHAR(100) NOT NULL,
         password VARCHAR(255) NOT NULL,
         no_telp VARCHAR(15),
-        role ENUM('admin', 'personil') NOT NULL
-      );
-    `;
+        role ENUM('admin', 'personil', 'patroler') NOT NULL
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 2. SHIFT =================
-    const createShiftTable = `
+    // 2. SHIFT
+    await db.query(`
       CREATE TABLE IF NOT EXISTS shift (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nama_shift ENUM('Shift 1', 'Shift 2', 'Shift 3', 'Libur') NOT NULL
-      );
-    `;
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 3. VENDOR =================
-    const createVendorTable = `
+    // 3. VENDOR
+    await db.query(`
       CREATE TABLE IF NOT EXISTS vendor (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nama_vendor VARCHAR(100) NOT NULL
-      );
-    `;
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 4. TRANSPORTER =================
-    const createTransporterTable = `
+    // 4. TRANSPORTER
+    await db.query(`
       CREATE TABLE IF NOT EXISTS transporter (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nama_transporter VARCHAR(100) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `;
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 5. KEGIATAN (PO) =================
-    const createKegiatanTable = `
+    // 5. KEGIATAN (PO)
+    await db.query(`
       CREATE TABLE IF NOT EXISTS kegiatan (
         id INT AUTO_INCREMENT PRIMARY KEY,
         no_po VARCHAR(50) UNIQUE,
@@ -54,99 +55,108 @@ const initDb = async () => {
         tanggal_mulai DATE,
         tanggal_selesai DATE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (vendor_id) REFERENCES vendor(id)
-      );
-    `;
+        FOREIGN KEY (vendor_id) REFERENCES vendor(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 6. KEGIATAN - TRANSPORTER =================
-    const createKegiatanTransporterTable = `
+    // 6. KEGIATAN_TRANSPORTER (Relasi PO ke Transporter)
+    await db.query(`
       CREATE TABLE IF NOT EXISTS kegiatan_transporter (
         id INT AUTO_INCREMENT PRIMARY KEY,
         kegiatan_id INT NOT NULL,
         transporter_id INT NOT NULL,
         status ENUM('Waiting', 'On Progress', 'Completed') DEFAULT 'Waiting',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (kegiatan_id) REFERENCES kegiatan(id),
-        FOREIGN KEY (transporter_id) REFERENCES transporter(id),
-        UNIQUE KEY uniq_kegiatan_transporter (kegiatan_id, transporter_id)
-      );
-    `;
+        FOREIGN KEY (kegiatan_id) REFERENCES kegiatan(id) ON DELETE CASCADE,
+        FOREIGN KEY (transporter_id) REFERENCES transporter(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_keg_trans (kegiatan_id, transporter_id)
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 7. KENDARAAN (MASTER KATALOG) =================
-    const createKendaraanTable = `
+    // 7. KENDARAAN
+    await db.query(`
       CREATE TABLE IF NOT EXISTS kendaraan (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        transporter_id INT NOT NULL, 
-        plat_nomor VARCHAR(20) NOT NULL, 
+        transporter_id INT NOT NULL,
+        plat_nomor VARCHAR(20) NOT NULL,
         status ENUM('aktif', 'non-aktif') DEFAULT 'aktif',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_kendaraan_transporter FOREIGN KEY (transporter_id) REFERENCES transporter(id),
-        UNIQUE KEY uniq_nopol_per_transporter (plat_nomor, transporter_id)
-      );
-    `;
+        FOREIGN KEY (transporter_id) REFERENCES transporter(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_nopol (plat_nomor, transporter_id)
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 7.5 KEGIATAN KENDARAAN (ALOKASI PO) =================
-    // TABEL BARU: Menghubungkan Truk ke PO tertentu agar data mandiri per PO
-    const createKegiatanKendaraanTable = `
+    // 8. KEGIATAN_KENDARAAN
+    await db.query(`
       CREATE TABLE IF NOT EXISTS kegiatan_kendaraan (
         id INT AUTO_INCREMENT PRIMARY KEY,
         kegiatan_transporter_id INT NOT NULL,
         kendaraan_id INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (kegiatan_transporter_id) REFERENCES kegiatan_transporter(id) ON DELETE CASCADE,
-        FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(id) ON DELETE CASCADE,
-        UNIQUE KEY uniq_kegiatan_nopol (kegiatan_transporter_id, kendaraan_id)
-      );
-    `;
+        FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 8. KEBERANGKATAN TRUK (VERSI OPTIMASI) =================
-    const createKeberangkatanTable = `
+    // 9. KEBERANGKATAN_TRUK
+    await db.query(`
       CREATE TABLE IF NOT EXISTS keberangkatan_truk (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        
-        -- 🔥 OPTIMASI: Menyimpan ID dari tabel alokasi (kegiatan_kendaraan)
-        kegiatan_kendaraan_id INT NOT NULL, 
-        
+        kegiatan_kendaraan_id INT NOT NULL,
         email_user VARCHAR(100) NOT NULL,
         shift_id INT NOT NULL,
         tanggal DATE NOT NULL,
         keterangan TEXT,
         no_seri_pengantar VARCHAR(50),
-        foto_truk VARCHAR(255), -- Simpan PATH file saja
-  foto_surat VARCHAR(255), -- Simpan PATH file sajaTEXT,
+        foto_truk VARCHAR(255),
+        foto_surat VARCHAR(255),
         status ENUM('Valid', 'Tolak') DEFAULT 'Valid',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (kegiatan_kendaraan_id) REFERENCES kegiatan_kendaraan(id) ON DELETE CASCADE,
+        FOREIGN KEY (email_user) REFERENCES users(email) ON DELETE CASCADE,
+        FOREIGN KEY (shift_id) REFERENCES shift(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
 
-        -- Relasi Utama
-        FOREIGN KEY (kegiatan_kendaraan_id) 
-          REFERENCES kegiatan_kendaraan(id) 
-          ON DELETE CASCADE,
-
-        -- Relasi Snapshot
-        FOREIGN KEY (email_user) REFERENCES users(email),
-        FOREIGN KEY (shift_id) REFERENCES shift(id)
-      );
-    `;
-
-    // ================= 9. JADWAL SHIFT =================
-    const createJadwalTable = `
+    // 10. JADWAL_SHIFT
+    await db.query(`
       CREATE TABLE IF NOT EXISTS jadwal_shift (
         id INT AUTO_INCREMENT PRIMARY KEY,
         tanggal DATE NOT NULL,
         email_user VARCHAR(100) NOT NULL,
         shift_id INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        
         FOREIGN KEY (email_user) REFERENCES users(email) ON DELETE CASCADE,
-        FOREIGN KEY (shift_id) REFERENCES shift(id) ON DELETE CASCADE,
-        
-        -- Mencegah input ganda (Orang sama, Shift sama, Hari sama)
-        UNIQUE KEY uniq_jadwal_user (tanggal, email_user, shift_id)
-      );
-    `;
+        FOREIGN KEY (shift_id) REFERENCES shift(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= 10. LAPORAN =================
-    const createReportTable = `
+    // 11. PEMBERSIHAN_JALAN (UPDATED: Relasi ke kegiatan_transporter)
+    // - Relasi diubah ke kegiatan_transporter_id
+    // - Plat nomor jadi TEXT
+    // - Ditambah jam_foto
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS pembersihan_jalan (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kegiatan_transporter_id INT NOT NULL,
+        email_patroler VARCHAR(100) NOT NULL,
+        plat_nomor_truk_air TEXT NOT NULL,
+        lokasi_patrol ENUM('Teluk Bayur - Titik A', 'Titik A - Titik B', 'Titik B - Titik C', 'Titik C - SP') NOT NULL,
+        waktu_mulai DATETIME NOT NULL,
+        foto_sebelum TEXT,
+        foto_sedang TEXT,
+        foto_setelah TEXT,
+        jam_foto_sebelum DATETIME,
+        jam_foto_sedang DATETIME,
+        jam_foto_setelah DATETIME,
+        status ENUM('Draft', 'Completed') DEFAULT 'Draft',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_bersih_kt FOREIGN KEY (kegiatan_transporter_id) REFERENCES kegiatan_transporter(id) ON DELETE CASCADE,
+        CONSTRAINT fk_bersih_patroler FOREIGN KEY (email_patroler) REFERENCES users(email) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+
+    // 12. LAPORAN
+    await db.query(`
       CREATE TABLE IF NOT EXISTS laporan (
         id INT AUTO_INCREMENT PRIMARY KEY,
         judul VARCHAR(255) NOT NULL,
@@ -154,51 +164,28 @@ const initDb = async () => {
         file_path VARCHAR(255) NOT NULL,
         dibuat_oleh VARCHAR(100) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `;
+      ) ENGINE=InnoDB;
+    `);
 
-    // ================= EKSEKUSI =================
-    await db.query(createUsersTable);
-    await db.query(createShiftTable);
-    await db.query(createVendorTable);
-    await db.query(createTransporterTable);
-    await db.query(createKegiatanTable);
-    await db.query(createKegiatanTransporterTable);
-    await db.query(createKendaraanTable);
-    await db.query(createKegiatanKendaraanTable); // Eksekusi Tabel Baru
-    await db.query(createKeberangkatanTable);
-    await db.query(createJadwalTable);
-    await db.query(createReportTable);
+    console.log("✅ Database Clean Build: Success!");
 
-    console.log("✅ Semua tabel berhasil dibuat");
+    // ================= SEED DATA =================
+    const hashPass = await bcrypt.hash('admin123', 10);
+    const hashPatroler = await bcrypt.hash('patroler123', 10);
 
-    // ================= SEED USERS =================
-    const [cekUser] = await db.query(
-      "SELECT email FROM users WHERE email = 'admin1234@gmail.com'"
-    );
+    await db.query(`
+      INSERT IGNORE INTO users (email, nama, password, no_telp, role) VALUES
+      ('admin1234@gmail.com', 'Admin Sistem', '${hashPass}', '081234567890', 'admin'),
+      ('personila@semenpadang.co.id', 'Personil A', '${hashPass}', '0822222222', 'personil'),
+      ('patroler_bayur@gmail.com', 'Patroler Lapangan', '${hashPatroler}', '0899999999', 'patroler')
+    `);
 
-    if (cekUser.length === 0) {
-      const hashAdmin = await bcrypt.hash('admin123', 10);
-      const hashPersonil = await bcrypt.hash('123456', 10);
-
-      await db.query(`
-        INSERT INTO users (email, nama, password, no_telp, role) VALUES
-        ('admin1234@gmail.com', 'Admin Sistem', '${hashAdmin}', '081234567890', 'admin'),
-        ('personila@semenpadang.co.id', 'Personil A', '${hashPersonil}', '0822222222', 'personil'),
-        ('personilb@semenpadang.co.id', 'Personil B', '${hashPersonil}', '0833333333', 'personil'),
-        ('personilc@semenpadang.co.id', 'Personil C', '${hashPersonil}', '0844444444', 'personil'),
-        ('personild@semenpadang.co.id', 'Personil D', '${hashPersonil}', '0855555555', 'personil');
-      `);
-    }
-
-    // ================= SEED SHIFT =================
     const [cekShift] = await db.query("SELECT id FROM shift");
     if (cekShift.length === 0) {
-      await db.query(`
-        INSERT INTO shift (nama_shift)
-        VALUES ('Shift 1'), ('Shift 2'), ('Shift 3'), ('Libur')
-      `);
+      await db.query(`INSERT INTO shift (nama_shift) VALUES ('Shift 1'), ('Shift 2'), ('Shift 3'), ('Libur')`);
     }
+
+    console.log("✅ Seed Data: Success!");
 
   } catch (err) {
     console.error("❌ Gagal inisialisasi database:", err.message);

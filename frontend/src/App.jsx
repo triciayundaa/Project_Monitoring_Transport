@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 // --- IMPORT FITUR BARU (OLIVIA) ---
 import DaftarKegiatan from "./pages/DaftarKegiatan";
 import DetailKegiatan from "./pages/DetailKegiatan";
+import PembersihanMaterial from "./pages/PembersihanMaterial"; // <--- TAMBAH INI
 
 // --- IMPORT FITUR LAMA/HEAD (Fathiya & Trici) ---
 import VehicleList from "./pages/VehicleManagement/VehicleList";
@@ -65,6 +66,28 @@ const PersonilRoute = ({ children }) => {
   return children;
 };
 
+// 4. Khusus Patroler (TAMBAHAN BARU)
+const PatrolerRoute = ({ children }) => {
+  const user = localStorage.getItem("user");
+  if (!user) return <Navigate to="/login" replace />;
+  
+  try {
+    const userData = JSON.parse(user);
+    const userRole = userData.role?.toString().toLowerCase().trim();
+    
+    if (userRole !== 'patroler') {
+      // Redirect ke halaman masing-masing jika salah role
+      if (userRole === 'admin') return <Navigate to="/dashboard" replace />;
+      if (userRole === 'personil') return <Navigate to="/keberangkatan-truk" replace />;
+      return <Navigate to="/login" replace />;
+    }
+  } catch (error) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return children;
+};
+
 function App() {
   return (
     <Router>
@@ -77,7 +100,6 @@ function App() {
         <Route path="/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
         
         {/* 1. Manajemen Kegiatan (Fitur Baru Olivia) */}
-        {/* Path disesuaikan dengan Sidebar: /manajemen-kegiatan */}
         <Route path="/manajemen-kegiatan" element={<AdminRoute><DaftarKegiatan /></AdminRoute>} />
         <Route path="/manajemen-kegiatan/detail/:no_po" element={<AdminRoute><DetailKegiatan /></AdminRoute>} />
         
@@ -99,6 +121,10 @@ function App() {
 
         {/* --- HALAMAN PERSONIL --- */}
         <Route path="/keberangkatan-truk" element={<PersonilRoute><KeberangkatanTruk /></PersonilRoute>} />
+
+        {/* --- HALAMAN PATROLER (UPDATED) --- */}
+        {/* Menggunakan PatrolerRoute agar aman */}
+        <Route path="/laporan-patroli" element={<PatrolerRoute><PembersihanMaterial /></PatrolerRoute>} />
 
 
         {/* --- FALLBACK (Jika halaman tidak ditemukan) --- */}

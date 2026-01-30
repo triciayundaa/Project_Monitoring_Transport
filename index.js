@@ -17,6 +17,8 @@ const laporanRoutes = require('./src/routes/laporanRoutes'); // Pastikan file in
 const keberangkatanRoutes = require('./src/routes/keberangkatanRoutes');
 const kegiatanRoutes = require('./src/routes/kegiatanRoutes'); // <--- INI YANG BARU DITAMBAHKAN
 
+const waterTruckRoutes = require('./src/routes/waterTruckRoutes');
+
 const app = express();
 
 // --- Middleware (WAJIB DI ATAS ROUTES) ---
@@ -48,6 +50,9 @@ app.use('/api/kendaraan', vehicleRoutes);
 
 // 4. Kegiatan (PO) - Fitur Olivia
 app.use('/api/kegiatan', kegiatanRoutes);
+
+//patroler
+app.use('/api/water-truck', waterTruckRoutes);
 
 // --- Root Route ---
 app.get('/', (req, res) => {
