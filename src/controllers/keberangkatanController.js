@@ -108,7 +108,7 @@ const cekStatusShiftUser = async (req, res) => {
     }
 };
 
-// API 2: CEK PO (UPDATED: LOGIKA CEK STATUS COMPLETED)
+// API 2: CEK PO
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
@@ -121,7 +121,6 @@ const cekPO = async (req, res) => {
 
         const kegiatanId = kegiatan[0].id;
 
-        // Ambil Transporter beserta statusnya di tabel kegiatan_transporter
         const [transporters] = await db.query(`
             SELECT t.id, t.nama_transporter, kt.id as kegiatan_transporter_id,
             kt.status 
@@ -132,20 +131,15 @@ const cekPO = async (req, res) => {
             ORDER BY t.nama_transporter ASC
         `, [kegiatanId]);
 
-        // --- LOGIKA BARU: HITUNG STATUS PO ---
-        // Jika PO punya transporter DAN semua transporter statusnya 'Completed', maka PO dianggap 'Completed'
-        let poStatus = 'On Progress'; // Default
+        let poStatus = 'On Progress';
         if (transporters.length > 0) {
             const allCompleted = transporters.every(t => t.status === 'Completed');
-            if (allCompleted) {
-                poStatus = 'Completed';
-            }
+            if (allCompleted) poStatus = 'Completed';
         }
         
-        // Gabungkan status hitungan ke data PO
         const finalDataPO = {
             ...kegiatan[0],
-            status: poStatus // Kirim status ini ke frontend agar ditangkap validasi
+            status: poStatus 
         };
 
         if (transporters.length === 0) {
@@ -186,46 +180,49 @@ const simpanKeberangkatan = async (req, res) => {
     const { kegiatan_id, transporter_id, no_polisi, email_user, tanggal, no_seri_pengantar, foto_truk, foto_surat } = req.body;
 
     try {
-        const [users] = await db.query('SELECT nama FROM users WHERE email = ?', [email_user]);
-        if (users.length === 0) return res.status(401).json({ message: 'User invalid' });
+        // 1. Validasi Tanggal (Server Side - Harus Hari Ini)
+        const now = new Date();
+        const jakartaTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+        const todayStr = jakartaTime.toISOString().split('T')[0];
 
+        if (tanggal !== todayStr) {
+            return res.status(403).json({ message: 'Input hanya diperbolehkan untuk tanggal hari ini.' });
+        }
+
+        // 2. Cek Jadwal Shift di DB
         const [jadwal] = await db.query(`
             SELECT s.id as shift_id, s.nama_shift 
             FROM jadwal_shift js JOIN shift s ON js.shift_id = s.id
-            WHERE js.tanggal = ? AND js.email_user = ? LIMIT 1
+            WHERE js.tanggal = ? AND js.email_user = ? 
         `, [tanggal, email_user]);
         
-        if (jadwal.length === 0) return res.status(403).json({ message: 'Tidak ada jadwal shift pada tanggal ini.' });
-        if (jadwal[0].nama_shift === 'Libur') return res.status(403).json({ message: 'Anda tidak bisa input data karena jadwal Anda LIBUR.' });
+        if (jadwal.length === 0) return res.status(403).json({ message: 'Anda tidak memiliki jadwal shift hari ini.' });
+        if (jadwal.some(j => j.nama_shift === 'Libur')) return res.status(403).json({ message: 'Anda tidak bisa input data karena jadwal Anda LIBUR.' });
 
-        const scheduledShift = jadwal[0].nama_shift; 
-        const now = new Date();
-        const jakartaTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+        // 3. Validasi Jam Real-time vs Jadwal
         const currentHour = jakartaTime.getHours();
-        
-        const serverDateStr = jakartaTime.toISOString().split('T')[0];
-        if (tanggal !== serverDateStr) {
-             return res.status(403).json({ message: 'Input data hanya diperbolehkan untuk tanggal hari ini.' });
-        }
+        const currentShiftScope = getShiftFromTime(currentHour); 
+        const matchingShift = jadwal.find(j => j.nama_shift === currentShiftScope);
 
-        const currentRealShift = getShiftFromTime(currentHour); 
-
-        if (scheduledShift !== currentRealShift) {
+        if (!matchingShift) {
+            const jadwalAnda = jadwal.map(j => j.nama_shift).join(', ');
             return res.status(403).json({ 
-                message: `GAGAL: Jadwal Anda ${scheduledShift}, tapi sekarang jam ${currentHour}:00 (${currentRealShift}). Anda hanya bisa input sesuai jam shift.` 
+                message: `Saat ini adalah waktu ${currentShiftScope}. Anda hanya bisa input sesuai jam shift Anda: ${jadwalAnda}` 
             });
         }
 
-        const userShiftId = jadwal[0].shift_id;
+        const userShiftId = matchingShift.shift_id;
 
+        // 4. Proses File
         const fotoTrukPath = saveBase64ToFile(foto_truk, 'truk');
         const fotoSuratPath = saveBase64ToFile(foto_surat, 'surat');
 
         if (!fotoTrukPath || !fotoSuratPath) {
-            return res.status(400).json({ message: 'Gagal memproses foto. Pastikan foto diambil dengan benar.' });
+            return res.status(400).json({ message: 'Gagal memproses foto.' });
         }
 
-        const [existingKendaraan] = await db.query('SELECT id, transporter_id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
+        // 5. Validasi Kendaraan & Alokasi
+        const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
         if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol tidak terdaftar.' });
         
         const kendaraanId = existingKendaraan[0].id;
@@ -236,18 +233,16 @@ const simpanKeberangkatan = async (req, res) => {
             [finalKegiatanTransporterId, kendaraanId]
         );
 
-        let kegiatanKendaraanId;
         if (alokasi.length === 0) {
              return res.status(400).json({ message: 'Truk belum dialokasikan untuk PO ini.' });
-        } else {
-            kegiatanKendaraanId = alokasi[0].id;
         }
 
+        // 6. Insert Data
         const [result] = await db.query(
             `INSERT INTO keberangkatan_truk 
              (kegiatan_kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, status) 
              VALUES (?, ?, ?, ?, ?, ?, ?, 'Valid')`,
-            [kegiatanKendaraanId, email_user, userShiftId, tanggal, no_seri_pengantar, fotoTrukPath, fotoSuratPath]
+            [alokasi[0].id, email_user, userShiftId, tanggal, no_seri_pengantar, fotoTrukPath, fotoSuratPath]
         );
 
         await db.query(
@@ -259,7 +254,7 @@ const simpanKeberangkatan = async (req, res) => {
 
     } catch (error) {
         console.error('❌ SAVE ERROR:', error);
-        res.status(500).json({ status: 'Error', message: error.sqlMessage || error.message });
+        res.status(500).json({ status: 'Error', message: error.message });
     }
 };
 
@@ -279,7 +274,7 @@ const updateTruk = async (req, res) => {
         const oldKTId = oldRecord[0].kegiatan_transporter_id;
 
         const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
-        if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol ini tidak terdaftar di sistem master kendaraan.' });
+        if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol tidak terdaftar.' });
         
         const kendaraanId = existingKendaraan[0].id;
         const finalKegiatanTransporterId = await getOrCreateKegiatanTransporterId(kegiatan_id, transporter_id);
@@ -289,46 +284,31 @@ const updateTruk = async (req, res) => {
             [finalKegiatanTransporterId, kendaraanId]
         );
 
-        let targetKegiatanKendaraanId;
+        let targetId;
         if (alokasi.length === 0) {
-            const [insertAlokasi] = await db.query(
-                'INSERT INTO kegiatan_kendaraan (kegiatan_transporter_id, kendaraan_id) VALUES (?, ?)',
-                [finalKegiatanTransporterId, kendaraanId]
-            );
-            targetKegiatanKendaraanId = insertAlokasi.insertId;
+            const [ins] = await db.query('INSERT INTO kegiatan_kendaraan (kegiatan_transporter_id, kendaraan_id) VALUES (?, ?)', [finalKegiatanTransporterId, kendaraanId]);
+            targetId = ins.insertId;
         } else {
-            targetKegiatanKendaraanId = alokasi[0].id;
+            targetId = alokasi[0].id;
         }
 
         await db.query(
             `UPDATE keberangkatan_truk 
              SET kegiatan_kendaraan_id = ?, no_seri_pengantar = ?, keterangan = ?, status = ?
              WHERE id = ?`,
-            [targetKegiatanKendaraanId, no_seri_pengantar, keterangan || '', status || 'Valid', id]
+            [targetId, no_seri_pengantar, keterangan || '', status || 'Valid', id]
         );
 
-        await db.query(
-            'UPDATE kegiatan_transporter SET status = "On Progress" WHERE id = ?',
-            [finalKegiatanTransporterId]
-        );
+        await db.query('UPDATE kegiatan_transporter SET status = "On Progress" WHERE id = ?', [finalKegiatanTransporterId]);
 
         if (oldKTId !== finalKegiatanTransporterId) {
-            const [remainingTrucks] = await db.query(`
-                SELECT COUNT(*) as total 
-                FROM keberangkatan_truk kbt
-                JOIN kegiatan_kendaraan kk ON kbt.kegiatan_kendaraan_id = kk.id
-                WHERE kk.kegiatan_transporter_id = ?`, [oldKTId]);
-
-            if (remainingTrucks[0].total === 0) {
-                await db.query('UPDATE kegiatan_transporter SET status = "Waiting" WHERE id = ?', [oldKTId]);
-            }
+            const [rem] = await db.query('SELECT COUNT(*) as total FROM keberangkatan_truk kt JOIN kegiatan_kendaraan kk ON kt.kegiatan_kendaraan_id = kk.id WHERE kk.kegiatan_transporter_id = ?', [oldKTId]);
+            if (rem[0].total === 0) await db.query('UPDATE kegiatan_transporter SET status = "Waiting" WHERE id = ?', [oldKTId]);
         }
 
-        res.status(200).json({ status: 'Success', message: 'Data berhasil diperbarui dan status disinkronkan' });
-
+        res.status(200).json({ status: 'Success', message: 'Data berhasil diperbarui' });
     } catch (error) {
-        console.error('❌ UPDATE ERROR:', error);
-        res.status(500).json({ status: 'Error', message: 'Gagal memperbarui data: ' + error.message });
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -356,9 +336,7 @@ const getKeberangkatanByDate = async (req, res) => {
         
         const params = [];
         const conditions = [];
-        const shouldFilter = (tanggal || email_user) && all !== 'true';
-        
-        if (shouldFilter) {
+        if ((tanggal || email_user) && all !== 'true') {
             if (tanggal) { conditions.push('kt.tanggal = ?'); params.push(tanggal); }
             if (email_user) { conditions.push('kt.email_user = ?'); params.push(email_user); }
             query += ' WHERE ' + conditions.join(' AND ');
@@ -389,7 +367,6 @@ const hapusKeberangkatan = async (req, res) => {
                 if (fs.existsSync(p)) fs.unlinkSync(p);
             }
         }
-
         res.status(200).json({ status: 'Success', message: 'Data berhasil dihapus' });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };

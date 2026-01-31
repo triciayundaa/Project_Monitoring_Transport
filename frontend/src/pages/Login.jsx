@@ -50,6 +50,10 @@ const Login = () => {
                     // Jika Personil -> Ke Halaman Truk (Sesuai kodingan Fathiya)
                     // Catatan: Pastikan route '/keberangkatan-truk' sudah ada di App.jsx
                     navigate('/keberangkatan-truk', { replace: true });
+                } else if (normalizedRole === 'patroler') {
+                    // 🔥 TAMBAHAN BARU: Jika Patroler -> Ke Halaman Patroli/Laporan
+                    // Pastikan route '/laporan-patroli' atau '/patroli' sudah dibuat di App.jsx
+                    navigate('/laporan-patroli', { replace: true });
                 } else {
                     // Fallback jika role aneh
                     alert("Role tidak dikenali. Silakan hubungi admin.");
