@@ -169,35 +169,54 @@ const cekPO = async (req, res) => {
 };
 
 // 🔥 API 3: SIMPAN DATA (AUTO CONVERT BASE64 KE FILE) 🔥
+// Ubah fungsi simpanKeberangkatan menjadi seperti ini:
+
 const simpanKeberangkatan = async (req, res) => {
     const { kegiatan_id, transporter_id, no_polisi, email_user, tanggal, no_seri_pengantar, foto_truk, foto_surat } = req.body;
 
     try {
-        // 1. Validasi User & Jadwal
-        const [users] = await db.query('SELECT nama FROM users WHERE email = ?', [email_user]);
-        if (users.length === 0) return res.status(401).json({ message: 'User invalid' });
+        // 1. Validasi Tanggal (Server Side)
+        const now = new Date();
+        const jakartaTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+        const todayStr = jakartaTime.toISOString().split('T')[0];
 
+        if (tanggal !== todayStr) {
+            return res.status(403).json({ message: 'Input hanya diperbolehkan untuk tanggal hari ini.' });
+        }
+
+        // 2. Cek Jadwal Shift di DB
         const [jadwal] = await db.query(`
             SELECT s.id as shift_id, s.nama_shift 
             FROM jadwal_shift js JOIN shift s ON js.shift_id = s.id
-            WHERE js.tanggal = ? AND js.email_user = ? LIMIT 1
+            WHERE js.tanggal = ? AND js.email_user = ? 
         `, [tanggal, email_user]);
         
-        if (jadwal.length === 0) return res.status(403).json({ message: 'Tidak ada jadwal shift.' });
+        if (jadwal.length === 0) return res.status(403).json({ message: 'Anda tidak memiliki jadwal shift hari ini.' });
         
-        const userShiftId = jadwal[0].shift_id;
+        // 3. Validasi: Apakah jam sekarang sesuai dengan salah satu shift yang dijadwalkan?
+        const currentHour = jakartaTime.getHours();
+        const currentShiftScope = getShiftFromTime(currentHour); // Menggunakan helper yang sudah ada
 
-        // 2. PROSES FOTO (BASE64 -> FILE -> PATH)
-        // Ini yang bikin database jadi RINGAN
+        const matchingShift = jadwal.find(j => j.nama_shift === currentShiftScope);
+
+        if (!matchingShift) {
+            const jadwalAnda = jadwal.map(j => j.nama_shift).join(', ');
+            return res.status(403).json({ 
+                message: `Saat ini adalah waktu ${currentShiftScope}. Anda tidak bisa input karena jadwal Anda hari ini adalah: ${jadwalAnda}` 
+            });
+        }
+
+        const userShiftId = matchingShift.shift_id;
+
+        // --- SISANYA TETAP SAMA SEPERTI KODE LAMA ---
         const fotoTrukPath = saveBase64ToFile(foto_truk, 'truk');
         const fotoSuratPath = saveBase64ToFile(foto_surat, 'surat');
 
         if (!fotoTrukPath || !fotoSuratPath) {
-            return res.status(400).json({ message: 'Gagal memproses foto. Pastikan foto diambil dengan benar.' });
+            return res.status(400).json({ message: 'Gagal memproses foto.' });
         }
 
-        // 3. Validasi & Relasi
-        const [existingKendaraan] = await db.query('SELECT id, transporter_id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
+        const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
         if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol tidak terdaftar.' });
         
         const kendaraanId = existingKendaraan[0].id;
@@ -208,21 +227,15 @@ const simpanKeberangkatan = async (req, res) => {
             [finalKegiatanTransporterId, kendaraanId]
         );
 
-        let kegiatanKendaraanId;
         if (alokasi.length === 0) {
-             // Jika belum dialokasikan, insert otomatis (opsional, tergantung kebijakan)
-             // Di sini kita return error agar sesuai flow
              return res.status(400).json({ message: 'Truk belum dialokasikan untuk PO ini.' });
-        } else {
-            kegiatanKendaraanId = alokasi[0].id;
         }
 
-        // 4. INSERT PATH KE DATABASE (BUKAN BASE64)
         const [result] = await db.query(
             `INSERT INTO keberangkatan_truk 
              (kegiatan_kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, status) 
              VALUES (?, ?, ?, ?, ?, ?, ?, 'Valid')`,
-            [kegiatanKendaraanId, email_user, userShiftId, tanggal, no_seri_pengantar, fotoTrukPath, fotoSuratPath]
+            [alokasi[0].id, email_user, userShiftId, tanggal, no_seri_pengantar, fotoTrukPath, fotoSuratPath]
         );
 
         await db.query(
@@ -234,7 +247,7 @@ const simpanKeberangkatan = async (req, res) => {
 
     } catch (error) {
         console.error('❌ SAVE ERROR:', error);
-        res.status(500).json({ status: 'Error', message: error.sqlMessage || error.message });
+        res.status(500).json({ status: 'Error', message: error.message });
     }
 };
 

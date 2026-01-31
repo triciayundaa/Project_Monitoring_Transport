@@ -159,22 +159,32 @@ const KeberangkatanTruk = () => {
         }
     };
 
-    const handleInputDataBaru = () => {
-        const todayString = getLocalTodayDate();
-        if (selectedDate > todayString) {
-            setWarningMessage('Anda hanya dapat menginput data untuk tanggal hari ini saja.');
-            setShowModalWarning(true);
-            return;
-        }
-        
-        // RESET KE MODE INPUT BARU
-        setIsEditMode(false);
-        setEditDataId(null);
-        setNoPO('');
-        setPoData(null);
-        setFormData({ transporter_id: '', no_polisi: '', no_seri_pengantar: '', foto_truk: null, foto_surat: null });
-        setShowModalPO(true);
-    };
+    // Cari fungsi handleInputDataBaru dan ubah menjadi seperti ini:
+const handleInputDataBaru = () => {
+    const todayString = getLocalTodayDate();
+
+    // 1. Validasi Tanggal: Tidak boleh kemarin atau besok
+    if (selectedDate !== todayString) {
+        setWarningMessage(`Anda hanya diperbolehkan menginput data pada tanggal hari ini (${formatDateForDisplay(todayString)}).`);
+        setShowModalWarning(true);
+        return;
+    }
+
+    // 2. Validasi Shift: Tidak boleh input jika tidak ada jadwal atau sedang libur
+    if (currentShiftLabel === 'Tidak Ada Jadwal' || currentShiftLabel === 'Libur' || currentShiftLabel === 'Tidak Terdaftar') {
+        setWarningMessage(`Maaf, Anda tidak memiliki jadwal shift aktif saat ini. Status: ${currentShiftLabel}`);
+        setShowModalWarning(true);
+        return;
+    }
+    
+    // RESET KE MODE INPUT BARU
+    setIsEditMode(false);
+    setEditDataId(null);
+    setNoPO('');
+    setPoData(null);
+    setFormData({ transporter_id: '', no_polisi: '', no_seri_pengantar: '', foto_truk: null, foto_surat: null });
+    setShowModalPO(true);
+};
 
     // --- FUNGSI EDIT DATA ---
     const handleEdit = async (truck) => {

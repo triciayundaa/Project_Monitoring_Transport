@@ -5,7 +5,7 @@ const initDb = async () => {
   try {
     console.log("Starting Database Initialization...");
 
-    // 1. USERS (Induk Utama)
+    // 1. USERS
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
         email VARCHAR(100) PRIMARY KEY,
@@ -73,7 +73,7 @@ const initDb = async () => {
       ) ENGINE=InnoDB;
     `);
 
-    // 7. KENDARAAN
+    // 7. KENDARAAN (Master Katalog)
     await db.query(`
       CREATE TABLE IF NOT EXISTS kendaraan (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -82,11 +82,11 @@ const initDb = async () => {
         status ENUM('aktif', 'non-aktif') DEFAULT 'aktif',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (transporter_id) REFERENCES transporter(id) ON DELETE CASCADE,
-        UNIQUE KEY uniq_nopol (plat_nomor, transporter_id)
+        UNIQUE KEY uniq_nopol_per_transporter (plat_nomor, transporter_id)
       ) ENGINE=InnoDB;
     `);
 
-    // 8. KEGIATAN_KENDARAAN
+    // 8. KEGIATAN_KENDARAAN (Alokasi Truk ke PO)
     await db.query(`
       CREATE TABLE IF NOT EXISTS kegiatan_kendaraan (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -94,7 +94,8 @@ const initDb = async () => {
         kendaraan_id INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (kegiatan_transporter_id) REFERENCES kegiatan_transporter(id) ON DELETE CASCADE,
-        FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(id) ON DELETE CASCADE
+        FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_kegiatan_nopol (kegiatan_transporter_id, kendaraan_id)
       ) ENGINE=InnoDB;
     `);
 
@@ -125,22 +126,20 @@ const initDb = async () => {
         tanggal DATE NOT NULL,
         email_user VARCHAR(100) NOT NULL,
         shift_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (email_user) REFERENCES users(email) ON DELETE CASCADE,
-        FOREIGN KEY (shift_id) REFERENCES shift(id) ON DELETE CASCADE
+        FOREIGN KEY (shift_id) REFERENCES shift(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_jadwal_user (tanggal, email_user, shift_id)
       ) ENGINE=InnoDB;
     `);
 
-    // 11. PEMBERSIHAN_JALAN (UPDATED: Relasi ke kegiatan_transporter)
-    // - Relasi diubah ke kegiatan_transporter_id
-    // - Plat nomor jadi TEXT
-    // - Ditambah jam_foto
+    // 11. PEMBERSIHAN_JALAN (Fitur Patroler)
     await db.query(`
       CREATE TABLE IF NOT EXISTS pembersihan_jalan (
         id INT AUTO_INCREMENT PRIMARY KEY,
         kegiatan_transporter_id INT NOT NULL,
         email_patroler VARCHAR(100) NOT NULL,
         plat_nomor_truk_air TEXT NOT NULL,
-        lokasi_patrol ENUM('Teluk Bayur - Titik A', 'Titik A - Titik B', 'Titik B - Titik C', 'Titik C - SP') NOT NULL,
         waktu_mulai DATETIME NOT NULL,
         foto_sebelum TEXT,
         foto_sedang TEXT,
@@ -148,6 +147,9 @@ const initDb = async () => {
         jam_foto_sebelum DATETIME,
         jam_foto_sedang DATETIME,
         jam_foto_setelah DATETIME,
+        lokasi_foto_sebelum TEXT,
+        lokasi_foto_sedang TEXT,
+        lokasi_foto_setelah TEXT,
         status ENUM('Draft', 'Completed') DEFAULT 'Draft',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT fk_bersih_kt FOREIGN KEY (kegiatan_transporter_id) REFERENCES kegiatan_transporter(id) ON DELETE CASCADE,
@@ -170,14 +172,19 @@ const initDb = async () => {
     console.log("✅ Database Clean Build: Success!");
 
     // ================= SEED DATA =================
-    const hashPass = await bcrypt.hash('admin123', 10);
+    const hashAdmin = await bcrypt.hash('admin123', 10);
+    const hashPersonil = await bcrypt.hash('123456', 10);
     const hashPatroler = await bcrypt.hash('patroler123', 10);
 
+    // Menggabungkan Seeding User dari kode lama dan baru
     await db.query(`
       INSERT IGNORE INTO users (email, nama, password, no_telp, role) VALUES
-      ('admin1234@gmail.com', 'Admin Sistem', '${hashPass}', '081234567890', 'admin'),
-      ('personila@semenpadang.co.id', 'Personil A', '${hashPass}', '0822222222', 'personil'),
-      ('patroler_bayur@gmail.com', 'Patroler Lapangan', '${hashPatroler}', '0899999999', 'patroler')
+      ('admin1234@gmail.com', 'Admin Sistem', '${hashAdmin}', '081234567890', 'admin'),
+      ('personila@semenpadang.co.id', 'Personil A', '${hashPersonil}', '0822222222', 'personil'),
+      ('personilb@semenpadang.co.id', 'Personil B', '${hashPersonil}', '0833333333', 'personil'),
+      ('personilc@semenpadang.co.id', 'Personil C', '${hashPersonil}', '0844444444', 'personil'),
+      ('personild@semenpadang.co.id', 'Personil D', '${hashPersonil}', '0855555555', 'personil'),
+      ('patrolerA@gmail.com', 'PatrolerA', '${hashPatroler}', '0899999999', 'patroler')
     `);
 
     const [cekShift] = await db.query("SELECT id FROM shift");
