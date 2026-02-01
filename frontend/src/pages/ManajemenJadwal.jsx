@@ -36,16 +36,15 @@ const ManajemenJadwal = () => {
   const [personOptions, setPersonOptions] = useState([]);
   
   // --- STATE MODAL ---
-  const [showConfirmModal, setShowConfirmModal] = useState(false); // Untuk Hapus
-  const [showSuccessModal, setShowSuccessModal] = useState(false); // Untuk Sukses
-  const [showErrorModal, setShowErrorModal] = useState(false);     // Untuk Error / Peringatan (Generate Tertolak)
+  const [showConfirmModal, setShowConfirmModal] = useState(false); 
+  const [showSuccessModal, setShowSuccessModal] = useState(false); 
+  const [showErrorModal, setShowErrorModal] = useState(false);     
   
   const [modalMessage, setModalMessage] = useState('');
   const [modalTitle, setModalTitle] = useState('');
   
   const [pendingAction, setPendingAction] = useState(null); 
   const [loadingAction, setLoadingAction] = useState(false);
-  // -------------------
 
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
   
@@ -95,7 +94,6 @@ const ManajemenJadwal = () => {
     return monthData[dateKey] || [null, null, null, null];
   };
 
-  // --- HELPER MODAL ---
   const showSuccess = (title, message) => {
       setModalTitle(title);
       setModalMessage(message);
@@ -107,23 +105,16 @@ const ManajemenJadwal = () => {
       setModalMessage(message);
       setShowErrorModal(true);
   };
-  // --------------------
-
-  // --- LOGIKA GENERATE & DELETE ---
 
   const handleGenerateClick = () => {
       const monthData = schedules[monthKey] || {};
       const hasData = Object.keys(monthData).length > 0;
-
       if (hasData) {
-          // JIKA SUDAH ADA DATA -> TAMPILKAN ERROR (TIDAK BISA GENERATE ULANG)
-          // Tombolnya hanya "Oke" (Tutup)
           showError(
               'Gagal Generate', 
-              `Jadwal untuk bulan ${formatMonthName(year, month)} SUDAH ADA. Anda tidak dapat meng-generate ulang jika data masih ada. Silakan hapus jadwal terlebih dahulu.`
+              `Jadwal untuk bulan ${formatMonthName(year, month)} SUDAH ADA. Silakan hapus jadwal terlebih dahulu.`
           );
       } else {
-          // Jika belum ada data, langsung eksekusi tanpa tanya
           executePendingAction('generate');
       }
   };
@@ -134,17 +125,15 @@ const ManajemenJadwal = () => {
           showError("Gagal Hapus", "Tidak ada data jadwal di bulan ini untuk dihapus.");
           return;
       }
-
       setModalTitle('Konfirmasi Hapus');
-      setModalMessage(`Apakah Anda yakin ingin menghapus SEMUA jadwal bulan ${formatMonthName(year, month)}? Tindakan ini tidak dapat dibatalkan.`);
+      setModalMessage(`Apakah Anda yakin ingin menghapus SEMUA jadwal bulan ${formatMonthName(year, month)}?`);
       setPendingAction('delete');
-      setShowConfirmModal(true); // Tampilkan modal konfirmasi merah
+      setShowConfirmModal(true); 
   };
 
   const executePendingAction = async (actionType) => {
       setShowConfirmModal(false); 
       setLoadingAction(true);
-
       try {
           if (actionType === 'generate') {
               const res = await axios.post(`http://localhost:3000/api/jadwal/generate?month=${monthKey}`);
@@ -158,15 +147,13 @@ const ManajemenJadwal = () => {
               showSuccess("Berhasil", "Jadwal berhasil dihapus.");
           }
       } catch (error) {
-          const actionText = actionType === 'generate' ? 'generate' : 'menghapus';
-          showError("Gagal", `Gagal ${actionText} jadwal: ${error.response?.data?.message || error.message}`);
+          showError("Gagal", `Gagal memproses: ${error.response?.data?.message || error.message}`);
       } finally {
           setLoadingAction(false);
           setPendingAction(null); 
       }
   };
 
-  // --- EDIT & SAVE ---
   const handleChangeCell = (dateKey, personIndex, value) => {
     const monthData = { ...(schedules[monthKey] || {}) };
     const oldRow = monthData[dateKey] ? [...monthData[dateKey]] : [null, null, null, null];
@@ -182,13 +169,12 @@ const ManajemenJadwal = () => {
     try {
       await axios.put('http://localhost:3000/api/jadwal', { month: monthKey, data: monthData });
       setIsEditing(false);
-      showSuccess("Tersimpan", "Perubahan jadwal berhasil disimpan ke database.");
+      showSuccess("Tersimpan", "Perubahan jadwal berhasil disimpan.");
     } catch (err) {
       showError("Gagal Menyimpan", err.message);
     }
   };
 
-  // --- NAVIGASI & EXCEL ---
   const handlePrev = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const handleNext = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
 
@@ -208,12 +194,9 @@ const ManajemenJadwal = () => {
         };
     });
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const wscols = [{wch:10}, {wch:15}, {wch:20}, {wch:20}, {wch:20}, {wch:20}];
-    worksheet['!cols'] = wscols;
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Jadwal Shift");
-    const namaBulan = new Date(year, month, 1).toLocaleString('id-ID', { month: 'long' });
-    XLSX.writeFile(workbook, `Jadwal_Transport_${namaBulan}_${year}.xlsx`);
+    XLSX.writeFile(workbook, `Jadwal_Transport_${monthKey}.xlsx`);
   };
 
   const formatMonthName = (y, m) => {
@@ -223,11 +206,16 @@ const ManajemenJadwal = () => {
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
-        <Topbar title="Manajemen Jadwal" onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+      
+      {/* BAGIAN KANAN: Struktur disamakan dengan Dashboard/Daftar Kegiatan */}
+      <div className="flex-1 flex flex-col min-w-0">
+        
+        {/* Topbar di luar tag <main> */}
+        <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
-        <main className="flex-grow p-6 overflow-y-auto relative">
-          <div className="max-w-6xl mx-auto">
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto relative">
+          {/* Div pembungkus lebar penuh tanpa pembatasan max-w */}
+          <div className="w-full">
             
             <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
               <div className="flex items-center gap-3 bg-white p-2 rounded shadow-sm">
@@ -276,7 +264,6 @@ const ManajemenJadwal = () => {
                       const dayName = d.toLocaleDateString('id-ID', { weekday: 'long' });
                       const dateKey = formatDateKey(d);
                       const row = ensureDayArray(dateKey); 
-
                       return (
                         <tr key={dateKey} className="border-b hover:bg-gray-50">
                           <td className="px-4 py-3 font-medium text-gray-900">{dayName}</td>
@@ -311,11 +298,9 @@ const ManajemenJadwal = () => {
             </div>
           </div>
 
-          {/* ================= MODAL COMPONENTS ================= */}
-          
-          {/* 1. Modal Konfirmasi HAPUS (MERAH) */}
+          {/* Modal Components */}
           {showConfirmModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
+                <div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-[60] p-4">
                     <div className="bg-white rounded-lg border-2 border-red-500 p-6 max-w-md w-full text-center shadow-2xl animate-bounce-in">
                         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -336,9 +321,8 @@ const ManajemenJadwal = () => {
                 </div>
             )}
 
-            {/* 2. Modal Sukses (HIJAU) */}
             {showSuccessModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
+                <div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-[60] p-4">
                     <div className="bg-white rounded-lg border-2 border-green-500 p-6 max-w-md w-full text-center shadow-2xl animate-bounce-in">
                         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -354,9 +338,8 @@ const ManajemenJadwal = () => {
                 </div>
             )}
 
-            {/* 3. Modal Error / Peringatan Generate (MERAH - Tanpa Opsi Lanjut) */}
             {showErrorModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
+                <div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-[60] p-4">
                     <div className="bg-white rounded-lg border-2 border-red-500 p-6 max-w-md w-full text-center shadow-2xl animate-bounce-in">
                         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -372,17 +355,14 @@ const ManajemenJadwal = () => {
                 </div>
             )}
 
-            {/* 4. Loading Overlay */}
             {loadingAction && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center">
+                <div className="fixed inset-0 backdrop-blur-sm bg-black/10 z-[70] flex items-center justify-center">
                     <div className="bg-white p-4 rounded-lg shadow-lg flex items-center gap-3">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <span className="font-semibold text-gray-700">Sedang memproses...</span>
                     </div>
                 </div>
             )}
-          {/* ================================================= */}
-
         </main>
       </div>
     </div>

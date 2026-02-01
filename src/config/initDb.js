@@ -134,13 +134,14 @@ const initDb = async () => {
     `);
 
     // 11. PEMBERSIHAN_JALAN (Fitur Patroler)
+    // UPDATE: Hapus waktu_mulai, Tambah foto_truk_air
     await db.query(`
       CREATE TABLE IF NOT EXISTS pembersihan_jalan (
         id INT AUTO_INCREMENT PRIMARY KEY,
         kegiatan_transporter_id INT NOT NULL,
         email_patroler VARCHAR(100) NOT NULL,
         plat_nomor_truk_air TEXT NOT NULL,
-        waktu_mulai DATETIME NOT NULL,
+        foto_truk_air TEXT,
         foto_sebelum TEXT,
         foto_sedang TEXT,
         foto_setelah TEXT,

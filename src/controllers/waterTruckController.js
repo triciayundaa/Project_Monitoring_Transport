@@ -73,15 +73,17 @@ const getDataPembersihan = async (req, res) => {
 const simpanPembersihan = async (req, res) => {
     const { 
         id, kegiatan_id, email_patroler, plat_nomor_truk_air, 
-        // HAPUS lokasi_patrol DARI SINI
+        foto_truk_list, // ARRAY FOTO TRUK DARI FRONTEND
         foto_sebelum_list, foto_sedang_list, foto_setelah_list,
-        lokasi_sebelum, lokasi_sedang, lokasi_setelah // TERIMA DATA LOKASI
+        lokasi_sebelum, lokasi_sedang, lokasi_setelah 
     } = req.body;
 
     try {
         const [userCheck] = await db.query('SELECT role FROM users WHERE email = ?', [email_patroler]);
         if (userCheck.length === 0 || userCheck[0].role !== 'patroler') return res.status(403).json({ message: "Access Denied!" });
 
+        // PROSES SEMUA FOTO
+        const pathTrukStr = processPhotoArray(foto_truk_list, 'truck'); 
         const pathSebelumStr = processPhotoArray(foto_sebelum_list, 'before');
         const pathSedangStr = processPhotoArray(foto_sedang_list, 'during');
         const pathSetelahStr = processPhotoArray(foto_setelah_list, 'after');
@@ -103,38 +105,40 @@ const simpanPembersihan = async (req, res) => {
             const jamSdg = (isSdgAda && !cur.jam_foto_sedang) || (pathSedangStr !== cur.foto_sedang) ? now : cur.jam_foto_sedang;
             const jamStlh = (isStlhAda && !cur.jam_foto_setelah) || (pathSetelahStr !== cur.foto_setelah) ? now : cur.jam_foto_setelah;
 
-            // Logika Update Lokasi: Jika data baru ada, pakai itu. Jika tidak, pakai yang lama.
             const lSblm = lokasi_sebelum || cur.lokasi_foto_sebelum;
             const lSdg = lokasi_sedang || cur.lokasi_foto_sedang;
             const lStlh = lokasi_setelah || cur.lokasi_foto_setelah;
 
+            // PERBAIKAN: Tambahkan foto_truk_air di query UPDATE
             await db.query(`
                 UPDATE pembersihan_jalan 
-                SET foto_sebelum=?, foto_sedang=?, foto_setelah=?, 
+                SET foto_truk_air=?, foto_sebelum=?, foto_sedang=?, foto_setelah=?, 
                     jam_foto_sebelum=?, jam_foto_sedang=?, jam_foto_setelah=?, 
                     lokasi_foto_sebelum=?, lokasi_foto_sedang=?, lokasi_foto_setelah=?,
                     status=? 
                 WHERE id=?`, 
-                [pathSebelumStr, pathSedangStr, pathSetelahStr, jamSblm, jamSdg, jamStlh, lSblm, lSdg, lStlh, status, id]);
+                [pathTrukStr, pathSebelumStr, pathSedangStr, pathSetelahStr, jamSblm, jamSdg, jamStlh, lSblm, lSdg, lStlh, status, id]);
             
             res.status(200).json({ status: 'Success', message: 'Data Tersimpan.' });
         } else {
-            // INSERT (HAPUS lokasi_patrol)
+            // INSERT
             if (!kegiatan_id || !plat_nomor_truk_air) return res.status(400).json({ message: "Data utama wajib diisi!" });
+            if (!pathTrukStr) return res.status(400).json({ message: "Wajib Foto Bukti Truk!" });
             if (!isSblmAda) return res.status(400).json({ message: "Wajib Foto Sebelum!" });
 
             const jamSblm = isSblmAda ? now : null;
             const jamSdg = isSdgAda ? now : null;
             const jamStlh = isStlhAda ? now : null;
 
+            // PERBAIKAN: Tambahkan foto_truk_air di query INSERT
             await db.query(`
                 INSERT INTO pembersihan_jalan 
-                (kegiatan_transporter_id, email_patroler, plat_nomor_truk_air, waktu_mulai, 
+                (kegiatan_transporter_id, email_patroler, plat_nomor_truk_air, foto_truk_air, waktu_mulai, 
                  foto_sebelum, foto_sedang, foto_setelah, 
                  jam_foto_sebelum, jam_foto_sedang, jam_foto_setelah, 
                  lokasi_foto_sebelum, lokasi_foto_sedang, lokasi_foto_setelah, status) 
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, 
-                [kegiatan_id, email_patroler, plat_nomor_truk_air, now, 
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, 
+                [kegiatan_id, email_patroler, plat_nomor_truk_air, pathTrukStr, now, 
                  pathSebelumStr, pathSedangStr, pathSetelahStr, 
                  jamSblm, jamSdg, jamStlh, 
                  lokasi_sebelum, lokasi_sedang, lokasi_setelah, status]);
