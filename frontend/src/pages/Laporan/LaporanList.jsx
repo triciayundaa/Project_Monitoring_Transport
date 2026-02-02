@@ -65,40 +65,44 @@ const LaporanList = () => {
         }
     };
 
-    // 3. Fungsi Generate Laporan Baru
     const handleGenerate = async () => {
-        const userStr = localStorage.getItem('user');
-        const userData = userStr ? JSON.parse(userStr) : { nama: 'Admin' };
+    const userStr = localStorage.getItem('user');
+    const userData = userStr ? JSON.parse(userStr) : { nama: 'Admin' };
 
-        try {
-            if (reportType === 'po') {
-                if (!selectedPo) return alert("Silakan pilih No PO terlebih dahulu");
-                
-                await axios.post('http://localhost:3000/api/laporan/add', {
-                    judul: `Laporan Rekapitulasi PO ${selectedPo}`,
-                    tipe_laporan: 'Lainnya',
-                    file_path: `/laporan/detail/${selectedPo}`,
-                    dibuat_oleh: userData.nama
-                });
-                navigate(`/laporan/detail/${selectedPo}`);
-            } else {
-                if (!startDate || !endDate) return alert("Silakan pilih rentang tanggal");
-                
-                await axios.post('http://localhost:3000/api/laporan/add', {
-                    judul: `Laporan Periodik (${startDate} s/d ${endDate})`,
-                    tipe_laporan: 'Bulanan',
-                    file_path: `/laporan/periodik?start=${startDate}&end=${endDate}`,
-                    dibuat_oleh: userData.nama
-                });
-                navigate(`/laporan/periodik?start=${startDate}&end=${endDate}`);
-            }
+    try {
+        if (reportType === 'po') {
+            if (!selectedPo) return alert("Silakan pilih No PO terlebih dahulu");
+            
+            await axios.post('http://localhost:3000/api/laporan/add', {
+                judul: `Laporan Rekapitulasi PO ${selectedPo}`,
+                tipe_laporan: 'Mingguan', // Ubah agar tidak bentrok dengan filter 'Lainnya'
+                file_path: `/laporan/detail/${selectedPo}`,
+                dibuat_oleh: userData.nama
+            });
+            navigate(`/laporan/detail/${selectedPo}`);
+        } else {
+            if (!startDate || !endDate) return alert("Silakan pilih rentang tanggal");
+            
+            // Logika sederhana: jika rentang hari > 60 hari, anggap 'Lainnya' (Tahunan)
+            const diffInDays = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24);
+            let kategori = 'Bulanan';
+            if (diffInDays > 60) kategori = 'Lainnya'; // Ini yang akan muncul saat filter 'Per Tahun'
 
-            setIsModalOpen(false);
-            fetchRiwayatLaporan();
-        } catch (err) {
-            alert("Gagal melakukan generate laporan: " + (err.response?.data?.message || err.message));
+            await axios.post('http://localhost:3000/api/laporan/add', {
+                judul: `Laporan Periodik (${startDate} s/d ${endDate})`,
+                tipe_laporan: kategori, 
+                file_path: `/laporan/periodik?start=${startDate}&end=${endDate}`,
+                dibuat_oleh: userData.nama
+            });
+            navigate(`/laporan/periodik?start=${startDate}&end=${endDate}`);
         }
-    };
+
+        setIsModalOpen(false);
+        fetchRiwayatLaporan();
+    } catch (err) {
+        alert("Gagal melakukan generate laporan");
+    }
+};
 
     useEffect(() => {
         fetchRiwayatLaporan();
@@ -157,7 +161,6 @@ const LaporanList = () => {
                                         className="w-full bg-white border border-gray-200 p-3 rounded-xl shadow-sm outline-none font-bold text-gray-700 appearance-none cursor-pointer focus:border-red-500 text-sm transition-colors"
                                     >
                                         <option value="Semua Laporan">Semua Laporan</option>
-                                        <option value="Mingguan">Per Minggu</option>
                                         <option value="Bulanan">Per Bulan</option>
                                         <option value="Lainnya">Per Tahun</option>
                                     </select>

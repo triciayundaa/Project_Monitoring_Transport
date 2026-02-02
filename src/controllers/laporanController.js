@@ -10,7 +10,7 @@ exports.getAllLaporan = async (req, res) => {
     }
 };
 
-// 2. AMBIL DATA DETAIL UNTUK PREVIEW & EXCEL (FIXED: JOIN OPTIMASI)
+// 2. AMBIL DATA DETAIL UNTUK PREVIEW & EXCEL
 exports.getLaporanDetail = async (req, res) => {
     const { id } = req.params; 
 
@@ -26,8 +26,7 @@ exports.getLaporanDetail = async (req, res) => {
         if (headerRows.length === 0) return res.status(404).json({ message: "Data PO tidak ditemukan" });
         const header = headerRows[0];
 
-        // B. Summary Tonase per Transporter (FIXED JOIN)
-        // Hitung lewat kegiatan_kendaraan
+        // B. Summary Tonase per Transporter
         const [summary] = await db.query(`
             SELECT 
                 t.nama_transporter,
@@ -35,15 +34,13 @@ exports.getLaporanDetail = async (req, res) => {
                 (COUNT(bt.id) * 25) AS total_tonase
             FROM kegiatan_transporter kt
             JOIN transporter t ON kt.transporter_id = t.id
-            -- Join ke Alokasi lalu ke Keberangkatan
             LEFT JOIN kegiatan_kendaraan kk ON kt.id = kk.kegiatan_transporter_id
             LEFT JOIN keberangkatan_truk bt ON kk.id = bt.kegiatan_kendaraan_id AND bt.status = 'Valid'
             WHERE kt.kegiatan_id = ?
             GROUP BY t.id
         `, [header.id]);
 
-        // C. LOG REALISASI DETAIL (FIXED JOIN)
-        // Join bertingkat: bt -> kk -> kt -> t
+        // C. LOG REALISASI DETAIL
         const [realisasiDetail] = await db.query(`
             SELECT 
                 bt.created_at AS waktu_berangkat, 
@@ -62,16 +59,16 @@ exports.getLaporanDetail = async (req, res) => {
             ORDER BY bt.created_at DESC
         `, [header.id]);
 
-        // D. Daftar Unit Terdaftar (Tidak berubah karena ambil dari master kendaraan)
+        // D. Daftar Unit Terdaftar
         const [vehicles] = await db.query(`
-    SELECT t.nama_transporter, ken.plat_nomor, ken.status AS status_kendaraan
-    FROM kegiatan_kendaraan kk
-    JOIN kegiatan_transporter kt ON kk.kegiatan_transporter_id = kt.id
-    JOIN transporter t ON kt.transporter_id = t.id
-    JOIN kendaraan ken ON kk.kendaraan_id = ken.id
-    WHERE kt.kegiatan_id = ?
-    ORDER BY t.nama_transporter ASC
-`, [header.id]);
+            SELECT t.nama_transporter, ken.plat_nomor, ken.status AS status_kendaraan
+            FROM kegiatan_kendaraan kk
+            JOIN kegiatan_transporter kt ON kk.kegiatan_transporter_id = kt.id
+            JOIN transporter t ON kt.transporter_id = t.id
+            JOIN kendaraan ken ON kk.kendaraan_id = ken.id
+            WHERE kt.kegiatan_id = ?
+            ORDER BY t.nama_transporter ASC
+        `, [header.id]);
 
         res.status(200).json({
             header,
@@ -86,10 +83,11 @@ exports.getLaporanDetail = async (req, res) => {
     }
 };
 
-// 3. SIMPAN RIWAYAT GENERATE LAPORAN BARU
+// 3. SIMPAN RIWAYAT GENERATE LAPORAN BARU (FIXED: SINKRONISASI 5 JENIS FILTER)
 exports.createLaporan = async (req, res) => {
     const { judul, tipe_laporan, file_path, dibuat_oleh } = req.body;
     try {
+        // Logika backend tetap menerima string tipe dari frontend agar sinkron dengan 5 filter
         const query = 'INSERT INTO laporan (judul, tipe_laporan, file_path, dibuat_oleh) VALUES (?, ?, ?, ?)';
         const [result] = await db.query(query, [judul, tipe_laporan, file_path, dibuat_oleh]);
         
@@ -117,52 +115,43 @@ exports.deleteLaporan = async (req, res) => {
     }
 };
 
-// 5. AMBIL LAPORAN PERIODIK (FIXED JOIN: Optimasi Database)
+// 5. AMBIL LAPORAN PERIODIK (Data Kegiatan + Daftar Transporter)
 exports.getLaporanPeriodik = async (req, res) => {
     const { start, end } = req.query;
 
     try {
-        // Ambil SEMUA riwayat keberangkatan truk dalam rentang tanggal
-        // Join bertingkat: bt -> kk -> kt -> k
         const [logs] = await db.query(`
             SELECT 
-                bt.id,
+                k.id,
                 k.no_po,
-                v.nama_vendor,     -- Kolom Vendor
-                k.incoterm,        -- Kolom Incoterm
+                v.nama_vendor,
+                k.nama_kapal,
                 k.material,
+                k.incoterm,
+                k.no_bl,
+                k.quantity,
                 k.tanggal_mulai,
                 k.tanggal_selesai,
-                k.quantity AS qty_po, 
-                bt.created_at AS waktu_berangkat,
-                ken.plat_nomor,
-                t.nama_transporter,
-                s.nama_shift,
-                u.nama AS nama_petugas
-            FROM keberangkatan_truk bt
-            JOIN kegiatan_kendaraan kk ON bt.kegiatan_kendaraan_id = kk.id
-            JOIN kegiatan_transporter kt ON kk.kegiatan_transporter_id = kt.id
-            JOIN kegiatan k ON kt.kegiatan_id = k.id
-            JOIN vendor v ON k.vendor_id = v.id
-            JOIN transporter t ON kt.transporter_id = t.id
-            JOIN kendaraan ken ON kk.kendaraan_id = ken.id
-            JOIN users u ON bt.email_user = u.email
-            JOIN shift s ON bt.shift_id = s.id
-            WHERE bt.tanggal BETWEEN ? AND ? AND bt.status = 'Valid'
-            ORDER BY bt.created_at ASC
+                k.created_at,
+                (
+                    SELECT GROUP_CONCAT(DISTINCT t.nama_transporter SEPARATOR ', ')
+                    FROM kegiatan_transporter kt
+                    JOIN transporter t ON kt.transporter_id = t.id
+                    WHERE kt.kegiatan_id = k.id
+                ) AS daftar_transporter
+            FROM kegiatan k
+            LEFT JOIN vendor v ON k.vendor_id = v.id
+            WHERE k.tanggal_mulai BETWEEN ? AND ?
+            ORDER BY k.material ASC, k.tanggal_mulai ASC
         `, [start, end]);
 
-        // Kalkulasi Ringkasan (FIXED JOIN)
         const [summaryMaterial] = await db.query(`
             SELECT 
                 k.material, 
-                COUNT(bt.id) as total_ritase, 
-                SUM(DISTINCT k.quantity) as total_tonase_po 
-            FROM keberangkatan_truk bt
-            JOIN kegiatan_kendaraan kk ON bt.kegiatan_kendaraan_id = kk.id
-            JOIN kegiatan_transporter kt ON kk.kegiatan_transporter_id = kt.id
-            JOIN kegiatan k ON kt.kegiatan_id = k.id
-            WHERE bt.tanggal BETWEEN ? AND ? AND bt.status = 'Valid'
+                COUNT(DISTINCT k.no_po) as total_po, 
+                SUM(k.quantity) as total_tonase_qty 
+            FROM kegiatan k
+            WHERE k.tanggal_mulai BETWEEN ? AND ?
             GROUP BY k.material
         `, [start, end]);
 
@@ -172,6 +161,7 @@ exports.getLaporanPeriodik = async (req, res) => {
             summaryMaterial
         });
     } catch (error) {
+        console.error("Error Laporan Periodik:", error.message);
         res.status(500).json({ message: error.message });
     }
 };
