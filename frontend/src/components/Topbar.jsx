@@ -14,6 +14,7 @@ const Topbar = ({ onToggleSidebar, title }) => {
         if (path === '/dashboard') return 'Dashboard';
         if (path.startsWith('/manajemen-kegiatan')) return 'Manajemen Kegiatan';
         if (path.startsWith('/manajemen-kendaraan') || path.startsWith('/kendaraan')) return 'Manajemen Kendaraan';
+        if (path.startsWith('/daftar-truk-air') || path.startsWith('/truk-air')) return 'Manajemen Truk Air';
         if (path.startsWith('/laporan')) return 'Laporan';
         if (path.startsWith('/manajemen-pengguna') || path.startsWith('/users')) return 'Manajemen Pengguna';
         if (path.startsWith('/manajemen-jadwal') || path.startsWith('/jadwal')) return 'Manajemen Jadwal';

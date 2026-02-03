@@ -3,15 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 // --- HELPER UNTUK URL FOTO ---
-// Menangani 2 kondisi:
-// 1. Data Baru (Base64) -> Tampilkan langsung
-// 2. Data dari DB (Path) -> Tambahkan http://localhost:3000
 const getPhotoUrl = (photoData) => {
     if (!photoData) return null;
     if (photoData.startsWith('data:image')) {
-        return photoData; // Ini Base64 (Preview saat input baru)
+        return photoData; 
     }
-    // Ini Path dari Database (misal: /uploads/foto.jpg)
     return `http://localhost:3000${photoData}`;
 };
 
@@ -52,7 +48,6 @@ const KeberangkatanTruk = () => {
     const [alertMessage, setAlertMessage] = useState('');
     const [showModalConfirmLogout, setShowModalConfirmLogout] = useState(false);
     
-    // --- STATE EDIT ---
     const [isEditMode, setIsEditMode] = useState(false);
     const [editDataId, setEditDataId] = useState(null);
 
@@ -60,7 +55,6 @@ const KeberangkatanTruk = () => {
     const [currentMonthInfo, setCurrentMonthInfo] = useState({ month: new Date().getMonth(), year: new Date().getFullYear() });
     const [selectedDetail, setSelectedDetail] = useState(null);
     
-    // Form states
     const [noPO, setNoPO] = useState('');
     const [poData, setPoData] = useState(null);
     const [transporterList, setTransporterList] = useState([]);
@@ -74,7 +68,6 @@ const KeberangkatanTruk = () => {
     });
     const [loading, setLoading] = useState(false);
 
-    // 1. Cek Login User
     useEffect(() => {
         const userData = localStorage.getItem('user');
         if (userData) {
@@ -84,14 +77,12 @@ const KeberangkatanTruk = () => {
         }
     }, [navigate]);
 
-    // 2. Load Data Truk saat tanggal berubah
     useEffect(() => {
         if (user && selectedDate) {
             loadKeberangkatanData();
         }
     }, [selectedDate, user]);
 
-    // 3. Cek Status Shift User Real-time
     useEffect(() => {
         const checkUserShiftStatus = async () => {
             if (!user?.email || !selectedDate) return;
@@ -112,7 +103,6 @@ const KeberangkatanTruk = () => {
         checkUserShiftStatus();
     }, [user, selectedDate]);
 
-    // 4. Load Jadwal Bulanan
     const loadJadwalBulanan = async () => {
         try {
             const year = currentMonthInfo.year;
@@ -164,48 +154,38 @@ const KeberangkatanTruk = () => {
         const hour = now.getHours();
         if (hour >= 7 && hour < 15) return 'Shift 1';
         if (hour >= 15 && hour < 23) return 'Shift 2';
-        return 'Shift 3'; // 23.00 - 07.00
+        return 'Shift 3'; 
     };
 
-    // --- GANTI FUNGSI handleInputDataBaru DENGAN INI ---
     const handleInputDataBaru = () => {
         const todayString = getLocalTodayDate();
 
-        // 1. Cek Tanggal (Harus Hari Ini)
+        // 1. Validasi Tanggal
         if (selectedDate !== todayString) {
-            setWarningMessage('Anda hanya dapat menginput data untuk tanggal HARI INI saja.');
+            setWarningMessage(`Anda hanya diperbolehkan menginput data pada tanggal hari ini (${formatDateForDisplay(todayString)}).`);
             setShowModalWarning(true);
             return;
         }
 
-        // 2. Cek Status Libur/Kosong
-        if (currentShiftLabel === 'Libur') {
-            setWarningMessage('Anda tidak dapat menginput data karena jadwal Anda hari ini LIBUR.');
+        // 2. Validasi Shift (Libur/Tidak Terdaftar)
+        if (currentShiftLabel === 'Libur' || currentShiftLabel === 'Tidak Ada Jadwal' || currentShiftLabel === 'Tidak Terdaftar') {
+            setWarningMessage(`Maaf, Anda tidak memiliki jadwal shift aktif saat ini. Status: ${currentShiftLabel}`);
             setShowModalWarning(true);
             return;
         }
-        if (currentShiftLabel === 'Tidak Ada Jadwal' || currentShiftLabel === 'Error Cek Jadwal') {
-            setWarningMessage('Jadwal Anda belum diatur. Hubungi Admin.');
+
+        // 3. Validasi Jam vs Jadwal
+        const currentRealShift = getCurrentShiftByTime();
+        if (currentShiftLabel !== currentRealShift) {
+            const now = new Date();
+            setWarningMessage(
+                `GAGAL: Jadwal Anda adalah ${currentShiftLabel}, tapi sekarang jam ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} (${currentRealShift}). ` +
+                `Formulir tidak dapat dibuka di luar jam shift Anda.`
+            );
             setShowModalWarning(true);
             return;
         }
         
-        // 🔥 3. CEK JAM SEKARANG vs JADWAL SHIFT (INI YANG ANDA MINTA) 🔥
-        const currentRealShift = getCurrentShiftByTime(); // Misal: Shift 1 (karena jam 10)
-        const userSchedule = currentShiftLabel; // Misal: Shift 2 (Jadwal Personil)
-
-        if (userSchedule !== currentRealShift) {
-            const now = new Date();
-            const currentHour = now.getHours();
-            setWarningMessage(
-                `GAGAL: Jadwal Anda adalah ${userSchedule}, tapi sekarang jam ${currentHour}:00 (${currentRealShift}). ` +
-                `Formulir tidak dapat dibuka di luar jam shift Anda.`
-            );
-            setShowModalWarning(true);
-            return; // 🛑 BERHENTI DISINI (MODAL FORM TIDAK AKAN MUNCUL)
-        }
-
-        // Jika semua lolos, baru buka form
         setIsEditMode(false);
         setEditDataId(null);
         setNoPO('');
@@ -214,35 +194,27 @@ const KeberangkatanTruk = () => {
         setShowModalPO(true);
     };
 
-    // --- FUNGSI EDIT DATA ---
     const handleEdit = async (truck) => {
-        // Validasi: Pastikan data truck punya No PO
         if (!truck.no_po) {
             alert("Gagal Edit: Data PO tidak ditemukan pada item ini. Silakan refresh halaman.");
             return;
         }
-
         setIsEditMode(true);
         setEditDataId(truck.id);
         setLoading(true);
-
         try {
             const response = await axios.post('http://localhost:3000/api/keberangkatan/cek-po', { no_po: truck.no_po });
-            
             if (response.data.status === 'Success') {
                 const dataPO = response.data.data;
                 setPoData(dataPO);
                 setTransporterList(response.data.transporters || []);
-                
-                // Isi Form
                 setFormData({
                     transporter_id: truck.transporter_id, 
                     no_polisi: truck.plat_nomor,
                     no_seri_pengantar: truck.no_seri_pengantar,
-                    foto_truk: truck.foto_truk, // Ini berisi path dari DB
-                    foto_surat: truck.foto_surat // Ini berisi path dari DB
+                    foto_truk: truck.foto_truk, 
+                    foto_surat: truck.foto_surat 
                 });
-
                 setShowModalForm(true); 
             } else {
                 setAlertMessage('Gagal mengambil data PO untuk edit.');
@@ -270,7 +242,7 @@ const KeberangkatanTruk = () => {
             if (response.data.status === 'Success') {
                 const dataPO = response.data.data;
                 if (dataPO.status === 'Completed') {
-                    setWarningMessage(`Nomor PO ${dataPO.no_po} sudah berstatus COMPLETED (Selesai).`);
+                    setWarningMessage(`Nomor PO ${dataPO.no_po} sudah berstatus COMPLETED (Selesai). Data tidak dapat ditambah lagi.`);
                     setShowModalWarning(true);
                     return;
                 }
@@ -280,8 +252,13 @@ const KeberangkatanTruk = () => {
                 setShowModalForm(true);
             }
         } catch (error) {
-            if (error.response?.status === 404) { setShowModalPO(false); setShowModalError(true); } 
-            else { setWarningMessage(error.response?.data?.message || 'Terjadi kesalahan saat mengecek PO'); setShowModalWarning(true); }
+            if (error.response?.status === 404) { 
+                setShowModalPO(false); 
+                setShowModalError(true); 
+            } else { 
+                setWarningMessage(error.response?.data?.message || 'Terjadi kesalahan saat mengecek PO'); 
+                setShowModalWarning(true); 
+            }
         } finally { setLoading(false); }
     };
 
@@ -347,7 +324,6 @@ const KeberangkatanTruk = () => {
         }
 
         if (!formData.no_seri_pengantar.trim()) { setWarningMessage('Mohon masukkan Nomor Seri Pengantar.'); setShowModalWarning(true); return; }
-        
         if (!isEditMode) {
             if (!formData.foto_truk) { setWarningMessage('Silakan ambil Foto Truk terlebih dahulu.'); setShowModalWarning(true); return; }
             if (!formData.foto_surat) { setWarningMessage('Silakan ambil Foto Surat Pengantar terlebih dahulu.'); setShowModalWarning(true); return; }
@@ -438,7 +414,6 @@ const KeberangkatanTruk = () => {
                         {user && <span className="font-medium hidden sm:inline">{user.nama}</span>}
                     </div>
                     
-                    {/* TOMBOL INFO */}
                     <button 
                         onClick={() => setShowModalInfo(true)}
                         className="bg-white text-red-600 p-1 rounded-full hover:bg-red-50 transition-colors shadow-sm focus:outline-none flex items-center justify-center"
@@ -489,11 +464,7 @@ const KeberangkatanTruk = () => {
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={() => handleLihatDetail(truck)} className="flex-1 bg-green-500 text-white py-2 rounded font-semibold hover:bg-green-600 transition-colors">Lihat Detail</button>
-                                    
-                                    <button 
-                                        onClick={() => handleEdit(truck)} 
-                                        className="flex-1 bg-yellow-500 text-white py-2 rounded font-semibold hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2"
-                                    >
+                                    <button onClick={() => handleEdit(truck)} className="flex-1 bg-yellow-500 text-white py-2 rounded font-semibold hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
                                         </svg>
@@ -506,9 +477,9 @@ const KeberangkatanTruk = () => {
                 </div>
             </main>
 
-            {/* Modal Components */}
+            {/* Modal Components - SEMUA bg-opacity DIUBAH MENJADI backdrop-blur */}
             {showModalInfo && (
-                <div className="fixed inset-0 bg-black bg-opacity-70 z-[70] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+                <div className="fixed inset-0 backdrop-blur-md bg-black/30 z-[70] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
                     <div className="bg-white rounded-lg w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl relative">
                         <div className="flex justify-between items-center bg-red-600 text-white px-6 py-4 rounded-t-lg">
                             <h2 className="text-lg sm:text-xl font-bold">Jadwal Bulan {new Date(currentMonthInfo.year, currentMonthInfo.month, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' })}</h2>
@@ -532,9 +503,8 @@ const KeberangkatanTruk = () => {
                 </div>
             )}
 
-            {/* Modal PO */}
             {showModalPO && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full border-2 border-red-500">
                         <h2 className="text-xl font-bold text-red-600 mb-4">Masukkan Nomor PO</h2>
                         <input type="text" value={noPO} onChange={(e)=>setNoPO(e.target.value)} className="w-full border p-2 rounded mb-4" placeholder="Nomor PO" />
@@ -546,151 +516,67 @@ const KeberangkatanTruk = () => {
                 </div>
             )}
 
-            {/* Modal Form Input / Edit */}
             {showModalForm && poData && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+                <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-md bg-black/30">
                     <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
                         <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 w-full max-w-2xl border-2 border-red-500">
                             <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                                <h2 className="text-xl md:text-2xl font-bold text-red-600 mb-6">
-                                    {isEditMode ? 'Edit Data Keberangkatan' : 'Input Data Keberangkatan Truk'}
-                                </h2>
+                                <h2 className="text-xl md:text-2xl font-bold text-red-600 mb-6">{isEditMode ? 'Edit Data Keberangkatan' : 'Input Data Keberangkatan Truk'}</h2>
                                 <div className="space-y-4">
                                     <div><label className="block text-sm font-semibold text-red-600 mb-2">Personil</label><input type="text" value={user?.nama || ''} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
                                     <div><label className="block text-sm font-semibold text-red-600 mb-2">Shift</label><input type="text" value={currentShiftLabel} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
-                                    
-                                    {/* --- [BARU] NOMOR PO DI ATAS TRANSPORTER --- */}
                                     <div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor PO</label><input type="text" value={poData.no_po || ''} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
                                     
-                                    {/* DROPDOWN TRANSPORTER */}
                                     <div className="mb-4">
                                         <label className="block text-sm font-semibold text-red-600 mb-2">Transporter</label>
-                                        <select 
-                                            value={formData.transporter_id}
-                                            onChange={(e) => {
-                                                setFormData(prev => ({
-                                                    ...prev, 
-                                                    transporter_id: e.target.value,
-                                                    no_polisi: '' 
-                                                }));
-                                            }}
-                                            className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none bg-white"
-                                        >
+                                        <select value={formData.transporter_id} onChange={(e) => { setFormData(prev => ({ ...prev, transporter_id: e.target.value, no_polisi: '' })); }} className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none bg-white">
                                             <option value="">-- Pilih Transporter --</option>
-                                            {transporterList.map(t => (
-                                                <option key={t.id} value={t.id}>{t.nama_transporter}</option>
-                                            ))}
+                                            {transporterList.map(t => (<option key={t.id} value={t.id}>{t.nama_transporter}</option>))}
                                         </select>
                                     </div>
 
-                                    {/* INPUT NOMOR POLISI */}
                                     <div className="mb-4">
                                         <label className="block text-sm font-semibold text-red-600 mb-2">Nomor Polisi</label>
-                                        <input 
-                                            list="vehicle-options" 
-                                            type="text"
-                                            value={formData.no_polisi} 
-                                            onChange={(e) => setFormData(prev => ({ ...prev, no_polisi: e.target.value.toUpperCase() }))}
-                                            disabled={!formData.transporter_id} 
-                                            placeholder={!formData.transporter_id ? "Pilih Transporter Dulu" : "Ketik atau Pilih Nomor Polisi"}
-                                            className={`w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none ${!formData.transporter_id ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
-                                        />
+                                        <input list="vehicle-options" type="text" value={formData.no_polisi} onChange={(e) => setFormData(prev => ({ ...prev, no_polisi: e.target.value.toUpperCase() }))} disabled={!formData.transporter_id} placeholder={!formData.transporter_id ? "Pilih Transporter Dulu" : "Ketik atau Pilih Nomor Polisi"} className={`w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none ${!formData.transporter_id ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`} />
                                         <datalist id="vehicle-options">
                                             {(() => {
                                                 const selectedTransporter = transporterList.find(t => String(t.id) === String(formData.transporter_id));
-                                                const vehicles = selectedTransporter?.vehicles || []; 
-                                                return vehicles.map((v, index) => (
-                                                    <option key={index} value={v.plat_nomor} />
-                                                ));
+                                                return (selectedTransporter?.vehicles || []).map((v, index) => (<option key={index} value={v.plat_nomor} />));
                                             })()}
                                         </datalist>
-                                        {formData.transporter_id && formData.no_polisi && (() => {
-                                            const selectedTransporter = transporterList.find(t => String(t.id) === String(formData.transporter_id));
-                                            const vehicles = selectedTransporter?.vehicles || [];
-                                            const isValid = vehicles.some(v => v.plat_nomor === formData.no_polisi);
-                                            if (!isValid) {
-                                                return <p className="text-xs text-red-600 mt-1">* Data tidak ditemukan / Tidak sesuai transporter</p>;
-                                            }
-                                        })()}
                                     </div>
 
                                     <div><label className="block text-sm font-semibold text-red-600 mb-2">Tanggal</label><input type="text" value={formatDateForDisplay(selectedDate)} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
                                     <div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Seri Pengantar</label><input type="text" value={formData.no_seri_pengantar} onChange={(e) => setFormData(prev => ({ ...prev, no_seri_pengantar: e.target.value }))} placeholder="Masukkan nomor seri pengantar" className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" /></div>
                                     
-                                    {/* FOTO TRUK (UPDATE: FULL VIEW & RESPONSIVE) */}
                                     <div>
                                         <label className="block text-sm font-semibold text-red-600 mb-2">Foto Truk</label>
                                         {isEditMode ? (
                                             <div className="relative border-2 border-gray-300 border-dashed rounded-lg p-2 bg-gray-50">
                                                 {formData.foto_truk ? (
-                                                    <>
-                                                        {/* --- PERBAIKAN DI SINI (src pakai getPhotoUrl) --- */}
-                                                        <img src={getPhotoUrl(formData.foto_truk)} alt="Foto Truk" className="w-full h-auto object-contain rounded-lg filter brightness-75" />
-                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                            <span className="bg-black/60 text-white px-3 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-2">
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                                                                Tidak Dapat Diubah
-                                                            </span>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="text-center py-4 text-gray-400 text-sm">Tidak ada foto tersimpan</div>
-                                                )}
+                                                    <><img src={getPhotoUrl(formData.foto_truk)} alt="Foto Truk" className="w-full h-auto object-contain rounded-lg filter brightness-75" /><div className="absolute inset-0 flex items-center justify-center"><span className="bg-black/60 text-white px-3 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-2"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>Tidak Dapat Diubah</span></div></>
+                                                ) : <div className="text-center py-4 text-gray-400 text-sm">Tidak ada foto tersimpan</div>}
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <button type="button" onClick={() => handleCapturePhoto('foto_truk')} className="flex-1 px-4 py-2.5 border-2 border-red-500 rounded-lg text-gray-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
-                                                        <span>{formData.foto_truk ? 'Foto sudah diambil (Ambil Ulang)' : 'Silahkan Ambil Foto Truk'}</span>
-                                                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                                    </button>
-                                                </div>
-                                                {formData.foto_truk && (
-                                                    <div className="relative">
-                                                        {/* --- PERBAIKAN DI SINI (src pakai getPhotoUrl) --- */}
-                                                        <img src={getPhotoUrl(formData.foto_truk)} alt="Foto Truk" className="w-full h-auto object-contain rounded-lg border border-gray-300" />
-                                                        <button type="button" onClick={() => setFormData(prev => ({ ...prev, foto_truk: null }))} className="mt-2 text-sm text-red-600 hover:text-red-700 font-semibold underline">Hapus Foto</button>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-3 mb-2"><button type="button" onClick={() => handleCapturePhoto('foto_truk')} className="flex-1 px-4 py-2.5 border-2 border-red-500 rounded-lg text-gray-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"><span>{formData.foto_truk ? 'Foto sudah diambil (Ambil Ulang)' : 'Silahkan Ambil Foto Truk'}</span><svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button></div>
+                                                {formData.foto_truk && (<div className="relative"><img src={getPhotoUrl(formData.foto_truk)} alt="Foto Truk" className="w-full h-auto object-contain rounded-lg border border-gray-300" /><button type="button" onClick={() => setFormData(prev => ({ ...prev, foto_truk: null }))} className="mt-2 text-sm text-red-600 hover:text-red-700 font-semibold underline">Hapus Foto</button></div>)}
                                             </>
                                         )}
                                     </div>
                                     
-                                    {/* FOTO SURAT PENGANTAR (UPDATE: FULL VIEW & RESPONSIVE) */}
                                     <div>
                                         <label className="block text-sm font-semibold text-red-600 mb-2">Foto Surat Pengantar</label>
                                         {isEditMode ? (
                                             <div className="relative border-2 border-gray-300 border-dashed rounded-lg p-2 bg-gray-50">
                                                 {formData.foto_surat ? (
-                                                    <>
-                                                        {/* --- PERBAIKAN DI SINI (src pakai getPhotoUrl) --- */}
-                                                        <img src={getPhotoUrl(formData.foto_surat)} alt="Foto Surat" className="w-full h-auto object-contain rounded-lg filter brightness-75" />
-                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                            <span className="bg-black/60 text-white px-3 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-2">
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                                                                Tidak Dapat Diubah
-                                                            </span>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="text-center py-4 text-gray-400 text-sm">Tidak ada foto tersimpan</div>
-                                                )}
+                                                    <><img src={getPhotoUrl(formData.foto_surat)} alt="Foto Surat" className="w-full h-auto object-contain rounded-lg filter brightness-75" /><div className="absolute inset-0 flex items-center justify-center"><span className="bg-black/60 text-white px-3 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-2"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>Tidak Dapat Diubah</span></div></>
+                                                ) : <div className="text-center py-4 text-gray-400 text-sm">Tidak ada foto tersimpan</div>}
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <button type="button" onClick={() => handleCapturePhoto('foto_surat')} className="flex-1 px-4 py-2.5 border-2 border-red-500 rounded-lg text-gray-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
-                                                        <span>{formData.foto_surat ? 'Foto sudah diambil (Ambil Ulang)' : 'Silahkan Ambil Foto Surat Pengantar'}</span>
-                                                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                                    </button>
-                                                </div>
-                                                {formData.foto_surat && (
-                                                    <div className="relative">
-                                                        {/* --- PERBAIKAN DI SINI (src pakai getPhotoUrl) --- */}
-                                                        <img src={getPhotoUrl(formData.foto_surat)} alt="Foto Surat Pengantar" className="w-full h-auto object-contain rounded-lg border border-gray-300" />
-                                                        <button type="button" onClick={() => setFormData(prev => ({ ...prev, foto_surat: null }))} className="mt-2 text-sm text-red-600 hover:text-red-700 font-semibold underline">Hapus Foto</button>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-3 mb-2"><button type="button" onClick={() => handleCapturePhoto('foto_surat')} className="flex-1 px-4 py-2.5 border-2 border-red-500 rounded-lg text-gray-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"><span>{formData.foto_surat ? 'Foto sudah diambil (Ambil Ulang)' : 'Silahkan Ambil Foto Surat Pengantar'}</span><svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button></div>
+                                                {formData.foto_surat && (<div className="relative"><img src={getPhotoUrl(formData.foto_surat)} alt="Foto Surat Pengantar" className="w-full h-auto object-contain rounded-lg border border-gray-300" /><button type="button" onClick={() => setFormData(prev => ({ ...prev, foto_surat: null }))} className="mt-2 text-sm text-red-600 hover:text-red-700 font-semibold underline">Hapus Foto</button></div>)}
                                             </>
                                         )}
                                     </div>
@@ -705,42 +591,31 @@ const KeberangkatanTruk = () => {
                 </div>
             )}
 
-            {showModalError && (<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 md:p-8 max-w-md w-full text-center"><div className="mb-4"><div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div><h2 className="text-xl md:text-2xl font-bold text-red-600">Nomor PO Tidak Ditemukan</h2></div><button onClick={() => { setShowModalError(false); setNoPO(''); }} className="bg-green-500 hover:bg-green-600 text-white font-semibold px-8 py-2.5 rounded-lg transition-colors">Oke</button></div></div>)}
-            {showModalSuccess && (<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 md:p-8 max-w-md w-full text-center"><div className="mb-4"><div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div><h2 className="text-xl md:text-2xl font-bold text-red-600">{isEditMode ? 'Data Berhasil Diperbarui' : 'Data Berhasil Disimpan'}</h2></div><button onClick={() => setShowModalSuccess(false)} className="bg-green-500 hover:bg-green-600 text-white font-semibold px-8 py-2.5 rounded-lg transition-colors">Oke</button></div></div>)}
-            {showModalWarning && (<div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 max-w-md w-full text-center shadow-2xl animate-bounce-in"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div><h2 className="text-2xl font-bold text-red-600 mb-2">Peringatan</h2><p className="text-gray-700 mb-6">{warningMessage}</p><button onClick={() => setShowModalWarning(false)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-full w-full transition-colors">Saya Mengerti</button></div></div>)}
-            {showModalAlert && (<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 max-w-md w-full text-center"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div><h2 className="text-xl font-bold text-red-600 mb-2">Perhatian</h2><p className="text-gray-700 mb-6">{alertMessage}</p><button onClick={() => setShowModalAlert(false)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-full w-full transition-colors">Oke</button></div></div>)}
+            {showModalError && (<div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 md:p-8 max-w-md w-full text-center"><div className="mb-4"><div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div><h2 className="text-xl md:text-2xl font-bold text-red-600">Nomor PO Tidak Ditemukan</h2></div><button onClick={() => { setShowModalError(false); setNoPO(''); }} className="bg-green-500 hover:bg-green-600 text-white font-semibold px-8 py-2.5 rounded-lg transition-colors">Oke</button></div></div>)}
+            {showModalSuccess && (<div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 md:p-8 max-w-md w-full text-center"><div className="mb-4"><div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div><h2 className="text-xl md:text-2xl font-bold text-red-600">{isEditMode ? 'Data Berhasil Diperbarui' : 'Data Berhasil Disimpan'}</h2></div><button onClick={() => setShowModalSuccess(false)} className="bg-green-500 hover:bg-green-600 text-white font-semibold px-8 py-2.5 rounded-lg transition-colors">Oke</button></div></div>)}
+            {showModalWarning && (<div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-[60] p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 max-w-md w-full text-center shadow-2xl animate-bounce-in"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div><h2 className="text-2xl font-bold text-red-600 mb-2">Peringatan</h2><p className="text-gray-700 mb-6">{warningMessage}</p><button onClick={() => setShowModalWarning(false)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-full w-full transition-colors">Saya Mengerti</button></div></div>)}
+            {showModalAlert && (<div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 max-w-md w-full text-center"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div><h2 className="text-xl font-bold text-red-600 mb-2">Perhatian</h2><p className="text-gray-700 mb-6">{alertMessage}</p><button onClick={() => setShowModalAlert(false)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-full w-full transition-colors">Oke</button></div></div>)}
             
-            {/* --- MODAL DETAIL TRUK (UPDATE: ADA NOMOR PO DI ATAS TRANSPORTER) --- */}
-            {showModalDetail && selectedDetail && (<div className="fixed inset-0 bg-black bg-opacity-50 z-50 p-4 overflow-y-auto"><div className="min-h-full flex items-start justify-center py-8"><div className="bg-white rounded-lg border-2 border-red-500 p-6 md:p-8 max-w-2xl w-full my-auto"><h2 className="text-xl md:text-2xl font-bold text-red-600 mb-6">Detail Keberangkatan Truk</h2><div className="space-y-4">
-                
-                {/* NOMOR PO */}
+            {showModalDetail && selectedDetail && (
+                <div className="fixed inset-0 backdrop-blur-md bg-black/30 z-50 p-4 overflow-y-auto"><div className="min-h-full flex items-start justify-center py-8"><div className="bg-white rounded-lg border-2 border-red-500 p-6 md:p-8 max-w-2xl w-full my-auto"><h2 className="text-xl md:text-2xl font-bold text-red-600 mb-6">Detail Keberangkatan Truk</h2><div className="space-y-4">
                 <div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor PO</label><input type="text" value={selectedDetail.no_po || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
-                
-                {/* TRANSPORTIR */}
-                <div><label className="block text-sm font-semibold text-red-600 mb-2">Transportir</label><input type="text" value={selectedDetail.transporter || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
-                
-                <div><label className="block text-sm font-semibold text-red-600 mb-2">Material</label><input type="text" value={selectedDetail.material || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div><div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Kapal</label><input type="text" value={selectedDetail.nama_kapal || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div><div><label className="block text-sm font-semibold text-red-600 mb-2">Personil</label><input type="text" value={selectedDetail.nama_personil || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div><div><label className="block text-sm font-semibold text-red-600 mb-2">Shift</label><input type="text" value={selectedDetail.nama_shift || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div><div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Polisi</label><input type="text" value={selectedDetail.plat_nomor || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div><div><label className="block text-sm font-semibold text-red-600 mb-2">Tanggal</label><input type="text" value={formatDateForDisplay(selectedDetail.tanggal)} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div><div><label className="block text-sm font-semibold text-red-600 mb-2">Jam Berangkat</label><input type="text" value={formatTimeForDisplay(selectedDetail.created_at)} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div><div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Seri Pengantar</label><input type="text" value={selectedDetail.no_seri_pengantar || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
-                
-                {/* FOTO TRUK (Detail View: Juga Full Width) */}
-                <div>
-                    <label className="block text-sm font-semibold text-red-600 mb-2">Foto Truk</label>
-                    <div className="border-2 border-red-500 rounded-lg p-2 flex items-center justify-center bg-gray-50">
-                        {/* --- PERBAIKAN DI SINI (src pakai getPhotoUrl) --- */}
-                        {selectedDetail.foto_truk ? <img src={getPhotoUrl(selectedDetail.foto_truk)} alt="Foto Truk" className="w-full h-auto object-contain rounded-lg" /> : <span className="text-red-600 font-semibold py-4">Tidak ada foto</span>}
-                    </div>
-                </div>
-                
-                {/* FOTO SURAT (Detail View: Juga Full Width) */}
-                <div>
-                    <label className="block text-sm font-semibold text-red-600 mb-2">Foto Surat Pengantar</label>
-                    <div className="border-2 border-red-500 rounded-lg p-2 flex items-center justify-center bg-gray-50">
-                        {/* --- PERBAIKAN DI SINI (src pakai getPhotoUrl) --- */}
-                        {selectedDetail.foto_surat ? <img src={getPhotoUrl(selectedDetail.foto_surat)} alt="Foto Surat Pengantar" className="w-full h-auto object-contain rounded-lg" /> : <span className="text-red-600 font-semibold py-4">Tidak ada foto</span>}
-                    </div>
-                </div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Transportir</label><input type="text" value={selectedDetail.nama_vendor || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Material</label><input type="text" value={selectedDetail.material || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Kapal</label><input type="text" value={selectedDetail.nama_kapal || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Personil</label><input type="text" value={selectedDetail.nama_personil || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Shift</label><input type="text" value={selectedDetail.nama_shift || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Polisi</label><input type="text" value={selectedDetail.plat_nomor || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Tanggal</label><input type="text" value={formatDateForDisplay(selectedDetail.tanggal)} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Jam Berangkat</label><input type="text" value={formatTimeForDisplay(selectedDetail.created_at)} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Nomor Seri Pengantar</label><input type="text" value={selectedDetail.no_seri_pengantar || 'N/A'} disabled className="w-full px-4 py-2.5 border-2 border-red-500 rounded-lg bg-gray-100 text-gray-600" /></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Foto Truk</label><div className="border-2 border-red-500 rounded-lg p-2 flex items-center justify-center bg-gray-50">{selectedDetail.foto_truk ? <img src={getPhotoUrl(selectedDetail.foto_truk)} alt="Foto Truk" className="w-full h-auto object-contain rounded-lg" /> : <span className="text-red-600 font-semibold py-4">Tidak ada foto</span>}</div></div>
+                <div><label className="block text-sm font-semibold text-red-600 mb-2">Foto Surat Pengantar</label><div className="border-2 border-red-500 rounded-lg p-2 flex items-center justify-center bg-gray-50">{selectedDetail.foto_surat ? <img src={getPhotoUrl(selectedDetail.foto_surat)} alt="Foto Surat Pengantar" className="w-full h-auto object-contain rounded-lg" /> : <span className="text-red-600 font-semibold py-4">Tidak ada foto</span>}</div></div>
+                </div><div className="flex justify-start mt-6"><button onClick={() => { setShowModalDetail(false); setSelectedDetail(null); }} className="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-2.5 rounded-lg transition-colors">Kembali</button></div></div></div></div>
+            )}
 
-                </div><div className="flex justify-start mt-6"><button onClick={() => { setShowModalDetail(false); setSelectedDetail(null); }} className="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-2.5 rounded-lg transition-colors">Kembali</button></div></div></div></div>)}
-            {showModalConfirmLogout && (<div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 max-w-md w-full text-center shadow-2xl"><div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></div><h2 className="text-xl font-bold text-red-600 mb-2">Konfirmasi Keluar</h2><p className="text-gray-700 mb-6">Apakah Anda yakin ingin keluar dari aplikasi?</p><div className="flex gap-3 justify-center"><button onClick={() => setShowModalConfirmLogout(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-full transition-colors">Batal</button><button onClick={confirmLogout} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-full transition-colors">Keluar</button></div></div></div>)}
+            {showModalConfirmLogout && (
+                <div className="fixed inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center z-[60] p-4"><div className="bg-white rounded-lg border-2 border-red-500 p-6 max-w-md w-full text-center shadow-2xl"><div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></div><h2 className="text-xl font-bold text-red-600 mb-2">Konfirmasi Keluar</h2><p className="text-gray-700 mb-6">Apakah Anda yakin ingin keluar dari aplikasi?</p><div className="flex gap-3 justify-center"><button onClick={() => setShowModalConfirmLogout(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-full transition-colors">Batal</button><button onClick={confirmLogout} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-full transition-colors">Keluar</button></div></div></div>
+            )}
         </div>
     );
 };

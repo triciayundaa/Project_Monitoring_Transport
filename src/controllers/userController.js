@@ -19,6 +19,10 @@ exports.addUser = async (req, res) => {
     if (!nama || !email || !no_telp || !password || !role) {
         return res.status(400).json({ message: "Semua field wajib diisi!" });
     }
+    const validRoles = ['admin', 'personil', 'patroler'];
+if (!validRoles.includes(role)) {
+    return res.status(400).json({ message: "Role tidak valid!" });
+}
     if (!/^\d+$/.test(no_telp) || no_telp.length > 15) {
         return res.status(400).json({ message: "Nomor telepon harus angka dan maksimal 15 digit!" });
     }
@@ -36,6 +40,7 @@ exports.addUser = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
+
 };
 
 // Update data pengguna (Validasi untuk no_telp dan password baru jika diisi)
