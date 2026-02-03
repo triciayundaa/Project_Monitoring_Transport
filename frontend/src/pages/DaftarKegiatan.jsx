@@ -144,8 +144,15 @@ const DaftarKegiatan = () => {
                 statuses: item.transporters?.map(t => t.status || 'Waiting') || []
             }));
             
-            setData(transformedData);
-            setFilteredData(transformedData);
+            // ✅ SORT: Data terbaru (berdasarkan tanggal_mulai) muncul paling atas
+            const sortedData = transformedData.sort((a, b) => {
+                const dateA = new Date(a.tanggal_mulai);
+                const dateB = new Date(b.tanggal_mulai);
+                return dateB - dateA; // Descending (terbaru di atas)
+            });
+            
+            setData(sortedData);
+            setFilteredData(sortedData);
         } catch (err) {
             console.error('Gagal mengambil data kegiatan', err);
             showModal('error', 'Gagal Memuat Data', 'Tidak dapat mengambil data kegiatan dari server');

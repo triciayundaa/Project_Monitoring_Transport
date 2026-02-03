@@ -59,7 +59,7 @@ const initDb = async () => {
       ) ENGINE=InnoDB;
     `);
 
-    // 6. KEGIATAN_TRANSPORTER (Relasi PO ke Transporter)
+    // 6. KEGIATAN_TRANSPORTER
     await db.query(`
       CREATE TABLE IF NOT EXISTS kegiatan_transporter (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -73,7 +73,7 @@ const initDb = async () => {
       ) ENGINE=InnoDB;
     `);
 
-    // 7. KENDARAAN (Master Katalog)
+    // 7. KENDARAAN
     await db.query(`
       CREATE TABLE IF NOT EXISTS kendaraan (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -86,7 +86,7 @@ const initDb = async () => {
       ) ENGINE=InnoDB;
     `);
 
-    // 8. KEGIATAN_KENDARAAN (Alokasi Truk ke PO)
+    // 8. KEGIATAN_KENDARAAN
     await db.query(`
       CREATE TABLE IF NOT EXISTS kegiatan_kendaraan (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -133,30 +133,52 @@ const initDb = async () => {
       ) ENGINE=InnoDB;
     `);
 
-    // 11. PEMBERSIHAN_JALAN (Fitur Patroler)
-    // UPDATE: Hapus waktu_mulai, Tambah foto_truk_air
+    // ============================================================
+    // 11. PEMBERSIHAN_JALAN (HEADER / DATA UTAMA) - DIPERBAIKI
+    // ============================================================
+    // Tabel ini hanya menyimpan SIAPA, DIMANA, dan KAPAN.
+    // Data Foto dan Truk dipindah ke tabel anak di bawahnya.
     await db.query(`
       CREATE TABLE IF NOT EXISTS pembersihan_jalan (
         id INT AUTO_INCREMENT PRIMARY KEY,
         kegiatan_transporter_id INT NOT NULL,
         email_patroler VARCHAR(100) NOT NULL,
-        plat_nomor_truk_air TEXT NOT NULL,
-        foto_truk_air TEXT,
-        foto_sebelum TEXT,
-        foto_sedang TEXT,
-        foto_setelah TEXT,
-        jam_foto_sebelum DATETIME,
-        jam_foto_sedang DATETIME,
-        jam_foto_setelah DATETIME,
-        lokasi_foto_sebelum TEXT,
-        lokasi_foto_sedang TEXT,
-        lokasi_foto_setelah TEXT,
         status ENUM('Draft', 'Completed') DEFAULT 'Draft',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT fk_bersih_kt FOREIGN KEY (kegiatan_transporter_id) REFERENCES kegiatan_transporter(id) ON DELETE CASCADE,
         CONSTRAINT fk_bersih_patroler FOREIGN KEY (email_patroler) REFERENCES users(email) ON DELETE CASCADE
       ) ENGINE=InnoDB;
     `);
+
+    // 11.A PEMBERSIHAN_TRUK (DETAIL TRUK AIR)
+    // Tabel Anak: Menyimpan banyak truk dalam satu laporan
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS pembersihan_truk (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        pembersihan_id INT NOT NULL,
+        plat_nomor VARCHAR(20) NOT NULL,
+        foto_truk TEXT, 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pembersihan_id) REFERENCES pembersihan_jalan(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+
+    // 11.B PEMBERSIHAN_FOTO (DOKUMENTASI KEGIATAN)
+    // Tabel Anak: Menyimpan banyak foto (sebelum/sedang/setelah) dalam satu laporan
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS pembersihan_foto (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        pembersihan_id INT NOT NULL,
+        tahap ENUM('sebelum', 'sedang', 'setelah') NOT NULL,
+        foto_path TEXT NOT NULL,
+        jam_foto DATETIME,
+        lokasi_foto TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pembersihan_id) REFERENCES pembersihan_jalan(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+    // ============================================================
+
 
     // 12. LAPORAN
     await db.query(`
@@ -177,7 +199,6 @@ const initDb = async () => {
     const hashPersonil = await bcrypt.hash('123456', 10);
     const hashPatroler = await bcrypt.hash('patroler123', 10);
 
-    // Menggabungkan Seeding User dari kode lama dan baru
     await db.query(`
       INSERT IGNORE INTO users (email, nama, password, no_telp, role) VALUES
       ('admin1234@gmail.com', 'Admin Sistem', '${hashAdmin}', '081234567890', 'admin'),

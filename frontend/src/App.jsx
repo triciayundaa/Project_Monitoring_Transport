@@ -5,7 +5,9 @@ import Dashboard from "./pages/Dashboard";
 // --- IMPORT FITUR BARU (OLIVIA) ---
 import DaftarKegiatan from "./pages/DaftarKegiatan";
 import DetailKegiatan from "./pages/DetailKegiatan";
-import PembersihanMaterial from "./pages/PembersihanMaterial"; // <--- TAMBAH INI
+import PembersihanMaterial from "./pages/PembersihanMaterial";
+import DaftarTrukAir from "./pages/DaftarTrukAir";
+import DetailTrukAir from "./pages/DetailTrukAir"; // 🔥 TAMBAHKAN IMPORT INI!
 
 // --- IMPORT FITUR LAMA/HEAD (Fathiya & Trici) ---
 import VehicleList from "./pages/VehicleManagement/VehicleList";
@@ -107,22 +109,27 @@ function App() {
         <Route path="/manajemen-kendaraan" element={<AdminRoute><VehicleList /></AdminRoute>} />
         <Route path="/vehicle-management/:noPo/:transporterId" element={<AdminRoute><VehicleDetail /></AdminRoute>} />
         
-        {/* 3. Manajemen Pengguna */}
+        {/* 3. Daftar Truk Air (Data dari Patroler) */}
+        <Route path="/daftar-truk-air" element={<AdminRoute><DaftarTrukAir /></AdminRoute>} />
+        {/* 🔥 ROUTE DETAIL TRUK AIR - AKTIFKAN! */}
+        <Route path="/daftar-truk-air/detail/:id" element={<AdminRoute><DetailTrukAir /></AdminRoute>} />
+        
+        {/* 4. Manajemen Pengguna */}
         <Route path="/manajemen-pengguna" element={<AdminRoute><UserList /></AdminRoute>} />
         
-        {/* 4. Laporan */}
+        {/* 5. Laporan */}
         <Route path="/laporan" element={<AdminRoute><LaporanList /></AdminRoute>} />
         <Route path="/laporan/detail/:id" element={<AdminRoute><LaporanDetail /></AdminRoute>} />
         <Route path="/laporan/periodik" element={<AdminRoute><LaporanPeriodik /></AdminRoute>} />
 
-        {/* 5. Manajemen Jadwal */}
+        {/* 6. Manajemen Jadwal */}
         <Route path="/manajemen-jadwal" element={<AdminRoute><ManajemenJadwal /></AdminRoute>} />
 
 
         {/* --- HALAMAN PERSONIL --- */}
         <Route path="/keberangkatan-truk" element={<PersonilRoute><KeberangkatanTruk /></PersonilRoute>} />
 
-        {/* --- HALAMAN PATROLER (UPDATED) --- */}
+        {/* --- HALAMAN PATROLER --- */}
         {/* Menggunakan PatrolerRoute agar aman */}
         <Route path="/laporan-patroli" element={<PatrolerRoute><PembersihanMaterial /></PatrolerRoute>} />
 

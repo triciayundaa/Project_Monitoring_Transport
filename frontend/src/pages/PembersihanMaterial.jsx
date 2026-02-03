@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
+// --- PENTING: PENGATURAN ALAMAT SERVER ---
+const API_BASE_URL = 'http://localhost:3000'; 
+
 const getPhotoUrl = (photoData) => {
     if (!photoData) return null;
     if (photoData.startsWith('data:image')) return photoData; 
-    return `http://localhost:3000${photoData}`; 
+    return `${API_BASE_URL}${photoData}`; 
 };
 
 // Format jam ada detiknya
@@ -77,22 +80,41 @@ const PembersihanMaterial = () => {
 
     useEffect(() => { if (user) fetchData(); }, [user, selectedDate]);
 
+    // 🔥 FIX 1: Perbaikan fetchMasterData untuk membaca struktur { status, data }
     const fetchMasterData = async () => { 
         try { 
-            const res = await axios.get('http://localhost:3000/api/water-truck/active-po'); 
-            setMasterData(res.data);
-            const unique = [...new Set(res.data.map(item => item.no_po))];
-            setUniquePOs(unique);
-        } catch (err) { console.error("Gagal load PO", err); } 
+            const res = await axios.get(`${API_BASE_URL}/api/water-truck/active-po`); 
+            console.log("Master Data Response:", res.data); // Debugging
+
+            if (res.data.status === 'Success' && Array.isArray(res.data.data)) {
+                const rawData = res.data.data;
+                setMasterData(rawData);
+                // Ambil unique PO dari array data
+                const unique = [...new Set(rawData.map(item => item.no_po))];
+                setUniquePOs(unique);
+            } else {
+                console.warn("Format data PO tidak sesuai atau kosong");
+                setMasterData([]);
+                setUniquePOs([]);
+            }
+        } catch (err) { 
+            console.error("Gagal load PO", err); 
+        } 
     };
 
+    // 🔥 FIX 2: Perbaikan fetchData untuk membaca struktur { status, data }
     const fetchData = async () => {
         if (!user) return;
         try {
-            const res = await axios.get('http://localhost:3000/api/water-truck', { 
+            const res = await axios.get(`${API_BASE_URL}/api/water-truck`, { 
                 params: { email_patroler: user.email, tanggal: selectedDate } 
             });
-            setDataList(res.data.data);
+            
+            if (res.data.status === 'Success') {
+                setDataList(res.data.data);
+            } else {
+                setDataList([]);
+            }
         } catch (err) { console.error("Gagal load data", err); }
     };
 
@@ -141,15 +163,26 @@ const PembersihanMaterial = () => {
     };
 
     const populateData = (item) => {
-        const splitPhotos = (str) => (str ? str.split(',') : []);
-        const truckPhotos = splitPhotos(item.foto_truk_air);
-        
+        const parseList = (data) => {
+            if (Array.isArray(data)) return data; 
+            if (!data) return [];
+            return data.split(',').map(s => s.trim()); 
+        };
+
         let platList = [];
-        if (item.plat_nomor_truk_air) {
+        if (item.list_truk && Array.isArray(item.list_truk)) {
+            platList = item.list_truk.map(t => ({
+                plat: t.plat_nomor,
+                photo: t.foto_truk,
+                location: ''
+            }));
+        } 
+        else if (item.plat_nomor_truk_air) {
             const plates = item.plat_nomor_truk_air.split(',');
+            const photos = item.foto_truk_air ? item.foto_truk_air.split(',') : [];
             platList = plates.map((s, index) => ({ 
                 plat: s.trim(), 
-                photo: truckPhotos[index] || null, 
+                photo: photos[index] || null, 
                 location: '' 
             }));
         } else {
@@ -160,37 +193,47 @@ const PembersihanMaterial = () => {
             id: item.id,
             kegiatan_transporter_id: item.kegiatan_transporter_id,
             po_number: item.no_po,
-            transporter_name: item.nama_vendor,
+            transporter_name: item.nama_vendor, // pastikan mapping ini sesuai response backend
             plat_nomor_list: platList,
-            foto_sebelum_list: splitPhotos(item.foto_sebelum),
-            foto_sedang_list: splitPhotos(item.foto_sedang),
-            foto_setelah_list: splitPhotos(item.foto_setelah),
+            foto_sebelum_list: parseList(item.foto_sebelum),
+            foto_sedang_list: parseList(item.foto_sedang),
+            foto_setelah_list: parseList(item.foto_setelah),
             lokasi_sebelum: item.lokasi_foto_sebelum || '',
             lokasi_sedang: item.lokasi_foto_sedang || '',
             lokasi_setelah: item.lokasi_foto_setelah || ''
         });
 
+        // Filter transporter berdasarkan PO dari item
+        // Pastikan masterData sudah terload, jika tidak, fetch ulang atau handle logic ini
         const transForPO = masterData.filter(d => d.no_po === item.no_po);
         setFilteredTransporters(transForPO);
 
         setLockedPhotos({
-            before: item.foto_sebelum?.length > 0,
-            during: item.foto_sedang?.length > 0,
-            after: item.foto_setelah?.length > 0
+            before: item.foto_sebelum ? true : false,
+            during: item.foto_sedang ? true : false,
+            after: item.foto_setelah ? true : false
         });
     };
 
     const handlePOInput = (e) => {
         const val = e.target.value;
         setFormData(prev => ({ ...prev, po_number: val, transporter_name: '', kegiatan_transporter_id: '' }));
+        
+        // Filter masterData untuk mencari transporter yang sesuai PO
         const related = masterData.filter(item => item.no_po === val);
         setFilteredTransporters(related);
     };
 
     const handleTransporterInput = (e) => {
         const val = e.target.value; 
+        // Cari ID kegiatan_transporter berdasarkan nama transporter dan no_po yang dipilih
         const matchedData = filteredTransporters.find(item => item.nama_transporter === val);
-        setFormData(prev => ({ ...prev, transporter_name: val, kegiatan_transporter_id: matchedData ? matchedData.id : '' }));
+        
+        setFormData(prev => ({ 
+            ...prev, 
+            transporter_name: val, 
+            kegiatan_transporter_id: matchedData ? matchedData.id : '' 
+        }));
     };
 
     const handlePlatTextChange = (i, v) => { 
@@ -231,10 +274,21 @@ const PembersihanMaterial = () => {
     
     const removeActivityPhoto = (field, index) => { setFormData(prev => { const newList = [...prev[field]]; newList.splice(index, 1); return { ...prev, [field]: newList }; }); };
 
-    // --- KAMERA UNIVERSAL ---
     const openCamera = async (onCapture) => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setWarningMessage(
+                "KAMERA DIBLOKIR BROWSER!\n\n" +
+                "Penyebab: Chrome HP menganggap koneksi tidak aman (HTTP).\n" +
+                "Solusi: Force Stop Chrome & Pastikan akses via IP Address (bukan localhost)."
+            );
+            setShowModalWarning(true);
+            return;
+        }
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+            });
             
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex flex-col';
@@ -255,8 +309,10 @@ const PembersihanMaterial = () => {
             
             const video = modal.querySelector('video');
             video.srcObject = stream;
+            await new Promise((resolve) => video.onloadedmetadata = resolve);
+            video.play();
+
             const locTextEl = modal.querySelector('#loc-text');
-            
             let lastLocation = "Menunggu GPS...";
             let watchId = null;
 
@@ -265,20 +321,9 @@ const PembersihanMaterial = () => {
                     async (position) => {
                         const { latitude, longitude } = position.coords;
                         try {
-                            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18`);
-                            const data = await response.json();
-                            if (data && data.address) {
-                                const a = data.address;
-                                const parts = [];
-                                if (a.road) parts.push(a.road);
-                                if (a.house_number) parts.push(`No.${a.house_number}`);
-                                if (a.village) parts.push(a.village);
-                                if (a.city_district) parts.push(a.city_district);
-                                if (a.city) parts.push(a.city);
-                                const addressStr = parts.length > 0 ? parts.join(', ') : (data.display_name.split(',')[0]);
-                                lastLocation = `${addressStr} (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
-                                locTextEl.innerHTML = `📍 ${addressStr.substring(0, 25)}...`;
-                            }
+                            // Mencoba reverse geocoding sederhana
+                            lastLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+                            locTextEl.innerHTML = `📍 ${lastLocation}`;
                         } catch (err) {
                             lastLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
                             locTextEl.innerHTML = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
@@ -297,28 +342,36 @@ const PembersihanMaterial = () => {
 
             modal.querySelector('#capture-btn').addEventListener('click', () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0);
+                const MAX_WIDTH = 1024; 
+                let scale = 1;
+                if (video.videoWidth > MAX_WIDTH) { scale = MAX_WIDTH / video.videoWidth; }
+                canvas.width = video.videoWidth * scale;
+                canvas.height = video.videoHeight * scale;
+
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
+                // Watermark
                 const now = new Date();
                 const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
                 const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
                 
-                const boxHeight = 120;
+                const boxHeight = Math.floor(canvas.height * 0.15);
                 const yStart = canvas.height - boxHeight;
                 ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
                 ctx.fillRect(0, yStart, canvas.width, boxHeight);
                 ctx.fillStyle = "white";
                 ctx.textAlign = "left"; 
-                ctx.font = "bold 32px Arial";
-                ctx.fillText(`${timeStr} | ${dateStr}`, 20, yStart + 45);
-                ctx.font = "22px Arial";
-                let displayLoc = lastLocation;
-                if(displayLoc.length > 60) displayLoc = displayLoc.substring(0, 60) + "...";
-                ctx.fillText(`📍 ${displayLoc}`, 20, yStart + 90);
+                
+                const fontSizeBig = Math.floor(canvas.width * 0.04);
+                const fontSizeSmall = Math.floor(canvas.width * 0.03);
 
-                onCapture(canvas.toDataURL('image/jpeg', 0.8), lastLocation);
+                ctx.font = `bold ${fontSizeBig}px Arial`;
+                ctx.fillText(`${timeStr} | ${dateStr}`, 20, yStart + (boxHeight * 0.4));
+                ctx.font = `${fontSizeSmall}px Arial`;
+                ctx.fillText(`📍 ${lastLocation}`, 20, yStart + (boxHeight * 0.8));
+
+                onCapture(canvas.toDataURL('image/jpeg', 0.7), lastLocation);
                 cleanup();
             });
 
@@ -342,11 +395,16 @@ const PembersihanMaterial = () => {
 
         setLoading(true);
         try {
-            const truckPhotos = formData.plat_nomor_list.map(p => p.photo).filter(p => p !== null);
+            const detailTruk = formData.plat_nomor_list.map(item => ({
+                plat: item.plat,
+                foto: item.photo 
+            })).filter(item => item.plat && item.plat.trim() !== '');
 
             const payload = {
-                id: formData.id, email_patroler: user.email,
-                foto_truk_list: truckPhotos, 
+                id: formData.id, 
+                email_patroler: user.email,
+                kegiatan_id: formData.kegiatan_transporter_id,
+                detail_truk: detailTruk, 
                 foto_sebelum_list: formData.foto_sebelum_list, 
                 foto_sedang_list: formData.foto_sedang_list, 
                 foto_setelah_list: formData.foto_setelah_list,
@@ -354,11 +412,8 @@ const PembersihanMaterial = () => {
                 lokasi_sedang: formData.lokasi_sedang,
                 lokasi_setelah: formData.lokasi_setelah
             };
-            if (!formData.id) {
-                payload.kegiatan_id = formData.kegiatan_transporter_id; 
-                payload.plat_nomor_truk_air = platString;
-            }
-            const res = await axios.post('http://localhost:3000/api/water-truck', payload);
+
+            const res = await axios.post(`${API_BASE_URL}/api/water-truck`, payload);
             setSuccessMessage(res.data.message);
             setShowModalSuccess(true);
             setShowModal(false); 
@@ -434,7 +489,12 @@ const PembersihanMaterial = () => {
                     {dataList.length === 0 ? <div className="text-center py-16 text-gray-500 bg-white rounded-lg border-2 border-dashed border-gray-300">Tidak ada data patroli pada tanggal ini</div> : 
                         dataList.map((item) => {
                             const isCompleted = item.status === 'Completed'; 
-                            let displayedPlates = item.plat_nomor_truk_air ? item.plat_nomor_truk_air.split(',').map(s => s.trim()) : [];
+                            let displayedPlates = [];
+                            if (item.list_truk && Array.isArray(item.list_truk)) {
+                                displayedPlates = item.list_truk.map(t => t.plat_nomor);
+                            } else if (item.plat_nomor_truk_air) {
+                                displayedPlates = item.plat_nomor_truk_air.split(',').map(s => s.trim());
+                            }
 
                             return (
                             <div key={item.id} className="border-2 border-red-500 bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
@@ -443,7 +503,7 @@ const PembersihanMaterial = () => {
                                         <h2 className="text-xl font-bold text-red-600">{item.nama_vendor}</h2>
                                         <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                            {new Date(item.waktu_mulai).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})} WIB
+                                            {item.jam_foto_sebelum ? formatJam(item.jam_foto_sebelum) : '-'}
                                         </div>
                                     </div>
                                     <div className="text-right">
@@ -537,7 +597,7 @@ const PembersihanMaterial = () => {
                 </div>
             )}
 
-            {/* MODAL FORM INPUT (STEP 1 & 2) */}
+            {/* MODAL FORM INPUT */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
                     <div className="bg-white rounded-lg w-full max-w-md overflow-hidden shadow-2xl border-2 border-red-500 animate-slide-up sm:animate-bounce-in max-h-[90vh] flex flex-col">
@@ -548,8 +608,7 @@ const PembersihanMaterial = () => {
                         <div className="p-6 overflow-y-auto flex-1">
                             {step === 1 ? (
                                 <div className="space-y-5">
-                                    <div className={`space-y-5 ${formData.id ? '' : ''}`}> 
-                                        {/* NOTE: REMOVED POINTER-EVENTS-NONE to FIX CLICK ISSUE */}
+                                    <div className={`space-y-5 ${formData.id ? '' : ''}`}>
                                         <div>
                                             <label className="block font-bold text-sm mb-2 text-red-600">Nomor PO</label>
                                             <input list="po-options" type="text" className="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all" placeholder="Ketik/Pilih No PO..." value={formData.po_number} onChange={handlePOInput} disabled={isViewMode || formData.id}/>
@@ -585,14 +644,21 @@ const PembersihanMaterial = () => {
                                                     </div>
 
                                                     {/* THUMBNAIL PHOTO UNTUK MELIHAT KEMBALI */}
-                                                    {item.photo && (
+                                                    {item.photo ? (
                                                         <img 
                                                             src={getPhotoUrl(item.photo)} 
                                                             className="w-10 h-10 rounded-lg border border-gray-300 object-cover cursor-pointer shadow-sm hover:scale-110 transition-transform" 
-                                                            onClick={() => setPreviewImage(getPhotoUrl(item.photo))} // CLICK HANDLER IS HERE
+                                                            onClick={() => setPreviewImage(getPhotoUrl(item.photo))}
                                                             alt="Bukti Truk"
                                                             title="Klik untuk melihat foto"
                                                         />
+                                                    ) : (
+                                                        // TAMPILKAN PLACEHOLDER JIKA KOSONG (DATA LAMA)
+                                                        isViewMode && (
+                                                            <div className="w-10 h-10 rounded-lg border border-gray-300 bg-gray-100 flex items-center justify-center text-[10px] text-gray-500 text-center leading-none cursor-not-allowed" title="Foto Tidak Tersedia">
+                                                                No Img
+                                                            </div>
+                                                        )
                                                     )}
 
                                                     {/* TOMBOL KAMERA PER-TRUK (WAJIB) - HANYA MUNCUL SAAT INPUT BARU */}
@@ -624,23 +690,21 @@ const PembersihanMaterial = () => {
                                         </div>
                                     </div>
                                     <div className="flex gap-3 pt-4 border-t mt-4">
-                                        <button onClick={() => setShowModal(false)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
-                                        
-                                        {/* TOMBOL LANJUT DENGAN VALIDASI KETAT */}
-                                        <button 
-                                            onClick={() => { 
-                                                const isValid = isStep1Valid();
-                                                if(!isValid) {
-                                                    setWarningMessage("Harap lengkapi Nomor PO, Transporter, dan pastikan setiap truk memiliki Plat Nomor & Foto Bukti!");
-                                                    setShowModalWarning(true);
-                                                } else { 
-                                                    setStep(2); 
-                                                }
-                                            }} 
-                                            className={`flex-1 py-2.5 rounded-lg font-semibold transition-colors text-white ${isStep1Valid() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'}`}
-                                        >
-                                            {isViewMode ? 'Lihat Foto' : 'Lanjut'}
-                                        </button>
+                                            <button onClick={() => setShowModal(false)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
+                                            <button 
+                                                onClick={() => { 
+                                                    const isValid = isStep1Valid();
+                                                    if(!isValid) {
+                                                        setWarningMessage("Harap lengkapi Nomor PO, Transporter, dan pastikan setiap truk memiliki Plat Nomor & Foto Bukti!");
+                                                        setShowModalWarning(true);
+                                                    } else { 
+                                                        setStep(2); 
+                                                    }
+                                                }} 
+                                                className={`flex-1 py-2.5 rounded-lg font-semibold transition-colors text-white ${isStep1Valid() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'}`}
+                                            >
+                                                {isViewMode ? 'Lihat Foto' : 'Lanjut'}
+                                            </button>
                                     </div>
                                 </div>
                             ) : (
@@ -649,11 +713,11 @@ const PembersihanMaterial = () => {
                                     <PhotoSection title="Foto Sedang" fieldListName="foto_sedang_list" isLocked={lockedPhotos.during} locationText={formData.lokasi_sedang} />
                                     <PhotoSection title="Foto Setelah" fieldListName="foto_setelah_list" isLocked={lockedPhotos.after} locationText={formData.lokasi_setelah} />
                                     <div className="flex gap-3 pt-4 border-t mt-4">
-                                        <button onClick={() => setStep(1)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Kembali</button>
-                                        {!isViewMode ? 
-                                            <button onClick={handleSubmit} disabled={loading} className="flex-[2] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold transition-colors disabled:opacity-50">{loading ? 'Menyimpan...' : 'Simpan'}</button> 
-                                            : <button onClick={() => setShowModal(false)} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
-                                        }
+                                            <button onClick={() => setStep(1)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Kembali</button>
+                                            {!isViewMode ? 
+                                                <button onClick={handleSubmit} disabled={loading} className="flex-[2] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold transition-colors disabled:opacity-50">{loading ? 'Menyimpan...' : 'Simpan'}</button> 
+                                                : <button onClick={() => setShowModal(false)} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
+                                            }
                                     </div>
                                 </div>
                             )}

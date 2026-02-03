@@ -33,6 +33,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
         { name: 'Beranda', icon: 'fas fa-tachometer-alt', path: '/dashboard' },
         { name: 'Manajemen Kegiatan', icon: 'fas fa-th-large', path: '/manajemen-kegiatan' },
         { name: 'Manajemen Kendaraan', icon: 'fas fa-truck', path: '/manajemen-kendaraan' }, 
+        { name: 'Manajemen Truk Air', icon: 'fas fa-water', path: '/daftar-truk-air' },
         { name: 'Laporan', icon: 'fas fa-file-alt', path: '/laporan' },
         { name: 'Manajemen Pengguna', icon: 'fas fa-users', path: '/manajemen-pengguna' },
         { name: 'Manajemen Jadwal', icon: 'fas fa-calendar-alt', path: '/manajemen-jadwal' },

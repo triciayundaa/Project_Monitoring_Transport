@@ -258,14 +258,13 @@ const DetailKegiatan = () => {
   const hasMultipleTransporters = transporterList.length > 1;
 
   const computedStatistik = () => {
-    if (!data?.truk) return { total_truk: 0, belum_terverifikasi: 0, terverifikasi: 0, tidak_valid: 0 };
+    if (!data?.truk) return { total_truk: 0, terverifikasi: 0, tidak_valid: 0 };
     let truksToCount = data.truk;
     if (selectedTransporter !== 'Semua Transporter') {
       truksToCount = data.truk.filter(t => t.nama_transporter === selectedTransporter);
     }
     return {
       total_truk: truksToCount.length,
-      belum_terverifikasi: truksToCount.filter(t => !t.status || t.status === 'Waiting').length,
       terverifikasi: truksToCount.filter(t => t.status === 'Valid').length,
       tidak_valid: truksToCount.filter(t => t.status === 'Tolak').length
     };
@@ -777,9 +776,8 @@ const TransporterDropdown = ({ transporterList, selectedTransporter, setSelected
 );
 
 const StatistikCards = ({ statistik }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
     <StatCard title="Total Truk" value={statistik.total_truk} bgColor="bg-yellow-50" textColor="text-yellow-700" />
-    <StatCard title="Total yang Belum Terverifikasi" value={statistik.belum_terverifikasi} bgColor="bg-orange-50" textColor="text-orange-700" />
     <StatCard title="Total Truk yang Valid" value={statistik.terverifikasi} bgColor="bg-green-50" textColor="text-green-700" />
     <StatCard title="Total Truk yang Tidak Valid" value={statistik.tidak_valid || 0} bgColor="bg-red-50" textColor="text-red-700" />
   </div>
