@@ -14,9 +14,6 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
-    // Filter States - DEFAULT HARI INI
-
-    // Filter States - DEFAULT HARI INI (dengan tahun dan bulan otomatis)
     const today = new Date();
     const [selectedYear, setSelectedYear] = useState(today.getFullYear().toString());
     const [selectedMonth, setSelectedMonth] = useState(today.getMonth().toString());
@@ -39,7 +36,6 @@ const Dashboard = () => {
     const [dataWeekly, setDataWeekly] = useState([]);
     const [upcoming, setUpcoming] = useState([]);
 
-    // Data mentah untuk filter
     const [rawKegiatan, setRawKegiatan] = useState([]);
     const [rawKeberangkatan, setRawKeberangkatan] = useState([]);
 
@@ -128,43 +124,90 @@ const Dashboard = () => {
         setAvailableMonths(sortedMonths);
     };
 
+    // ✅ FUNGSI FETCH KEBERANGKATAN DENGAN MULTIPLE FALLBACK
+    const fetchKeberangkatanData = async () => {
+        const endpoints = [
+            'http://localhost:3000/api/keberangkatan-truk?all=true',
+            'http://localhost:3000/api/keberangkatan?all=true',
+            'http://localhost:3000/api/truk?all=true',
+            'http://localhost:3000/api/keberangkatan-truk',
+        ];
+
+        for (const endpoint of endpoints) {
+            try {
+                console.log(`🔄 Trying endpoint: ${endpoint}`);
+                const response = await fetch(endpoint);
+                
+                if (response.ok) {
+                    const json = await response.json();
+                    console.log(`✅ Success with endpoint: ${endpoint}`, json);
+                    
+                    // Handle different response structures
+                    let data = [];
+                    if (json.status === 'Success' && json.data && Array.isArray(json.data)) {
+                        data = json.data;
+                    } else if (Array.isArray(json)) {
+                        data = json;
+                    } else if (json.data && Array.isArray(json.data)) {
+                        data = json.data;
+                    }
+                    
+                    return { success: true, data, endpoint };
+                }
+            } catch (err) {
+                console.log(`❌ Failed with endpoint: ${endpoint}`, err.message);
+                continue;
+            }
+        }
+        
+        return { success: false, data: [], endpoint: null };
+    };
+
     useEffect(() => {
         const loadInitialData = async () => {
             try {
                 setLoading(true);
                 setError(null);
                 
-                const [resKegiatan, resKeberangkatan, resUsers, resTransporter] = await Promise.all([
-                    fetch('http://localhost:3000/api/kegiatan'),
-                    fetch('http://localhost:3000/api/keberangkatan?all=true'),
+                // Fetch kegiatan
+                const resKegiatan = await fetch('http://localhost:3000/api/kegiatan');
+                if (!resKegiatan.ok) throw new Error('Gagal mengambil data kegiatan');
+                const jsonKegiatan = await resKegiatan.json();
+                
+                // Fetch keberangkatan dengan multiple fallback
+                const keberangkatanResult = await fetchKeberangkatanData();
+                if (!keberangkatanResult.success) {
+                    throw new Error('Gagal mengambil data keberangkatan dari semua endpoint');
+                }
+                
+                console.log(`📊 Using endpoint: ${keberangkatanResult.endpoint}`);
+                
+                // Fetch users dan transporter
+                const [resUsers, resTransporter] = await Promise.all([
                     fetch('http://localhost:3000/api/users'),
                     fetch('http://localhost:3000/api/kegiatan/transporters')
                 ]);
                 
-                if (!resKegiatan.ok) throw new Error('Gagal mengambil data kegiatan');
-                if (!resKeberangkatan.ok) throw new Error('Gagal mengambil data keberangkatan');
                 if (!resUsers.ok) throw new Error('Gagal mengambil data users');
                 if (!resTransporter.ok) throw new Error('Gagal mengambil data transporter');
                 
-                const jsonKegiatan = await resKegiatan.json();
-                const jsonKeberangkatan = await resKeberangkatan.json();
                 const jsonUsers = await resUsers.json();
                 const jsonTransporter = await resTransporter.json();
 
                 let kegiatanData = [];
-                let keberangkatanData = [];
+                let keberangkatanData = keberangkatanResult.data;
                 
                 if (Array.isArray(jsonKegiatan)) {
                     kegiatanData = jsonKegiatan;
                 } else if (jsonKegiatan.data && Array.isArray(jsonKegiatan.data)) {
                     kegiatanData = jsonKegiatan.data;
                 }
-                
-                if (Array.isArray(jsonKeberangkatan)) {
-                    keberangkatanData = jsonKeberangkatan;
-                } else if (jsonKeberangkatan.data && Array.isArray(jsonKeberangkatan.data)) {
-                    keberangkatanData = jsonKeberangkatan.data;
-                }
+
+                console.log('📊 Final Data:', {
+                    kegiatan: kegiatanData.length,
+                    keberangkatan: keberangkatanData.length,
+                    sampleKeberangkatan: keberangkatanData[0]
+                });
 
                 setRawKegiatan(kegiatanData);
                 setRawKeberangkatan(keberangkatanData);
@@ -217,8 +260,6 @@ const Dashboard = () => {
                     }
                 });
 
-
-
                 setKpiStats([
                     { label: 'Total Kegiatan', value: totalKegiatan, color: 'bg-red-50', iconColor: 'text-red-600', icon: Package },
                     { label: 'Total Transportir', value: totalTransportir, color: 'bg-purple-50', iconColor: 'text-purple-600', icon: Truck },
@@ -266,19 +307,17 @@ const Dashboard = () => {
                     { name: 'Shift 3', value: shiftMap['Shift 3'], color: '#1e40af' },
                 ]);
 
-               // --- AWAL PERBAIKAN LOGIKA GRAFIK MINGGUAN (FIX: TETAP 7 HARI) ---
-                const today = new Date();
+                // Weekly data
+                const todayDate = new Date();
                 const weeklyData = [];
                 const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
-                // Hitung awal minggu (Senin)
-                const d = today.getDay();
-                const diffToMonday = today.getDate() - d + (d === 0 ? -6 : 1);
-                const startOfWeek = new Date(today);
+                const d = todayDate.getDay();
+                const diffToMonday = todayDate.getDate() - d + (d === 0 ? -6 : 1);
+                const startOfWeek = new Date(todayDate);
                 startOfWeek.setDate(diffToMonday);
                 startOfWeek.setHours(0, 0, 0, 0);
 
-                // KITA TETAP PAKAI 7 ITERASI (Agar Senin-Minggu muncul di Sumbu X)
                 for (let i = 0; i < 7; i++) {
                     const currentDay = new Date(startOfWeek);
                     currentDay.setDate(startOfWeek.getDate() + i);
@@ -287,43 +326,58 @@ const Dashboard = () => {
                     const currentDayEnd = new Date(currentDay);
                     currentDayEnd.setHours(23, 59, 59, 999);
                     
-                    // Ambil tanggal real hari ini untuk pembanding
                     const realToday = new Date();
                     realToday.setHours(0, 0, 0, 0);
 
-                    // FILTER STRICT: Jika filter 'today' dipilih, data hanya masuk ke batang 'Hari Ini'
                     const kegiatanHariIni = rawKegiatan.filter(k => {
                         const startDate = new Date(k.tanggal_mulai);
                         const endDate = k.tanggal_selesai ? new Date(k.tanggal_selesai) : startDate;
                         
-                        // Cek apakah batang yang sedang di-loop (currentDay) adalah hari ini?
                         const isChartDayToday = currentDay.getTime() === realToday.getTime();
 
-                        // LOGIKA KUNCI: 
-                        // Jika user pilih filter "today", maka batang lain selain hari ini dipaksa kosong (return false)
                         if (selectedPeriod === 'today' && !isChartDayToday) {
                             return false; 
                         }
 
-                        // Tetap cek apakah kegiatan aktif di rentang tanggal tersebut
                         return startDate <= currentDayEnd && endDate >= currentDay;
                     });
 
-                    // Mapping detail seperti biasa
                     const kegiatanDetails = kegiatanHariIni.map(k => {
                         const transporterInfo = {};
                         let totalTrukMasuk = 0;
+                        
                         if (k.transporters && Array.isArray(k.transporters)) {
                             k.transporters.forEach(t => {
                                 const namaTransporter = t.nama_transporter || t.nama || 'Unknown';
-                                if (!transporterInfo[namaTransporter]) transporterInfo[namaTransporter] = { masuk: 0 };
-                                const trukMasuk = rawKeberangkatan.filter(kb => 
-                                    kb.no_po === k.no_po && kb.transporter === namaTransporter
-                                ).length;
+                                
+                                if (!transporterInfo[namaTransporter]) {
+                                    transporterInfo[namaTransporter] = { masuk: 0 };
+                                }
+                                
+                                // ✅ Cek multiple field possibilities
+                                const trukMasuk = rawKeberangkatan.filter(kb => {
+                                    const kbPO = (kb.no_po || '').toString().trim();
+                                    const kbTransporter = (
+                                        kb.nama_vendor ||  // Dari backend controller
+                                        kb.nama_transporter || 
+                                        kb.transporter ||
+                                        ''
+                                    ).trim().toLowerCase();
+                                    
+                                    const targetPO = k.no_po.toString().trim();
+                                    const targetTransporter = namaTransporter.trim().toLowerCase();
+                                    
+                                    const matchPO = kbPO === targetPO;
+                                    const matchTransporter = kbTransporter === targetTransporter;
+                                    
+                                    return matchPO && matchTransporter;
+                                }).length;
+                                
                                 transporterInfo[namaTransporter].masuk += trukMasuk;
                                 totalTrukMasuk += trukMasuk;
                             });
                         }
+                        
                         return {
                             no_po: k.no_po,
                             vendor: k.vendor,
@@ -336,7 +390,6 @@ const Dashboard = () => {
                     });
 
                     weeklyData.push({
-                        // Nama hari tetap Senin, Selasa, dst agar sumbu X konsisten
                         day: dayLabels[currentDay.getDay()],
                         kegiatan: kegiatanHariIni.length,
                         transportir: kegiatanHariIni.reduce((total, k) => {
@@ -346,15 +399,12 @@ const Dashboard = () => {
                     });
                 }
                 setDataWeekly(weeklyData);
-          
-                // --- AKHIR PERBAIKAN ---
-                setDataWeekly(weeklyData);
 
                 // Kegiatan Mendatang
                 const upcomingKegiatan = rawKegiatan
                     .filter(k => {
                         const startDate = new Date(k.tanggal_mulai);
-                        return !isNaN(startDate.getTime()) && startDate >= today;
+                        return !isNaN(startDate.getTime()) && startDate >= todayDate;
                     })
                     .sort((a, b) => new Date(a.tanggal_mulai) - new Date(b.tanggal_mulai))
                     .slice(0, 10);
@@ -418,7 +468,6 @@ const Dashboard = () => {
                     flexDirection: 'column'
                 }}
             >
-                {/* Header Sticky */}
                 <div className="p-4 border-b-2 bg-white sticky top-0 z-10">
                     <div className="font-bold text-gray-900 text-base mb-1">
                         {data.day}
@@ -428,7 +477,6 @@ const Dashboard = () => {
                     </div>
                 </div>
                 
-                {/* Scrollable Content */}
                 <div 
                     className="overflow-y-auto p-4 pt-2"
                     style={{ 
@@ -453,7 +501,6 @@ const Dashboard = () => {
                                         <div className="text-xs text-gray-500 mb-2">
                                             {activity.tanggal_mulai} — {activity.tanggal_selesai}
                                         </div>
-
                                     </div>
                                     <div className="ml-3 text-right">
                                         <div className="text-xs text-gray-500 mb-1">Total Truk</div>
@@ -463,7 +510,6 @@ const Dashboard = () => {
                                     </div>
                                 </div>
                                 
-                                {/* Detail Transportir */}
                                 <div className="mt-3 pt-3 border-t border-gray-200">
                                     <div className="text-xs font-bold text-gray-600 mb-2 uppercase">
                                         Detail Transportir ({activity.total_transportir})
@@ -483,11 +529,7 @@ const Dashboard = () => {
                                                         <div className="text-sm font-bold text-green-600">
                                                             {info.masuk} 
                                                         </div>
-
                                                     </div>
-                                                  
-                                                       
-                                                 
                                                 </div>
                                             </div>
                                         ))}
@@ -527,10 +569,13 @@ const Dashboard = () => {
     if (error) {
         return (
             <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 items-center justify-center">
-                <div className="text-center bg-white p-8 rounded-2xl shadow-lg">
+                <div className="text-center bg-white p-8 rounded-2xl shadow-lg max-w-md">
                     <div className="text-red-600 text-5xl mb-4">⚠️</div>
                     <p className="text-gray-800 font-bold text-xl mb-2">Terjadi Kesalahan</p>
-                    <p className="text-gray-600">{error}</p>
+                    <p className="text-gray-600 mb-4">{error}</p>
+                    <p className="text-sm text-gray-500 mb-4">
+                        Cek console browser (F12) untuk detail error
+                    </p>
                     <button 
                         onClick={() => window.location.reload()} 
                         className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
@@ -632,186 +677,71 @@ const Dashboard = () => {
                             );
                         })}
                     </div>
-{/* 1. KEGIATAN MINGGU INI + STATUS TRANSPORTIR */}
-<div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
-    {/* BAR CHART - 3 kolom (lebih lebar) */}
-    <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-red-600 rounded-full"></div>
-            <h3 className="text-lg font-black text-gray-900">Kegiatan Minggu Ini</h3>
-        </div>
-        <div style={{ height: '280px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dataWeekly}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="day" fontSize={11} fontWeight="600" stroke="#94a3b8" />
-                    <YAxis fontSize={11} fontWeight="600" stroke="#94a3b8" />
-                    <Tooltip 
-                        content={<CustomWeeklyTooltip />} 
-                        cursor={{ fill: '#fef2f2' }}
-                        wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
-                    />
-                    <Bar 
-                        dataKey="kegiatan"
-                        fill="#ef4444"
-                        radius={[10, 10, 0, 0]}
-                        barSize={30}
-                        name="Total Kegiatan"
-                    />
-                </BarChart>
-            </ResponsiveContainer>
-        </div>
-    </div>
 
-    {/* PIE CHART - 2 kolom (lebih kecil) */}
-    <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-8 bg-red-600 rounded-full"></div>
-            <h3 className="text-lg font-black text-gray-900">Status Transportir</h3>
-        </div>
-        <div style={{ height: '280px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                    <Pie 
-                        data={dataPie} 
-                        innerRadius={60} 
-                        outerRadius={90} 
-                        dataKey="value" 
-                        stroke="none" 
-                        paddingAngle={5}
-                    >
-                        {dataPie.map((entry, index) => (
-                            <Cell key={index} fill={entry.color} />
-                        ))}
-                    </Pie>
-                    <Tooltip 
-                        content={(props) => {
-                            if (!props.active || !props.payload || !props.payload.length) return null;
-                            
-                            const status = props.payload[0].name;
-                            const count = props.payload[0].value;
-                            
-                            if (count === 0) return null;
-                            
-                            // Ambil data detail
-                            const detailData = [];
-                            
-                            rawKegiatan.forEach(kegiatan => {
-                                if (kegiatan.transporters && Array.isArray(kegiatan.transporters)) {
-                                    kegiatan.transporters.forEach(t => {
-                                        if (t.status === status) {
-                                            detailData.push({
-                                                no_po: kegiatan.no_po,
-                                                vendor: kegiatan.vendor,
-                                                kapal: kegiatan.nama_kapal || '-',
-                                                transporter: t.nama_transporter || t.nama || '-',
-                                                material: kegiatan.material || '-',
-                                                tanggal_mulai: kegiatan.tanggal_mulai,
-                                                tanggal_selesai: kegiatan.tanggal_selesai
-                                            });
-                                        }
-                                    });
-                                }
-                            });
-                            
-                            return (
-                                <div 
-                                    className="bg-white rounded-xl shadow-xl border-2 border-gray-200"
-                                    style={{ 
-                                        width: '380px',
-                                        maxHeight: '450px',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        position: 'relative'
-                                    }}
-                                    onWheel={(e) => e.stopPropagation()}
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                >
-                                    {/* Header - NON sticky */}
-                                    <div className="p-4 border-b-2 bg-gradient-to-r from-gray-50 to-white">
-                                        <div className="font-bold text-gray-900 text-base mb-1">
-                                            Status: {status}
-                                        </div>
-                                        <div className="text-sm text-gray-600">
-                                            Total: {count} Transportir
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Scrollable Content */}
-                                    <div 
-                                        className="p-4 pt-2"
-                                        style={{ 
-                                            maxHeight: '380px',
-                                            overflowY: 'auto',
-                                            overflowX: 'hidden'
-                                        }}
-                                    >
-                                        <div className="space-y-3">
-                                            {detailData.map((item, idx) => (
-                                                <div key={idx} className="p-3 bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 hover:shadow-md transition-all">
-                                                    <div className="flex items-start justify-between mb-2">
-                                                        <div className="font-bold text-sm text-gray-900">
-                                                            PO {item.no_po}
-                                                        </div>
-                                                        <div className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${
-                                                            status === 'Completed' ? 'bg-green-100 text-green-700' :
-                                                            status === 'On Progress' ? 'bg-blue-100 text-blue-700' :
-                                                            'bg-yellow-100 text-yellow-700'
-                                                        }`}>
-                                                            {status}
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="space-y-1.5">
-                                                        <div className="flex items-start gap-2">
-                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Vendor:</span>
-                                                            <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.vendor}</span>
-                                                        </div>
-                                                        <div className="flex items-start gap-2">
-                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Kapal:</span>
-                                                            <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.kapal}</span>
-                                                        </div>
-                                                        <div className="flex items-start gap-2">
-                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Material:</span>
-                                                            <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.material}</span>
-                                                        </div>
-                                                        <div className="flex items-start gap-2">
-                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Transporter:</span>
-                                                            <span className="text-xs text-gray-900 font-semibold flex-1 text-purple-700 break-words">{item.transporter}</span>
-                                                        </div>
-                                                        <div className="flex items-start gap-2">
-                                                            <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Periode:</span>
-                                                            <span className="text-xs text-gray-700 flex-1">
-                                                                {new Date(item.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} - {item.tanggal_selesai ? new Date(item.tanggal_selesai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                    {/* KEGIATAN MINGGU INI */}
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+                        <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-1 h-8 bg-red-600 rounded-full"></div>
+                                <h3 className="text-lg font-black text-gray-900">Kegiatan Minggu Ini</h3>
+                            </div>
+                            <div style={{ height: '280px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={dataWeekly}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="day" fontSize={11} fontWeight="600" stroke="#94a3b8" />
+                                        <YAxis fontSize={11} fontWeight="600" stroke="#94a3b8" />
+                                        <Tooltip 
+                                            content={<CustomWeeklyTooltip />} 
+                                            cursor={{ fill: '#fef2f2' }}
+                                            wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
+                                        />
+                                        <Bar 
+                                            dataKey="kegiatan"
+                                            fill="#ef4444"
+                                            radius={[10, 10, 0, 0]}
+                                            barSize={30}
+                                            name="Total Kegiatan"
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-1 h-8 bg-red-600 rounded-full"></div>
+                                <h3 className="text-lg font-black text-gray-900">Status Transportir</h3>
+                            </div>
+                            <div style={{ height: '280px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie 
+                                            data={dataPie} 
+                                            innerRadius={60} 
+                                            outerRadius={90} 
+                                            dataKey="value" 
+                                            stroke="none" 
+                                            paddingAngle={5}
+                                        >
+                                            {dataPie.map((entry, index) => (
+                                                <Cell key={index} fill={entry.color} />
                                             ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        }} 
-                        wrapperStyle={{ 
-                            zIndex: 9999,
-                            pointerEvents: 'auto'
-                        }}
-                        cursor={{ fill: 'rgba(239, 68, 68, 0.1)' }}
-                    />
-                    <Legend 
-                        iconType="circle" 
-                        layout="horizontal" 
-                        verticalAlign="bottom"
-                        wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }}
-                    />
-                </PieChart>
-            </ResponsiveContainer>
-        </div>
-    </div>
-</div>
+                                        </Pie>
+                                        <Tooltip cursor={{ fill: 'rgba(239, 68, 68, 0.1)' }} />
+                                        <Legend 
+                                            iconType="circle" 
+                                            layout="horizontal" 
+                                            verticalAlign="bottom"
+                                            wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
 
-                    {/* 2. DISTRIBUSI JAM KEBERANGKATAN TRUK */}
+                    {/* DISTRIBUSI JAM KEBERANGKATAN TRUK */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3">
@@ -867,7 +797,7 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    {/* 3. PRODUKTIVITAS SHIFT */}
+                    {/* PRODUKTIVITAS SHIFT */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="w-1 h-8 bg-red-600 rounded-full"></div>
@@ -897,7 +827,7 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    {/* 4. KEGIATAN MENDATANG */}
+                    {/* KEGIATAN MENDATANG */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="w-1 h-8 bg-red-600 rounded-full"></div>
