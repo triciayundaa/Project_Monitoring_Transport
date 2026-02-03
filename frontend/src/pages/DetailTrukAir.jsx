@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Truck, Search, MapPin, Clock, CheckCircle, XCircle, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Truck, Search, MapPin, Clock, CheckCircle, XCircle, Image as ImageIcon, FileText } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { useParams } from 'react-router-dom';
+import PreviewLaporan from './PreviewLaporan';
+import PreviewLaporanAll from './PreviewLaporanAll';
 
 const API = 'http://localhost:3000/api/water-truck';
 
@@ -74,6 +76,8 @@ const DetailTrukAir = () => {
   const [isSmallScreen, setIsSmallScreen] = useState(window.innerWidth <= 640);
 
   const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
+  const [previewLaporan, setPreviewLaporan] = useState(null);
+  const [previewAll, setPreviewAll] = useState(false);
 
   const showModal = (type, title, message) => {
     setModal({ isOpen: true, type, title, message });
@@ -81,6 +85,10 @@ const DetailTrukAir = () => {
 
   const closeModal = () => {
     setModal({ isOpen: false, type: 'success', title: '', message: '' });
+  };
+
+  const handlePrintPreview = (laporan) => {
+    setPreviewLaporan(laporan);
   };
 
   useEffect(() => {
@@ -307,6 +315,23 @@ const DetailTrukAir = () => {
         message={modal.message}
       />
 
+      {previewLaporan && (
+        <PreviewLaporan 
+          laporan={previewLaporan}
+          onClose={() => setPreviewLaporan(null)}
+          kegiatan={kegiatan}
+          formatDateTime={formatDateTime}
+          allTransporters={selectedTransporter === 'Semua Transporter' ? transporterList : null}
+        />
+      )}
+
+      {previewAll && (
+        <PreviewLaporanAll
+          laporanList={filteredLaporan}
+          onClose={() => setPreviewAll(false)}
+        />
+      )}
+
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
@@ -340,10 +365,25 @@ const DetailTrukAir = () => {
             setSelectedDate={setSelectedDate}
           />
 
+          {/* tombol preview semua */}
+          <div className="flex items-center justify-between mb-4">
+            {filteredLaporan.length > 0 && (
+              <button
+                onClick={() => setPreviewAll(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+              >
+                <FileText className="w-4 h-4" />
+                Preview Semua Laporan
+              </button>
+            )}
+          </div>
+
           <LaporanTable 
             laporanList={filteredLaporan} 
             setSelectedImage={setSelectedImage} 
             formatDateTime={formatDateTime}
+            handlePrintPreview={handlePrintPreview}
+            showTransporterColumn={selectedTransporter === 'Semua Transporter' && hasMultipleTransporters}
           />
 
         </div>
@@ -487,30 +527,51 @@ const FilterBar = ({ searchQuery, setSearchQuery, selectedDate, setSelectedDate 
   </div>
 );
 
-// ✅ PERBAIKAN UTAMA: Header tabel yang sejajar dengan isi tabel + Border abu-abu + Center alignment
-const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime }) => (
+// ✅ TABEL DENGAN TOMBOL PREVIEW DAN KOLOM TRANSPORTER CONDITIONAL
+const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePrintPreview, showTransporterColumn }) => (
   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div className="overflow-x-auto">
-      <table className="w-full table-fixed">
+      <table className="w-full">
         <thead>
           <tr className="bg-red-600 text-white">
-            <th className="px-4 py-3 text-center text-sm font-semibold w-[140px] border-r border-red-500/30">Tanggal & Jam</th>
-            <th className="px-4 py-3 text-center text-sm font-semibold w-[180px] border-r border-red-500/30">Nama Patroler</th>
-            <th className="px-4 py-3 text-center text-sm font-semibold w-[140px] border-r border-red-500/30">
-              <div>Plat Nomor</div>
-              <div>Truk Air</div>
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Tanggal & Jam
             </th>
-            <th className="px-4 py-3 text-center text-sm font-semibold w-[130px] border-r border-red-500/30">Foto Truk Air</th>
-            <th className="px-4 py-3 text-center text-sm font-semibold w-[220px] border-r border-red-500/30">Foto Sebelum</th>
-            <th className="px-4 py-3 text-center text-sm font-semibold w-[220px] border-r border-red-500/30">Foto Sedang</th>
-            <th className="px-4 py-3 text-center text-sm font-semibold w-[220px] border-r border-red-500/30">Foto Setelah</th>
-            <th className="px-6 py-3 text-center text-sm font-semibold w-[150px]">Status</th>
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Nama Patroler
+            </th>
+            {showTransporterColumn && (
+              <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+                Transporter
+              </th>
+            )}
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Plat Nomor Truk Air
+            </th>
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Foto Truk Air
+            </th>
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Foto Sebelum
+            </th>
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Foto Sedang
+            </th>
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Foto Setelah
+            </th>
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Status
+            </th>
+            <th className="px-3 py-3 text-center text-xs font-semibold whitespace-nowrap">
+              Aksi
+            </th>
           </tr>
         </thead>
         <tbody>
           {laporanList.length === 0 ? (
             <tr>
-              <td colSpan="8" className="px-6 py-12 text-center">
+              <td colSpan={showTransporterColumn ? "10" : "9"} className="px-6 py-12 text-center">
                 <Truck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p className="text-gray-500 font-medium">Tidak ada data laporan</p>
                 <p className="text-sm text-gray-400 mt-1">Belum ada laporan pembersihan jalan</p>
@@ -526,16 +587,25 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime }) => (
 
               return (
                 <tr key={index} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-700 align-top border-r border-gray-200">{formatDateTime(lap.created_at)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 align-top border-r border-gray-200">
-                    <div className="font-medium text-gray-900">{lap.nama_patroler || '-'}</div>
-                    <div className="text-xs text-gray-500">{lap.email_patroler || '-'}</div>
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200 whitespace-nowrap">
+                    {formatDateTime(lap.created_at)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                    <div className="font-medium text-gray-900 whitespace-nowrap">{lap.nama_patroler || '-'}</div>
+                    <div className="text-xs text-gray-500 whitespace-nowrap">{lap.email_patroler || '-'}</div>
+                  </td>
+                  {showTransporterColumn && (
+                    <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                      <div className="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-semibold whitespace-nowrap">
+                        {lap.nama_transporter || '-'}
+                      </div>
+                    </td>
+                  )}
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                     {platNomorArr.length > 0 ? (
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-1.5">
                         {platNomorArr.map((plat, idx) => (
-                          <div key={idx} className="inline-flex items-center justify-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-md text-sm font-bold whitespace-nowrap">
+                          <div key={idx} className="inline-flex items-center justify-center px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold whitespace-nowrap">
                             {plat}
                           </div>
                         ))}
@@ -544,14 +614,14 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime }) => (
                       <span className="text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                     <PhotoCell 
                       photos={fotoTrukArr} 
                       label="Foto Truk Air"
                       onImageClick={(src) => setSelectedImage({ src: getPhotoUrl(src), label: 'Foto Truk Air', tanggal: lap.created_at })}
                     />
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                     <PhotoCell 
                       photos={fotoSebelumArr} 
                       label="Foto Sebelum"
@@ -560,7 +630,7 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime }) => (
                       location={lap.lokasi_foto_sebelum}
                     />
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                     <PhotoCell 
                       photos={fotoSedangArr} 
                       label="Foto Sedang"
@@ -569,7 +639,7 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime }) => (
                       location={lap.lokasi_foto_sedang}
                     />
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                     <PhotoCell 
                       photos={fotoSetelahArr} 
                       label="Foto Setelah"
@@ -578,18 +648,28 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime }) => (
                       location={lap.lokasi_foto_setelah}
                     />
                   </td>
-                  <td className="px-6 py-3 text-sm text-gray-700 align-top">
-                    <div className="flex justify-start">
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                    <div className="flex justify-center">
                       {lap.status === 'Completed' ? (
-                        <span className="inline-flex px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium items-center gap-1.5 whitespace-nowrap">
-                          <CheckCircle className="w-4 h-4" /> Completed
+                        <span className="inline-flex px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium items-center gap-1 whitespace-nowrap">
+                          <CheckCircle className="w-3 h-3" /> Completed
                         </span>
                       ) : (
-                        <span className="inline-flex px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg text-sm font-medium whitespace-nowrap">
+                        <span className="inline-flex px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium whitespace-nowrap">
                           Draft
                         </span>
                       )}
                     </div>
+                  </td>
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                    <button
+                      onClick={() => handlePrintPreview(lap)}
+                      className="w-full px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center justify-center gap-1 transition-colors text-xs font-medium whitespace-nowrap"
+                      title="Lihat Preview Lengkap"
+                    >
+                      <FileText className="w-3 h-3" />
+                      Preview
+                    </button>
                   </td>
                 </tr>
               );
@@ -601,11 +681,12 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime }) => (
   </div>
 );
 
-// ✅ KOMPONEN PHOTO CELL DENGAN ALAMAT LENGKAP (TIDAK TERPOTONG)
+// ✅ KOMPONEN PHOTO CELL DENGAN ALAMAT YANG TIDAK TERPOTONG
 const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
   const [address, setAddress] = useState(''); 
   const [coordinates, setCoordinates] = useState('');
   const [isAddressResolved, setIsAddressResolved] = useState(false);
+  const [showFullAddress, setShowFullAddress] = useState(false);
 
   useEffect(() => {
     const coordsRegex = /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/;
@@ -613,7 +694,6 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
     if (location && coordsRegex.test(location) && !isAddressResolved) {
       const [lat, lon] = location.split(',').map(s => s.trim());
       
-      // Simpan koordinat spesifik
       setCoordinates(`${parseFloat(lat).toFixed(6)}, ${parseFloat(lon).toFixed(6)}`);
       
       const fetchAddress = async () => {
@@ -627,13 +707,11 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
             const data = await response.json();
             const addr = data.address;
             
-            // ✅ Buat alamat LENGKAP dan DETAIL
             const detailParts = [
               addr.road || addr.pedestrian || addr.footway || addr.path,
               addr.suburb || addr.village || addr.neighbourhood || addr.hamlet,
               addr.city_district || addr.city || addr.town || addr.municipality,
-              addr.state_district || addr.state || addr.province,
-              addr.postcode
+              addr.state || addr.province,
             ].filter(Boolean);
 
             const fullAddress = detailParts.join(', ');
@@ -662,19 +740,29 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
     return new Date(date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Fungsi untuk memotong alamat jika terlalu panjang
+  const getTruncatedAddress = (addr, maxLength = 50) => {
+    if (!addr) return '';
+    if (addr.length <= maxLength) return addr;
+    return addr.substring(0, maxLength) + '...';
+  };
+
   if (!photos || photos.length === 0) {
-    return <span className="text-gray-400 text-sm">-</span>;
+    return <span className="text-gray-400 text-xs">-</span>;
   }
 
+  const truncatedAddress = getTruncatedAddress(address);
+  const isAddressLong = address.length > 50;
+
   return (
-    <div className="space-y-2 min-w-[180px]">
-      {/* Button Foto */}
+    <div className="space-y-1.5 min-w-[160px]">
+      {/* Button Foto - Lebih compact */}
       <div className="flex flex-wrap gap-1">
         {photos.map((photo, idx) => (
           <button
             key={idx}
             onClick={() => onImageClick(photo)}
-            className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 font-medium transition-colors"
+            className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 font-medium transition-colors whitespace-nowrap"
           >
             Foto {idx + 1}
           </button>
@@ -685,15 +773,29 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
       {timestamp && (
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <Clock className="w-3 h-3 flex-shrink-0" />
-          <span>{formatTime(timestamp)}</span>
+          <span className="whitespace-nowrap">{formatTime(timestamp)}</span>
         </div>
       )}
       
-      {/* Alamat Lengkap */}
+      {/* Alamat dengan tooltip untuk alamat panjang */}
       {address && (
-        <div className="flex items-start gap-1 text-xs text-gray-600 leading-relaxed">
-          <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0 text-red-500" />
-          <span className="break-words whitespace-normal">{address}</span>
+        <div className="relative group">
+          <div className="flex items-start gap-1 text-xs text-gray-600 leading-tight">
+            <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0 text-red-500" />
+            <span className="break-words">{truncatedAddress}</span>
+          </div>
+          
+          {/* Tooltip untuk alamat lengkap */}
+          {isAddressLong && (
+            <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl max-w-xs whitespace-normal">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-400" />
+                <span className="break-words">{address}</span>
+              </div>
+              {/* Panah tooltip */}
+              <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+            </div>
+          )}
         </div>
       )}
     </div>
