@@ -251,7 +251,8 @@ const DetailTrukAir = () => {
       const q = searchQuery.toLowerCase();
       temp = temp.filter(lap =>
         (lap.plat_nomor_truk_air || '').toLowerCase().includes(q) ||
-        (lap.nama_patroler || '').toLowerCase().includes(q)
+        (lap.nama_petugas || '').toLowerCase().includes(q) ||
+        (lap.lokasi_pembersihan || '').toLowerCase().includes(q)
       );
     }
 
@@ -512,7 +513,7 @@ const FilterBar = ({ searchQuery, setSearchQuery, selectedDate, setSelectedDate 
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
       <input 
         type="text" 
-        placeholder="Cari plat nomor atau nama patroler" 
+        placeholder="Cari plat nomor, nama patroler, atau area pembersihan" 
         value={searchQuery} 
         onChange={e => setSearchQuery(e.target.value)} 
         className="block w-full pl-9 pr-3 py-2 bg-white rounded-lg border-0 focus:ring-2 focus:ring-red-300 text-sm" 
@@ -527,7 +528,7 @@ const FilterBar = ({ searchQuery, setSearchQuery, selectedDate, setSelectedDate 
   </div>
 );
 
-// ✅ TABEL DENGAN TOMBOL PREVIEW DAN KOLOM TRANSPORTER CONDITIONAL
+// ✅ TABEL DENGAN KOLOM NAMA PATROLER (NAMA + NOMOR) DAN KOLOM AREA PEMBERSIHAN
 const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePrintPreview, showTransporterColumn }) => (
   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div className="overflow-x-auto">
@@ -539,6 +540,9 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
             </th>
             <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Nama Patroler
+            </th>
+            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              Area Pembersihan
             </th>
             {showTransporterColumn && (
               <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
@@ -571,7 +575,7 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
         <tbody>
           {laporanList.length === 0 ? (
             <tr>
-              <td colSpan={showTransporterColumn ? "10" : "9"} className="px-6 py-12 text-center">
+              <td colSpan={showTransporterColumn ? "11" : "10"} className="px-6 py-12 text-center">
                 <Truck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p className="text-gray-500 font-medium">Tidak ada data laporan</p>
                 <p className="text-sm text-gray-400 mt-1">Belum ada laporan pembersihan jalan</p>
@@ -590,10 +594,29 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                   <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200 whitespace-nowrap">
                     {formatDateTime(lap.created_at)}
                   </td>
+                  
+                  {/* ✅ KOLOM NAMA PATROLER - MENAMPILKAN NAMA + NOMOR TELEPON */}
                   <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
-                    <div className="font-medium text-gray-900 whitespace-nowrap">{lap.nama_patroler || '-'}</div>
-                    <div className="text-xs text-gray-500 whitespace-nowrap">{lap.email_patroler || '-'}</div>
+                    <div className="font-medium text-gray-900 whitespace-nowrap">
+                      {lap.nama_petugas || '-'}
+                    </div>
+                    {lap.no_telp_petugas && (
+                      <div className="text-xs text-black-600 font-semibold whitespace-nowrap mt-0.5">
+                        {lap.no_telp_petugas}
+                      </div>
+                    )}
                   </td>
+
+                  {/* ✅ KOLOM AREA PEMBERSIHAN BARU */}
+                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                    <div className="flex items-start gap-1 max-w-xs">
+
+                      <span className="text-gray-800 font-medium leading-tight">
+                        {lap.lokasi_pembersihan || '-'}
+                      </span>
+                    </div>
+                  </td>
+
                   {showTransporterColumn && (
                     <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                       <div className="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-semibold whitespace-nowrap">
@@ -601,6 +624,7 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                       </div>
                     </td>
                   )}
+                  
                   <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                     {platNomorArr.length > 0 ? (
                       <div className="flex flex-col gap-1.5">
@@ -686,7 +710,6 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
   const [address, setAddress] = useState(''); 
   const [coordinates, setCoordinates] = useState('');
   const [isAddressResolved, setIsAddressResolved] = useState(false);
-  const [showFullAddress, setShowFullAddress] = useState(false);
 
   useEffect(() => {
     const coordsRegex = /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/;
@@ -740,7 +763,6 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
     return new Date(date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Fungsi untuk memotong alamat jika terlalu panjang
   const getTruncatedAddress = (addr, maxLength = 50) => {
     if (!addr) return '';
     if (addr.length <= maxLength) return addr;
@@ -756,7 +778,6 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
 
   return (
     <div className="space-y-1.5 min-w-[160px]">
-      {/* Button Foto - Lebih compact */}
       <div className="flex flex-wrap gap-1">
         {photos.map((photo, idx) => (
           <button
@@ -769,7 +790,6 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
         ))}
       </div>
       
-      {/* Timestamp */}
       {timestamp && (
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <Clock className="w-3 h-3 flex-shrink-0" />
@@ -777,7 +797,6 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
         </div>
       )}
       
-      {/* Alamat dengan tooltip untuk alamat panjang */}
       {address && (
         <div className="relative group">
           <div className="flex items-start gap-1 text-xs text-gray-600 leading-tight">
@@ -785,14 +804,12 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
             <span className="break-words">{truncatedAddress}</span>
           </div>
           
-          {/* Tooltip untuk alamat lengkap */}
           {isAddressLong && (
             <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl max-w-xs whitespace-normal">
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-400" />
                 <span className="break-words">{address}</span>
               </div>
-              {/* Panah tooltip */}
               <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
             </div>
           )}

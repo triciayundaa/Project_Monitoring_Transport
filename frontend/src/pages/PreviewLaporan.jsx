@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, MapPin, CheckCircle, Truck, User, Mail, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Clock, MapPin, CheckCircle, Truck, User, Phone, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 
 /* ─── reverse geocode koordinat → nama tempat (Nominatim, gratis) ─── */
 const useResolveLocation = (lokasiRaw) => {
@@ -250,11 +250,22 @@ const PreviewLaporan = ({ laporan, onClose, kegiatan, formatDateTime, allTranspo
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-x-6 gap-y-4">
-                  <InfoRow label="Nama Patroler"   value={laporan.nama_patroler}    icon={User} />
-                  <InfoRow label="Email Patroler"  value={laporan.email_patroler}   icon={Mail} />
-                  <InfoRow label="Transporter"     value={laporan.nama_transporter} icon={Truck} />
+                  <InfoRow label="Nama Petugas Lapangan" value={laporan.nama_petugas || '-'}       icon={User} />
+                  <InfoRow label="No. Telepon"            value={laporan.no_telp_petugas || '-'}    icon={Phone} />
+                  <InfoRow label="Transporter"            value={laporan.nama_transporter || '-'}   icon={Truck} />
                 </div>
               </div>
+
+              {/* area pembersihan */}
+              {laporan.lokasi_pembersihan && (
+                <div className="rounded-xl p-5 mb-6" style={{ background: '#fafafa', border: '1px solid #e8d8d8' }}>
+                  <SectionDivider label="Area Pembersihan" color="linear-gradient(180deg, #c0392b, #d9534f)" />
+                  <div className="flex items-start gap-2 text-sm text-gray-700">
+                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#c0392b' }} />
+                    <span className="font-medium">{laporan.lokasi_pembersihan}</span>
+                  </div>
+                </div>
+              )}
 
               {/* plat nomor */}
               <div className="rounded-xl p-5 mb-6" style={{ background: '#fafafa', border: '1px solid #e8d8d8' }}>

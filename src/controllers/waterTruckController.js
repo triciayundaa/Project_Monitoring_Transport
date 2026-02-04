@@ -121,16 +121,19 @@ const getDataPembersihan = async (req, res) => {
         console.log(`🔍 Fetching data pembersihan for ${email_patroler} on ${tanggal || 'all dates'}`);
         
         // UPDATE QUERY: Tambah select nama_petugas, no_telp_petugas, lokasi_pembersihan
-        let query = `
+            let query = `
             SELECT pj.*, 
-                   k.no_po, 
-                   k.nama_kapal,
-                   k.material,
-                   k.tanggal_mulai,
-                   k.tanggal_selesai,
-                   t.nama_transporter as nama_vendor, 
-                   u.nama as nama_patroler,
-                   kt.id as kegiatan_transporter_id
+                pj.nama_petugas,          
+                pj.no_telp_petugas,      
+                pj.lokasi_pembersihan,    
+                k.no_po, 
+                k.nama_kapal,
+                k.material,
+                k.tanggal_mulai,
+                k.tanggal_selesai,
+                t.nama_transporter as nama_vendor, 
+                u.nama as nama_patroler,
+                kt.id as kegiatan_transporter_id
             FROM pembersihan_jalan pj
             LEFT JOIN kegiatan_transporter kt ON pj.kegiatan_transporter_id = kt.id 
             LEFT JOIN kegiatan k ON kt.kegiatan_id = k.id

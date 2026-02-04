@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, MapPin, CheckCircle, Truck, User, Mail, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Clock, MapPin, CheckCircle, Truck, User, Phone, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 
 /* ─── reverse geocode ─── */
 const useResolveLocation = (lokasiRaw) => {
@@ -210,7 +210,7 @@ const PreviewLaporanAll = ({ laporanList, onClose }) => {
                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm" style={{ background: 'linear-gradient(135deg, #c0392b, #d9534f)' }}>
                         {lapIdx + 1}
                       </div>
-                      <h3 className="text-base font-bold text-gray-800">Laporan #{lapIdx + 1}</h3>
+                      <h3 className="text-base font-bold text-gray-800">Laporan {lapIdx + 1}</h3>
                       <span className={`ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${isCompleted ? 'text-emerald-700' : 'text-amber-700'}`}
                         style={{ background: isCompleted ? '#dcfce7' : '#fef3c7' }}>
                         {isCompleted ? <CheckCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
@@ -222,11 +222,22 @@ const PreviewLaporanAll = ({ laporanList, onClose }) => {
                     <div className="rounded-xl p-5 mb-5" style={{ background: 'linear-gradient(135deg, #f5eeee 0%, #f2e6e6 100%)', border: '1px solid #eedede' }}>
                       <SectionDivider label="Informasi Laporan" />
                       <div className="grid grid-cols-3 gap-x-6 gap-y-4">
-                        <InfoRow label="Nama Patroler"  value={lap.nama_patroler}    icon={User} />
-                        <InfoRow label="Email Patroler" value={lap.email_patroler}   icon={Mail} />
-                        <InfoRow label="Transporter"    value={lap.nama_transporter} icon={Truck} />
+                        <InfoRow label="Nama Petugas Lapangan" value={lap.nama_petugas || '-'}       icon={User} />
+                        <InfoRow label="No. Telepon"           value={lap.no_telp_petugas || '-'}    icon={Phone} />
+                        <InfoRow label="Transporter"           value={lap.nama_transporter || '-'}   icon={Truck} />
                       </div>
                     </div>
+
+                    {/* ── area pembersihan ── */}
+                    {lap.lokasi_pembersihan && (
+                      <div className="rounded-xl p-5 mb-5" style={{ background: '#fafafa', border: '1px solid #e8d8d8' }}>
+                        <SectionDivider label="Area Pembersihan" />
+                        <div className="flex items-start gap-2 text-sm text-gray-700">
+                          <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#c0392b' }} />
+                          <span className="font-medium">{lap.lokasi_pembersihan}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* ── plat nomor ── */}
                     <div className="rounded-xl p-5 mb-5" style={{ background: '#fafafa', border: '1px solid #e8d8d8' }}>
