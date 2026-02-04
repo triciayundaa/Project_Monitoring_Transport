@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 // --- PENTING: PENGATURAN ALAMAT SERVER ---
+// Ganti localhost dengan IP Laptop jika dijalankan di HP (misal: 192.168.1.5)
 const API_BASE_URL = 'http://localhost:3000'; 
 
 const getPhotoUrl = (photoData) => {
@@ -56,6 +57,9 @@ const PembersihanMaterial = () => {
     const [formData, setFormData] = useState({
         id: null, 
         kegiatan_transporter_id: '', 
+        nama: '',                
+        no_telp: '',             
+        lokasi_pembersihan: '',  
         po_number: '',      
         transporter_name: '', 
         plat_nomor_list: [{ plat: '', photo: null, location: '' }], 
@@ -80,20 +84,15 @@ const PembersihanMaterial = () => {
 
     useEffect(() => { if (user) fetchData(); }, [user, selectedDate]);
 
-    // 🔥 FIX 1: Perbaikan fetchMasterData untuk membaca struktur { status, data }
     const fetchMasterData = async () => { 
         try { 
             const res = await axios.get(`${API_BASE_URL}/api/water-truck/active-po`); 
-            console.log("Master Data Response:", res.data); // Debugging
-
             if (res.data.status === 'Success' && Array.isArray(res.data.data)) {
                 const rawData = res.data.data;
                 setMasterData(rawData);
-                // Ambil unique PO dari array data
                 const unique = [...new Set(rawData.map(item => item.no_po))];
                 setUniquePOs(unique);
             } else {
-                console.warn("Format data PO tidak sesuai atau kosong");
                 setMasterData([]);
                 setUniquePOs([]);
             }
@@ -102,7 +101,6 @@ const PembersihanMaterial = () => {
         } 
     };
 
-    // 🔥 FIX 2: Perbaikan fetchData untuk membaca struktur { status, data }
     const fetchData = async () => {
         if (!user) return;
         try {
@@ -123,7 +121,9 @@ const PembersihanMaterial = () => {
 
     const resetForm = () => {
         setFormData({ 
-            id: null, kegiatan_transporter_id: '', po_number: '', transporter_name: '',
+            id: null, kegiatan_transporter_id: '', 
+            nama: '', no_telp: '', lokasi_pembersihan: '', 
+            po_number: '', transporter_name: '',
             plat_nomor_list: [{ plat: '', photo: null, location: '' }], 
             foto_sebelum_list: [], foto_sedang_list: [], foto_setelah_list: [],
             lokasi_sebelum: '', lokasi_sedang: '', lokasi_setelah: ''
@@ -192,8 +192,12 @@ const PembersihanMaterial = () => {
         setFormData({
             id: item.id,
             kegiatan_transporter_id: item.kegiatan_transporter_id,
+            nama: item.nama_petugas || '',
+            no_telp: item.no_telp_petugas || '',
+            lokasi_pembersihan: item.lokasi_pembersihan || '',
+            
             po_number: item.no_po,
-            transporter_name: item.nama_vendor, // pastikan mapping ini sesuai response backend
+            transporter_name: item.nama_vendor, 
             plat_nomor_list: platList,
             foto_sebelum_list: parseList(item.foto_sebelum),
             foto_sedang_list: parseList(item.foto_sedang),
@@ -203,8 +207,6 @@ const PembersihanMaterial = () => {
             lokasi_setelah: item.lokasi_foto_setelah || ''
         });
 
-        // Filter transporter berdasarkan PO dari item
-        // Pastikan masterData sudah terload, jika tidak, fetch ulang atau handle logic ini
         const transForPO = masterData.filter(d => d.no_po === item.no_po);
         setFilteredTransporters(transForPO);
 
@@ -218,17 +220,13 @@ const PembersihanMaterial = () => {
     const handlePOInput = (e) => {
         const val = e.target.value;
         setFormData(prev => ({ ...prev, po_number: val, transporter_name: '', kegiatan_transporter_id: '' }));
-        
-        // Filter masterData untuk mencari transporter yang sesuai PO
         const related = masterData.filter(item => item.no_po === val);
         setFilteredTransporters(related);
     };
 
     const handleTransporterInput = (e) => {
         const val = e.target.value; 
-        // Cari ID kegiatan_transporter berdasarkan nama transporter dan no_po yang dipilih
         const matchedData = filteredTransporters.find(item => item.nama_transporter === val);
-        
         setFormData(prev => ({ 
             ...prev, 
             transporter_name: val, 
@@ -274,6 +272,7 @@ const PembersihanMaterial = () => {
     
     const removeActivityPhoto = (field, index) => { setFormData(prev => { const newList = [...prev[field]]; newList.splice(index, 1); return { ...prev, [field]: newList }; }); };
 
+    // --- KAMERA UNIVERSAL (UPDATE: ALAMAT + KOORDINAT DALAM KURUNG) ---
     const openCamera = async (onCapture) => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             setWarningMessage(
@@ -321,16 +320,27 @@ const PembersihanMaterial = () => {
                     async (position) => {
                         const { latitude, longitude } = position.coords;
                         try {
-                            // Mencoba reverse geocoding sederhana
-                            lastLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-                            locTextEl.innerHTML = `📍 ${lastLocation}`;
+                            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+                            const data = await response.json();
+                            
+                            if (data && data.display_name) {
+                                // Ambil 3 bagian pertama alamat
+                                const addressStr = data.display_name.split(',').slice(0, 3).join(',');
+                                // --- FORMAT BARU: NAMA JALAN (LAT, LONG) ---
+                                lastLocation = `${addressStr} (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+                                
+                                locTextEl.innerHTML = `📍 ${addressStr.substring(0, 20)}...`; 
+                            } else {
+                                lastLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+                                locTextEl.innerHTML = `📍 ${lastLocation}`;
+                            }
                         } catch (err) {
                             lastLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
                             locTextEl.innerHTML = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
                         }
                     },
                     (err) => { locTextEl.innerHTML = "⚠️ Sinyal GPS Lemah"; lastLocation = "Lokasi Tidak Terdeteksi"; },
-                    { enableHighAccuracy: false, maximumAge: 0 }
+                    { enableHighAccuracy: true, maximumAge: 0 } 
                 );
             } else { locTextEl.innerHTML = "Browser tidak dukung GPS"; }
 
@@ -351,7 +361,6 @@ const PembersihanMaterial = () => {
 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // Watermark
                 const now = new Date();
                 const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
                 const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
@@ -368,8 +377,15 @@ const PembersihanMaterial = () => {
 
                 ctx.font = `bold ${fontSizeBig}px Arial`;
                 ctx.fillText(`${timeStr} | ${dateStr}`, 20, yStart + (boxHeight * 0.4));
+                
                 ctx.font = `${fontSizeSmall}px Arial`;
-                ctx.fillText(`📍 ${lastLocation}`, 20, yStart + (boxHeight * 0.8));
+                let displayLoc = lastLocation;
+                // Logika pemotongan teks agar tidak keluar kotak
+                const maxChars = Math.floor(canvas.width / (fontSizeSmall * 0.6));
+                if (displayLoc.length > maxChars) {
+                    displayLoc = displayLoc.substring(0, maxChars) + "...";
+                }
+                ctx.fillText(`📍 ${displayLoc}`, 20, yStart + (boxHeight * 0.8));
 
                 onCapture(canvas.toDataURL('image/jpeg', 0.7), lastLocation);
                 cleanup();
@@ -404,6 +420,11 @@ const PembersihanMaterial = () => {
                 id: formData.id, 
                 email_patroler: user.email,
                 kegiatan_id: formData.kegiatan_transporter_id,
+                
+                nama: formData.nama,
+                no_telp: formData.no_telp,
+                lokasi_pembersihan: formData.lokasi_pembersihan,
+
                 detail_truk: detailTruk, 
                 foto_sebelum_list: formData.foto_sebelum_list, 
                 foto_sedang_list: formData.foto_sedang_list, 
@@ -427,11 +448,12 @@ const PembersihanMaterial = () => {
 
     const isStep1Valid = () => {
         if (isViewMode) return true;
+        const isInfoValid = formData.nama.trim() !== '' && formData.no_telp.trim() !== '' && formData.lokasi_pembersihan.trim() !== '';
         const isPOValid = formData.po_number && formData.transporter_name && formData.kegiatan_transporter_id;
         const isPlatValid = formData.plat_nomor_list.length > 0 && formData.plat_nomor_list.every(item => {
             return item.plat.trim() !== '' && (item.photo !== null);
         });
-        return isPOValid && isPlatValid;
+        return isInfoValid && isPOValid && isPlatValid;
     };
 
     const PhotoSection = ({ title, fieldListName, isLocked, locationText }) => (
@@ -512,6 +534,19 @@ const PembersihanMaterial = () => {
                                 </div>
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-4 mb-4 text-sm text-gray-700">
+                                    {/* TAMBAHAN KETAMPILAN DATA BARU */}
+                                    {item.nama_petugas && (
+                                        <div className="md:col-span-2 bg-blue-50 p-2 rounded-md border border-blue-100 mb-2">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="font-semibold text-blue-800">👤 {item.nama_petugas} ({item.no_telp_petugas})</div>
+                                                <div className="text-blue-600 flex items-start gap-1">
+                                                    <span>🚿</span>
+                                                    <span>Area: {item.lokasi_pembersihan}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="flex justify-between border-b pb-1"><span>Nomor PO:</span> <span className="font-semibold">{item.no_po}</span></div>
                                     <div className="flex justify-between border-b pb-1"><span>Transportir:</span> <span className="font-semibold">{item.nama_vendor}</span></div>
                                     <div className="md:col-span-2 mt-2">
@@ -597,7 +632,7 @@ const PembersihanMaterial = () => {
                 </div>
             )}
 
-            {/* MODAL FORM INPUT */}
+            {/* MODAL FORM INPUT (STEP 1 & 2) */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
                     <div className="bg-white rounded-lg w-full max-w-md overflow-hidden shadow-2xl border-2 border-red-500 animate-slide-up sm:animate-bounce-in max-h-[90vh] flex flex-col">
@@ -609,6 +644,42 @@ const PembersihanMaterial = () => {
                             {step === 1 ? (
                                 <div className="space-y-5">
                                     <div className={`space-y-5 ${formData.id ? '' : ''}`}>
+                                        
+                                        {/* FORM INPUT BARU: NAMA, NO TELP, AREA PENYIRAMAN */}
+                                        <div>
+                                            <label className="block font-bold text-sm mb-2 text-red-600">Nama Petugas</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all" 
+                                                placeholder="Nama Petugas" 
+                                                value={formData.nama} 
+                                                onChange={(e) => setFormData({...formData, nama: e.target.value})} 
+                                                disabled={isViewMode || formData.id}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block font-bold text-sm mb-2 text-red-600">No. Telpon</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all" 
+                                                placeholder="Contoh: 0812..." 
+                                                value={formData.no_telp} 
+                                                onChange={(e) => setFormData({...formData, no_telp: e.target.value})} 
+                                                disabled={isViewMode || formData.id}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block font-bold text-sm mb-2 text-red-600">Area Penyiraman</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all" 
+                                                placeholder="Contoh: Lampu Merah Lubeg - Tanah Sirah" 
+                                                value={formData.lokasi_pembersihan} 
+                                                onChange={(e) => setFormData({...formData, lokasi_pembersihan: e.target.value})} 
+                                                disabled={isViewMode || formData.id}
+                                            />
+                                        </div>
+
                                         <div>
                                             <label className="block font-bold text-sm mb-2 text-red-600">Nomor PO</label>
                                             <input list="po-options" type="text" className="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all" placeholder="Ketik/Pilih No PO..." value={formData.po_number} onChange={handlePOInput} disabled={isViewMode || formData.id}/>
@@ -621,7 +692,6 @@ const PembersihanMaterial = () => {
                                         </div>
                                         <div>
                                             <label className="block font-bold text-sm mb-2 text-red-600">Nopol Truk Air</label>
-                                            {/* LIST INPUT PER-TRUK */}
                                             {formData.plat_nomor_list.map((item, index) => (
                                                 <div key={index} className="flex gap-2 mb-3">
                                                     <div className="flex-1 relative">
@@ -633,7 +703,6 @@ const PembersihanMaterial = () => {
                                                             disabled={isViewMode || formData.id} 
                                                             placeholder="Contoh: BA 1234 XX"
                                                         />
-                                                        {/* INDIKATOR STATUS FOTO DI DALAM INPUT */}
                                                         <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
                                                             {item.photo ? (
                                                                 <span className="text-green-500 text-lg">✓</span>
@@ -643,7 +712,6 @@ const PembersihanMaterial = () => {
                                                         </div>
                                                     </div>
 
-                                                    {/* THUMBNAIL PHOTO UNTUK MELIHAT KEMBALI */}
                                                     {item.photo ? (
                                                         <img 
                                                             src={getPhotoUrl(item.photo)} 
@@ -653,7 +721,6 @@ const PembersihanMaterial = () => {
                                                             title="Klik untuk melihat foto"
                                                         />
                                                     ) : (
-                                                        // TAMPILKAN PLACEHOLDER JIKA KOSONG (DATA LAMA)
                                                         isViewMode && (
                                                             <div className="w-10 h-10 rounded-lg border border-gray-300 bg-gray-100 flex items-center justify-center text-[10px] text-gray-500 text-center leading-none cursor-not-allowed" title="Foto Tidak Tersedia">
                                                                 No Img
@@ -661,7 +728,6 @@ const PembersihanMaterial = () => {
                                                         )
                                                     )}
 
-                                                    {/* TOMBOL KAMERA PER-TRUK (WAJIB) - HANYA MUNCUL SAAT INPUT BARU */}
                                                     {!isViewMode && (
                                                         <button 
                                                             onClick={() => openCamera((base64, loc) => handleTruckPhotoTaken(index, base64, loc))} 
@@ -672,7 +738,6 @@ const PembersihanMaterial = () => {
                                                         </button>
                                                     )}
 
-                                                    {/* TOMBOL HAPUS (TONG SAMPAH) */}
                                                     {!isViewMode && !formData.id && (
                                                         <button onClick={() => removePlatField(index)} className="px-3 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg border-2 border-red-200">
                                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
@@ -690,21 +755,21 @@ const PembersihanMaterial = () => {
                                         </div>
                                     </div>
                                     <div className="flex gap-3 pt-4 border-t mt-4">
-                                            <button onClick={() => setShowModal(false)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
-                                            <button 
-                                                onClick={() => { 
-                                                    const isValid = isStep1Valid();
-                                                    if(!isValid) {
-                                                        setWarningMessage("Harap lengkapi Nomor PO, Transporter, dan pastikan setiap truk memiliki Plat Nomor & Foto Bukti!");
-                                                        setShowModalWarning(true);
-                                                    } else { 
-                                                        setStep(2); 
-                                                    }
-                                                }} 
-                                                className={`flex-1 py-2.5 rounded-lg font-semibold transition-colors text-white ${isStep1Valid() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'}`}
-                                            >
-                                                {isViewMode ? 'Lihat Foto' : 'Lanjut'}
-                                            </button>
+                                        <button onClick={() => setShowModal(false)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
+                                        <button 
+                                            onClick={() => { 
+                                                const isValid = isStep1Valid();
+                                                if(!isValid) {
+                                                    setWarningMessage("Harap lengkapi Nama Petugas, No Telp, Area Penyiraman, PO, Transporter, dan data Truk!");
+                                                    setShowModalWarning(true);
+                                                } else { 
+                                                    setStep(2); 
+                                                }
+                                            }} 
+                                            className={`flex-1 py-2.5 rounded-lg font-semibold transition-colors text-white ${isStep1Valid() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'}`}
+                                        >
+                                            {isViewMode ? 'Lihat Foto' : 'Lanjut'}
+                                        </button>
                                     </div>
                                 </div>
                             ) : (
@@ -713,11 +778,11 @@ const PembersihanMaterial = () => {
                                     <PhotoSection title="Foto Sedang" fieldListName="foto_sedang_list" isLocked={lockedPhotos.during} locationText={formData.lokasi_sedang} />
                                     <PhotoSection title="Foto Setelah" fieldListName="foto_setelah_list" isLocked={lockedPhotos.after} locationText={formData.lokasi_setelah} />
                                     <div className="flex gap-3 pt-4 border-t mt-4">
-                                            <button onClick={() => setStep(1)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Kembali</button>
-                                            {!isViewMode ? 
-                                                <button onClick={handleSubmit} disabled={loading} className="flex-[2] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold transition-colors disabled:opacity-50">{loading ? 'Menyimpan...' : 'Simpan'}</button> 
-                                                : <button onClick={() => setShowModal(false)} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
-                                            }
+                                        <button onClick={() => setStep(1)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Kembali</button>
+                                        {!isViewMode ? 
+                                            <button onClick={handleSubmit} disabled={loading} className="flex-[2] bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold transition-colors disabled:opacity-50">{loading ? 'Menyimpan...' : 'Simpan'}</button> 
+                                            : <button onClick={() => setShowModal(false)} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
+                                        }
                                     </div>
                                 </div>
                             )}

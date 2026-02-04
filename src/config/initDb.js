@@ -136,13 +136,15 @@ const initDb = async () => {
     // ============================================================
     // 11. PEMBERSIHAN_JALAN (HEADER / DATA UTAMA) - DIPERBAIKI
     // ============================================================
-    // Tabel ini hanya menyimpan SIAPA, DIMANA, dan KAPAN.
-    // Data Foto dan Truk dipindah ke tabel anak di bawahnya.
+    // UPDATE: Menambahkan kolom nama_petugas, no_telp_petugas, lokasi_pembersihan
     await db.query(`
       CREATE TABLE IF NOT EXISTS pembersihan_jalan (
         id INT AUTO_INCREMENT PRIMARY KEY,
         kegiatan_transporter_id INT NOT NULL,
         email_patroler VARCHAR(100) NOT NULL,
+        nama_petugas VARCHAR(100),       
+        no_telp_petugas VARCHAR(20),     
+        lokasi_pembersihan TEXT,         
         status ENUM('Draft', 'Completed') DEFAULT 'Draft',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT fk_bersih_kt FOREIGN KEY (kegiatan_transporter_id) REFERENCES kegiatan_transporter(id) ON DELETE CASCADE,
@@ -151,7 +153,6 @@ const initDb = async () => {
     `);
 
     // 11.A PEMBERSIHAN_TRUK (DETAIL TRUK AIR)
-    // Tabel Anak: Menyimpan banyak truk dalam satu laporan
     await db.query(`
       CREATE TABLE IF NOT EXISTS pembersihan_truk (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -164,7 +165,6 @@ const initDb = async () => {
     `);
 
     // 11.B PEMBERSIHAN_FOTO (DOKUMENTASI KEGIATAN)
-    // Tabel Anak: Menyimpan banyak foto (sebelum/sedang/setelah) dalam satu laporan
     await db.query(`
       CREATE TABLE IF NOT EXISTS pembersihan_foto (
         id INT AUTO_INCREMENT PRIMARY KEY,

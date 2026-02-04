@@ -120,6 +120,7 @@ const getDataPembersihan = async (req, res) => {
     try {
         console.log(`🔍 Fetching data pembersihan for ${email_patroler} on ${tanggal || 'all dates'}`);
         
+        // UPDATE QUERY: Tambah select nama_petugas, no_telp_petugas, lokasi_pembersihan
         let query = `
             SELECT pj.*, 
                    k.no_po, 
@@ -353,6 +354,9 @@ const getDetailWaterTruck = async (req, res) => {
                 pj.email_patroler,
                 pj.status,
                 pj.created_at,
+                pj.nama_petugas,       -- Tambahan baru
+                pj.no_telp_petugas,    -- Tambahan baru
+                pj.lokasi_pembersihan, -- Tambahan baru
                 u.nama AS nama_patroler,
                 u.email AS email_patroler,
                 u.no_telp AS telp_patroler,
@@ -459,6 +463,9 @@ const simpanPembersihan = async (req, res) => {
             id, 
             kegiatan_id,  // This is actually kegiatan_transporter_id
             email_patroler, 
+            nama,       // <--- FROM FRONTEND
+            no_telp,    // <--- FROM FRONTEND
+            lokasi_pembersihan, // <--- FROM FRONTEND
             detail_truk, 
             foto_sebelum_list, 
             foto_sedang_list, 
@@ -470,7 +477,8 @@ const simpanPembersihan = async (req, res) => {
 
         console.log(`💾 === SAVING PEMBERSIHAN ===`);
         console.log(`📧 Patroler: ${email_patroler}`);
-        console.log(`🆔 Pembersihan ID: ${id || 'NEW'}`);
+        console.log(`👤 Petugas: ${nama} (${no_telp})`);
+        console.log(`📍 Lokasi: ${lokasi_pembersihan}`);
         
         // VALIDATION
         if (!kegiatan_id) {
@@ -514,19 +522,24 @@ const simpanPembersihan = async (req, res) => {
 
         let pembersihanId = id;
 
-        // --- STEP A: HEADER ---
+        // --- STEP A: HEADER (INSERT / UPDATE) ---
         if (pembersihanId) {
+            // UPDATE
             await connection.query(
-                `UPDATE pembersihan_jalan SET status = ? WHERE id = ?`,
-                [statusLaporan, pembersihanId]
+                `UPDATE pembersihan_jalan 
+                 SET status = ?, nama_petugas = ?, no_telp_petugas = ?, lokasi_pembersihan = ? 
+                 WHERE id = ?`,
+                [statusLaporan, nama, no_telp, lokasi_pembersihan, pembersihanId]
             );
             await connection.query('DELETE FROM pembersihan_truk WHERE pembersihan_id = ?', [pembersihanId]);
             await connection.query('DELETE FROM pembersihan_foto WHERE pembersihan_id = ?', [pembersihanId]);
         } else {
+            // INSERT
             const [resInsert] = await connection.query(
-                `INSERT INTO pembersihan_jalan (kegiatan_transporter_id, email_patroler, status) 
-                 VALUES (?, ?, ?)`,
-                [kegiatan_id, email_patroler, statusLaporan]
+                `INSERT INTO pembersihan_jalan 
+                 (kegiatan_transporter_id, email_patroler, nama_petugas, no_telp_petugas, lokasi_pembersihan, status) 
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [kegiatan_id, email_patroler, nama, no_telp, lokasi_pembersihan, statusLaporan]
             );
             pembersihanId = resInsert.insertId;
         }
