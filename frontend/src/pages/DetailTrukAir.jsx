@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Truck, Search, MapPin, Clock, CheckCircle, XCircle, Image as ImageIcon, FileText } from 'lucide-react';
+import { ArrowLeft, Truck, Search, MapPin, Clock, CheckCircle, XCircle, Image as ImageIcon, FileText, FileDown } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { useParams } from 'react-router-dom';
 import PreviewLaporan from './PreviewLaporan';
 import PreviewLaporanAll from './PreviewLaporanAll';
+import UnduhLaporanTrukAir from './UnduhLaporanTrukAir'; // ✅ Import sudah ada
 
 const API = 'http://localhost:3000/api/water-truck';
 
@@ -78,6 +79,9 @@ const DetailTrukAir = () => {
   const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
   const [previewLaporan, setPreviewLaporan] = useState(null);
   const [previewAll, setPreviewAll] = useState(false);
+  
+  // ✅ TAMBAHAN: State untuk modal unduh laporan
+  const [showUnduhModal, setShowUnduhModal] = useState(false);
 
   const showModal = (type, title, message) => {
     setModal({ isOpen: true, type, title, message });
@@ -333,6 +337,18 @@ const DetailTrukAir = () => {
         />
       )}
 
+      {/* ✅ TAMBAHAN: Render modal unduh laporan */}
+        {showUnduhModal && (
+    <UnduhLaporanTrukAir
+        isOpen={showUnduhModal}
+        onClose={() => setShowUnduhModal(false)}
+        laporanList={filteredLaporan}
+        kegiatan={kegiatan}
+       
+        transporter={displayedTransporter()} 
+    />
+    )}
+
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
@@ -366,16 +382,27 @@ const DetailTrukAir = () => {
             setSelectedDate={setSelectedDate}
           />
 
-          {/* tombol preview semua */}
-          <div className="flex items-center justify-between mb-4">
+          {/* ✅ PERBAIKAN: Tombol Preview Semua & Unduh Laporan */}
+          <div className="flex items-center justify-between mb-4 gap-3">
             {filteredLaporan.length > 0 && (
-              <button
-                onClick={() => setPreviewAll(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-              >
-                <FileText className="w-4 h-4" />
-                Preview Semua Laporan
-              </button>
+              <>
+                <button
+                  onClick={() => setPreviewAll(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+                >
+                  <FileText className="w-4 h-4" />
+                  Preview Semua Laporan
+                </button>
+
+                {/* ✅ TOMBOL UNDUH LAPORAN YANG HILANG */}
+                <button
+                  onClick={() => setShowUnduhModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+                >
+                  <FileDown className="w-4 h-4" />
+                  Unduh Laporan
+                </button>
+              </>
             )}
           </div>
 
@@ -528,7 +555,6 @@ const FilterBar = ({ searchQuery, setSearchQuery, selectedDate, setSelectedDate 
   </div>
 );
 
-// ✅ TABEL DENGAN KOLOM NAMA PATROLER (NAMA + NOMOR) DAN KOLOM AREA PEMBERSIHAN
 const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePrintPreview, showTransporterColumn }) => (
   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div className="overflow-x-auto">
@@ -595,7 +621,6 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                     {formatDateTime(lap.created_at)}
                   </td>
                   
-                  {/* ✅ KOLOM NAMA PATROLER - MENAMPILKAN NAMA + NOMOR TELEPON */}
                   <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                     <div className="font-medium text-gray-900 whitespace-nowrap">
                       {lap.nama_petugas || '-'}
@@ -607,10 +632,8 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                     )}
                   </td>
 
-                  {/* ✅ KOLOM AREA PEMBERSIHAN BARU */}
                   <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
                     <div className="flex items-start gap-1 max-w-xs">
-
                       <span className="text-gray-800 font-medium leading-tight">
                         {lap.lokasi_pembersihan || '-'}
                       </span>
@@ -705,7 +728,6 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
   </div>
 );
 
-// ✅ KOMPONEN PHOTO CELL DENGAN ALAMAT YANG TIDAK TERPOTONG
 const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
   const [address, setAddress] = useState(''); 
   const [coordinates, setCoordinates] = useState('');

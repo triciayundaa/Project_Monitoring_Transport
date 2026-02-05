@@ -13,7 +13,7 @@ const userRoutes = require('./src/routes/userRoutes');
 const jadwalRoutes = require('./src/routes/jadwalRoutes');
 const laporanRoutes = require('./src/routes/laporanRoutes');
 
-
+// 2. Dari OLIVIA (Fitur Baru)
 const keberangkatanRoutes = require('./src/routes/keberangkatanRoutes');
 const kegiatanRoutes = require('./src/routes/kegiatanRoutes'); 
 const waterTruckRoutes = require('./src/routes/waterTruckRoutes');
@@ -23,11 +23,17 @@ const app = express();
 // --- Middleware (WAJIB DI ATAS ROUTES) ---
 app.use(cors()); 
 
-// 🔥 PERBAIKAN DI SINI: MENAMBAHKAN LIMIT BODY AGAR BISA UPLOAD FOTO
+// Limit body agar bisa upload foto (Sudah benar)
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+// 🔥 PERBAIKAN UTAMA: Tambahkan Header CORS di Static Folder
+// Ini memaksa server mengizinkan akses gambar dari mana saja (termasuk dari PDF generator)
+app.use('/uploads', (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+}, express.static(path.join(__dirname, 'public/uploads')));
 
 // --- Jalankan Inisialisasi Database ---
 initDb()
