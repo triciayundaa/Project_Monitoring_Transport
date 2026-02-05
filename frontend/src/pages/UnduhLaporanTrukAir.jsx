@@ -36,6 +36,7 @@ const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transport
     return new Date(b.created_at) - new Date(a.created_at);
   });
 
+  // Hitung Total Truk
   const totalTrukReal = sortedLaporanList.reduce((acc, item) => {
     if (!item.plat_nomor_truk_air) return acc;
     const plates = item.plat_nomor_truk_air.split(',').filter(p => p.trim().length > 0);
@@ -166,11 +167,16 @@ const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transport
 
       worksheetData.push(['LAPORAN PEMBERSIHAN JALAN']);
       worksheetData.push([]);
+      
+      // HEADER VERTIKAL (Termasuk Total)
       worksheetData.push(['No PO:', kegiatan.no_po || '-']);
       worksheetData.push(['Vendor:', kegiatan.nama_vendor || '-']);
       worksheetData.push(['Nama Kapal:', kegiatan.nama_kapal || '-']);
       worksheetData.push(['Material:', kegiatan.material || '-']);
       worksheetData.push(['Transporter:', headerTransporterName]); 
+      worksheetData.push(['Total Laporan:', sortedLaporanList.length]);
+      worksheetData.push(['Total Truk:', totalTrukReal]);
+      
       worksheetData.push([]);
 
       const headerRow = [
@@ -215,9 +221,13 @@ const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transport
         worksheetData.push(row);
       });
 
+      // FOOTER TOTAL (Di Bawah Tabel)
+      const totalCols = headerRow.length;
+      const emptyCols = new Array(totalCols - 2).fill('');
+      
       worksheetData.push([]); 
-      worksheetData.push(['Total Laporan:', sortedLaporanList.length]);
-      worksheetData.push(['Total Truk:', totalTrukReal]); 
+      worksheetData.push([...emptyCols, 'Total Laporan:', sortedLaporanList.length]);
+      worksheetData.push([...emptyCols, 'Total Truk:', totalTrukReal]); 
 
       const ws = XLSX.utils.aoa_to_sheet(worksheetData);
       const objectMaxLength = [];
@@ -255,24 +265,40 @@ const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transport
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPos = 15;
 
-      // HEADER
+      // HEADER JUDUL
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(220, 38, 38);
       doc.text('LAPORAN PEMBERSIHAN JALAN', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 10;
+      yPos += 15;
 
-      // INFO PO
+      // INFO PO VERTIKAL (TERMASUK STATISTIK)
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0);
       
-      doc.text(`No PO: ${cleanText(kegiatan.no_po)}`, 14, yPos);
-      doc.text(`Vendor: ${cleanText(kegiatan.nama_vendor)}`, 140, yPos); 
-      yPos += 6;
-      doc.text(`Material: ${cleanText(kegiatan.material)}`, 14, yPos);
-      doc.text(`Transporter: ${cleanText(headerTransporterName)}`, 140, yPos);
-      yPos += 10;
+      const leftMargin = 14;
+      const lineHeight = 6;
+
+      const writeInfoLine = (label, value) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, leftMargin, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`:  ${value}`, leftMargin + 35, yPos); // Align titik dua
+        yPos += lineHeight;
+      };
+
+      writeInfoLine('No PO', cleanText(kegiatan.no_po));
+      writeInfoLine('Vendor', cleanText(kegiatan.nama_vendor));
+      writeInfoLine('Material', cleanText(kegiatan.material));
+      writeInfoLine('Transporter', cleanText(headerTransporterName));
+      
+      // 🔥 TOTAL DI HEADER (ATAS TABEL - VERTIKAL)
+      yPos += 2; 
+      writeInfoLine('Total Laporan', sortedLaporanList.length.toString());
+      writeInfoLine('Total Truk', totalTrukReal.toString());
+
+      yPos += 5; // Jarak sebelum tabel
 
       // KONFIGURASI TABEL
       const tableHead = ['No', 'Tanggal', 'Petugas (HP)', 'Area'];
@@ -283,40 +309,40 @@ const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transport
 
       tableHead.push('Plat No', 'Sebelum', 'Sedang', 'Setelah', 'Status');
 
-      // 🔥 UPDATE LEBAR KOLOM "FULL WIDTH" (Target Total: 269mm)
+      // LEBAR KOLOM (~269mm total)
       let columnStyles = {};
+      let totalColsCount = 0;
 
       if (hasMultipleTransporters) {
-        // CASE: BANYAK TRANSPORTER (Total ~269mm)
-        // Memaksimalkan setiap milimeter
+        totalColsCount = 10;
         columnStyles = {
-            0: { cellWidth: 10, halign: 'center' }, // No
-            1: { cellWidth: 20, halign: 'center' }, // Tanggal
-            2: { cellWidth: 32 },                   // Petugas
-            3: { cellWidth: 28 },                   // Area
-            4: { cellWidth: 27 },                   // Transporter
-            5: { cellWidth: 22, halign: 'center' }, // Plat No
-            6: { cellWidth: 35 },                   // Sebelum
-            7: { cellWidth: 35 },                   // Sedang
-            8: { cellWidth: 35 },                   // Setelah
-            9: { cellWidth: 25, halign: 'center' }  // Status
+            0: { cellWidth: 10, halign: 'center' }, 
+            1: { cellWidth: 20, halign: 'center' }, 
+            2: { cellWidth: 32 },                   
+            3: { cellWidth: 28 },                   
+            4: { cellWidth: 27 },                   
+            5: { cellWidth: 22, halign: 'center' }, 
+            6: { cellWidth: 35 },                   
+            7: { cellWidth: 35 },                   
+            8: { cellWidth: 35 },                   
+            9: { cellWidth: 25, halign: 'center' }  
         };
       } else {
-        // CASE: SATU TRANSPORTER (Total ~269mm)
-        // Kita lebarkan kolom Area dan Plat No secara signifikan
+        totalColsCount = 9;
         columnStyles = {
-            0: { cellWidth: 12, halign: 'center' }, // No
-            1: { cellWidth: 23, halign: 'center' }, // Tanggal
-            2: { cellWidth: 37 },                   // Petugas
-            3: { cellWidth: 45 },                   // Area (Sangat Lebar)
-            4: { cellWidth: 32, halign: 'center' }, // Plat No (Lebar)
-            5: { cellWidth: 30 },                   // Sebelum
-            6: { cellWidth: 30 },                   // Sedang
-            7: { cellWidth: 30 },                   // Setelah
-            8: { cellWidth: 30, halign: 'center' }  // Status (Sangat Lebar)
+            0: { cellWidth: 12, halign: 'center' }, 
+            1: { cellWidth: 23, halign: 'center' }, 
+            2: { cellWidth: 37 },                   
+            3: { cellWidth: 45 },                   
+            4: { cellWidth: 32, halign: 'center' }, 
+            5: { cellWidth: 30 },                   
+            6: { cellWidth: 30 },                   
+            7: { cellWidth: 30 },                   
+            8: { cellWidth: 30, halign: 'center' }  
         };
       }
 
+      // DATA TABEL
       const tableData = sortedLaporanList.map((lap, index) => {
         const row = [
           index + 1,
@@ -339,6 +365,47 @@ const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transport
         return row;
       });
 
+      // 🔥 [FIX] BARIS TOTAL DENGAN COLSPAN (MERGE)
+      // Ini akan membuat baris total menutupi seluruh lebar kolom dari kiri
+      
+      const totalLabelStyle = { 
+        halign: 'right', 
+        fillColor: [253, 232, 232], // Pink
+        textColor: [185, 28, 28], // Merah
+        fontStyle: 'bold' 
+      };
+
+      const totalValueStyle = { 
+        halign: 'center', 
+        fillColor: [253, 232, 232], // Pink
+        textColor: [185, 28, 28], // Merah
+        fontStyle: 'bold' 
+      };
+
+      tableData.push([
+        { 
+          content: 'Total Laporan:', 
+          colSpan: totalColsCount - 1, // Merge semua kolom kecuali terakhir
+          styles: totalLabelStyle 
+        },
+        { 
+          content: sortedLaporanList.length.toString(), 
+          styles: totalValueStyle 
+        }
+      ]);
+
+      tableData.push([
+        { 
+          content: 'Total Truk:', 
+          colSpan: totalColsCount - 1, // Merge semua kolom kecuali terakhir
+          styles: totalLabelStyle 
+        },
+        { 
+          content: totalTrukReal.toString(), 
+          styles: totalValueStyle 
+        }
+      ]);
+
       autoTable(doc, {
         head: [tableHead],
         body: tableData,
@@ -359,23 +426,7 @@ const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transport
             overflow: 'linebreak',
             textColor: 20 
         },
-        columnStyles: columnStyles, 
-        foot: [
-            [
-                { content: 'Total Laporan:', colSpan: hasMultipleTransporters ? 9 : 8, styles: { halign: 'right', fontStyle: 'bold' } },
-                { content: sortedLaporanList.length, styles: { halign: 'center', fontStyle: 'bold' } }
-            ],
-            [
-                { content: 'Total Truk:', colSpan: hasMultipleTransporters ? 9 : 8, styles: { halign: 'right', fontStyle: 'bold' } },
-                { content: totalTrukReal, styles: { halign: 'center', fontStyle: 'bold' } }
-            ]
-        ],
-        footStyles: {
-            fillColor: [255, 255, 255], 
-            textColor: 20,
-            lineColor: [200, 200, 200],
-            lineWidth: 0.1
-        },
+        columnStyles: columnStyles
       });
 
       // HALAMAN FOTO
