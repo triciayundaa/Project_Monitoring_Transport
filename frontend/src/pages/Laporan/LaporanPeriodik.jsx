@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import Sidebar from '../../components/Sidebar';
 import Topbar from '../../components/Topbar';
+import API_BASE_URL from '../../config/api';
 
 const LaporanPeriodik = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -22,10 +23,9 @@ const LaporanPeriodik = () => {
             try {
                 setLoading(true);
                 if (start && end) {
-                    const res = await axios.get(`http://localhost:3000/api/laporan/periodik?start=${start}&end=${end}`);
+                    const res = await axios.get(`${API_BASE_URL}/api/laporan/periodik?start=${start}&end=${end}`);
                     setData(res.data);
                     
-                    // --- PERBAIKAN LOGIKA GROUPING (NORMALISASI KEY) ---
                     const grouped = res.data.logs.reduce((acc, log) => {
                         const material = (log.material || 'Lain-lain').trim().toUpperCase();
                         if (!acc[material]) acc[material] = [];
@@ -44,7 +44,6 @@ const LaporanPeriodik = () => {
         fetchPeriodik();
     }, [start, end]);
 
-    // --- PERBAIKAN FUNGSI EXPORT EXCEL ---
     const handleExportExcel = async () => {
         if (!data || Object.keys(groupedData).length === 0) return;
         
@@ -72,10 +71,8 @@ const LaporanPeriodik = () => {
             cell.alignment = centerAlignment;
         });
 
-        // Iterasi berdasarkan GroupedData agar urutan di Excel sama dengan di Tabel UI
         let globalIdx = 1;
         Object.keys(groupedData).forEach((material) => {
-            // Tambahkan baris pemisah kelompok material di Excel (opsional, agar rapi)
             const groupHeader = sheet.addRow([`MATERIAL: ${material}`]);
             groupHeader.getCell(1).font = { bold: true, color: { argb: 'FFFF0000' } };
             sheet.mergeCells(`A${groupHeader.number}:K${groupHeader.number}`);
@@ -97,14 +94,12 @@ const LaporanPeriodik = () => {
 
                 row.eachCell((cell, colNumber) => { 
                     cell.border = thinBorder; 
-                    // Kolom Vendor, Transporter, Kapal rata kiri
                     if ([3, 4, 5].includes(colNumber)) cell.alignment = leftAlignment;
                     else cell.alignment = centerAlignment;
                 });
             });
         });
 
-        // Atur lebar kolom
         sheet.columns = [
             { width: 5 }, { width: 15 }, { width: 25 }, { width: 35 }, { width: 15 }, 
             { width: 15 }, { width: 10 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }
@@ -133,19 +128,31 @@ const LaporanPeriodik = () => {
                 <main className="flex-grow p-6 overflow-y-auto bg-gray-200">
                     <div className="bg-white rounded-2xl shadow-md p-6">
                         
-                        <div className="flex justify-between items-center mb-6">
+                        {/* Header - Stack di Mobile, Horizontal di Laptop */}
+                        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 lg:gap-0 mb-6">
                             <div>
                                 <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Daftar Kegiatan Per Material</h1>
                                 <p className="text-gray-500 font-bold uppercase text-xs tracking-widest">Periode: {start} s/d {end}</p>
                             </div>
+                            
+                            {/* Buttons */}
                             <div className="flex gap-2">
-                                <button onClick={() => navigate('/laporan')} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-xl font-bold uppercase text-xs hover:bg-gray-300 transition-all">Kembali</button>
-                                <button onClick={handleExportExcel} className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold uppercase text-xs hover:bg-green-700 flex items-center gap-2 shadow-md transition-all active:scale-95">
+                                <button 
+                                    onClick={() => navigate('/laporan')} 
+                                    className="bg-gray-200 text-gray-700 px-6 py-2 rounded-xl font-bold uppercase text-xs hover:bg-gray-300 transition-all"
+                                >
+                                    Kembali
+                                </button>
+                                <button 
+                                    onClick={handleExportExcel} 
+                                    className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold uppercase text-xs hover:bg-green-700 flex items-center gap-2 shadow-md transition-all active:scale-95"
+                                >
                                     <i className="fas fa-file-excel"></i> Export Excel
                                 </button>
                             </div>
                         </div>
 
+                        {/* Table - Scroll Horizontal di Mobile */}
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse border border-gray-300 text-[10px]">
                                 <thead className="bg-gray-800 text-white uppercase text-center font-bold">
@@ -196,6 +203,14 @@ const LaporanPeriodik = () => {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                        
+                        {/* Scroll Indicator - Hanya Mobile */}
+                        <div className="lg:hidden mt-3 text-center">
+                            <p className="text-[9px] text-gray-400 italic">
+                                <i className="fas fa-arrows-alt-h mr-1"></i>
+                                Geser ke kanan untuk melihat semua kolom
+                            </p>
                         </div>
                     </div>
                 </main>

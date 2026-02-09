@@ -6,13 +6,13 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // --- [DARI HEAD] State Profil Pengguna ---
+    // State Profil Pengguna
     const [userProfile, setUserProfile] = useState({
         nama: 'Admin',
         email: 'admin@mail.com'
     });
 
-    // --- [DARI HEAD] Ambil data User dari LocalStorage ---
+    // Ambil data User dari LocalStorage
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
@@ -28,7 +28,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
         }
     }, []);
 
-    // --- [DARI HEAD] Menu Items (Sesuai App.jsx) ---
+    // Menu Items
     const menuItems = [
         { name: 'Beranda', icon: 'fas fa-tachometer-alt', path: '/dashboard' },
         { name: 'Manajemen Kegiatan', icon: 'fas fa-th-large', path: '/manajemen-kegiatan' },
@@ -39,7 +39,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
         { name: 'Manajemen Jadwal', icon: 'fas fa-calendar-alt', path: '/manajemen-jadwal' },
     ];
 
-    // Helper untuk cek menu aktif (Gabungan Logika)
+    // Helper untuk cek menu aktif
     const checkActive = (path) => {
         if (path === '/dashboard') return location.pathname === path;
         return location.pathname.startsWith(path);
@@ -47,25 +47,55 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
 
     const handleLogout = () => {
         localStorage.removeItem('user');
+        localStorage.removeItem('sidebarOpen'); // Hapus state sidebar saat logout
         navigate('/login');
         onClose();
     };
 
+    const handleMenuClick = (path) => {
+        navigate(path);
+        // Tutup sidebar otomatis di mobile/tablet saat navigasi
+        if (window.innerWidth < 1024) {
+            onClose();
+        }
+        // Jangan tutup sidebar di desktop saat navigasi
+    };
+
     return (
         <div
-            className={`bg-white border-r border-gray-200 h-full transition-all duration-300 ease-in-out flex-shrink-0 overflow-hidden z-30 ${
-                isOpen ? 'w-64 opacity-100' : 'w-0 opacity-0 border-none'
-            }`}
+            className={`
+                bg-white border-r border-gray-200 h-full transition-all duration-300 ease-in-out overflow-hidden
+                
+                fixed lg:relative top-0 left-0 z-50
+                
+                ${isOpen 
+                    ? 'w-64 translate-x-0 opacity-100' 
+                    : 'w-64 -translate-x-full lg:translate-x-0 lg:w-0 opacity-0 lg:opacity-100'
+                }
+                
+                lg:flex-shrink-0
+            `}
         >
             <div className="w-64 h-full flex flex-col">
                 
-                {/* HEADER & PROFIL (Fitur HEAD) */}
+                {/* HEADER & PROFIL */}
                 <div className="p-6">
-                    <div className="flex items-center space-x-2">
-                        <img src={logoSemen} alt="Logo" className="h-10" />
-                        <span className="font-bold text-red-700 text-xs uppercase">
-                            PT Semen Padang
-                        </span>
+                    {/* Header dengan Logo dan Close Button */}
+                    <div className="flex items-center justify-between space-x-2">
+                        <div className="flex items-center space-x-2">
+                            <img src={logoSemen} alt="Logo" className="h-10" />
+                            <span className="font-bold text-red-700 text-xs uppercase whitespace-nowrap">
+                                PT SEMEN PADANG
+                            </span>
+                        </div>
+                        
+                        {/* CLOSE BUTTON - Hanya tampil di mobile */}
+                        <button
+                            onClick={onClose}
+                            className="lg:hidden w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                            <i className="fas fa-times text-lg"></i>
+                        </button>
                     </div>
 
                     <div className="mt-8 flex flex-col items-center">
@@ -91,12 +121,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
                         return (
                             <div
                                 key={index}
-                                onClick={() => {
-                                    navigate(item.path);
-                                    // Logika Pintar HEAD: Hanya tutup sidebar otomatis jika layar kecil (mobile/tablet)
-                                    // Agar di Laptop tidak capek buka-tutup sidebar terus
-                                    if (window.innerWidth < 1024) onClose();
-                                }}
+                                onClick={() => handleMenuClick(item.path)}
                                 className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                                     isActive 
                                     ? 'bg-red-600 text-white shadow-lg shadow-red-200' 

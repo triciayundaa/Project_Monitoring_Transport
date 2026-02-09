@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
 // Import gambar dari folder assets
 import logoSemen from '../assets/logo-semen-padang.png';
@@ -20,8 +21,8 @@ const Login = () => {
             // Clear localStorage dulu untuk menghindari data lama
             localStorage.removeItem('user');
             
-            // Memanggil API Backend
-            const response = await axios.post('http://localhost:3000/api/auth/login', { 
+            // Memanggil API Backend GUNAKAN API_BASE_URL
+            const response = await axios.post(`${API_BASE_URL}/api/auth/login`, { 
                 email, 
                 password 
             });
@@ -120,7 +121,7 @@ const Login = () => {
                             />
                             {/* IKON MATA */}
                             <button 
-                                type="button"
+                                type="button" 
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-600 transition-colors"
                                 onClick={() => setShowPassword(!showPassword)}
                             >

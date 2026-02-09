@@ -3,8 +3,10 @@ import { Eye, Search } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { useNavigate } from 'react-router-dom';
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
-const API = 'http://localhost:3000/api/water-truck/list';
+// GUNAKAN API_BASE_URL
+const API = `${API_BASE_URL}/api/water-truck/list`;
 
 const filterInput = 'w-full px-4 py-2.5 rounded-[12px] bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-200';
 
@@ -263,7 +265,39 @@ const DaftarTrukAir = () => {
                 <main className="flex-grow p-4 md:p-6 overflow-y-auto">
                     {/* Filter Section */}
                     <div className="bg-gray-100 rounded-[14px] p-4 mb-5">
-                        <div className="flex flex-wrap items-center gap-3">
+                        {/* Mobile: Vertical Layout */}
+                        <div className="flex flex-col gap-3 lg:hidden">
+                            <div className="relative">
+                                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari PO, Vendor, Transporter..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className={`${filterInput} pl-11 w-full`}
+                                />
+                            </div>
+
+                            <div className="flex gap-2">
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className={filterInput}
+                                    placeholder="Dari"
+                                />
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className={filterInput}
+                                    placeholder="Sampai"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Desktop: Horizontal Layout */}
+                        <div className="hidden lg:flex flex-wrap items-center gap-3">
                             <div className="flex-1 min-w-[200px] relative">
                                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input

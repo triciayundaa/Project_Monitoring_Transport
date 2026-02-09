@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, AlertCircle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import API_BASE_URL from '../config/api'; // <--- IMPORT FILE CONFIG
 
 
 const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
@@ -80,7 +81,8 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
 
     const fetchTransporters = async () => {
         try {
-            const res = await fetch('http://localhost:3000/api/kegiatan/transporters');
+            // GUNAKAN API_BASE_URL
+            const res = await fetch(`${API_BASE_URL}/api/kegiatan/transporters`);
             const data = await res.json();
             setAvailableTransporters(data);
         } catch (error) {
@@ -283,9 +285,10 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
             }
         }
 
+        // GUNAKAN API_BASE_URL
         const url = mode === 'add' 
-            ? 'http://localhost:3000/api/kegiatan' 
-            : `http://localhost:3000/api/kegiatan/${data.old_no_po || data.no_po}`;
+            ? `${API_BASE_URL}/api/kegiatan` 
+            : `${API_BASE_URL}/api/kegiatan/${data.old_no_po || data.no_po}`;
         
         const method = mode === 'add' ? 'POST' : 'PUT';
 
@@ -546,7 +549,7 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                                 Batal
                             </button>
                             <button 
-                                type="button"
+                                type="button" 
                                 onClick={handleSubmit}
                                 disabled={loading}
                                 className="px-6 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200 disabled:opacity-70 flex items-center gap-2"

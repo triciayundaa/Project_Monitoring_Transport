@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Truck, Search, MapPin, Clock, CheckCircle, XCircle, Image as ImageIcon, FileText, FileDown } from 'lucide-react';
+import { ArrowLeft, Truck, Search, MapPin, Clock, CheckCircle, XCircle, Image as ImageIcon, FileText, FileDown, Calendar } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { useParams } from 'react-router-dom';
 import PreviewLaporan from './PreviewLaporan';
 import PreviewLaporanAll from './PreviewLaporanAll';
-import UnduhLaporanTrukAir from './UnduhLaporanTrukAir'; // ✅ Import sudah ada
+import UnduhLaporanTrukAir from './UnduhLaporanTrukAir';
+import API_BASE_URL from '../config/api';
 
-const API = 'http://localhost:3000/api/water-truck';
+const API = `${API_BASE_URL}/api/water-truck`;
 
 const getPhotoUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('data:') || path.startsWith('http')) return path;
-  return `http://localhost:3000${path}`;
+  return `${API_BASE_URL}${path}`;
 };
 
 const splitPhotos = (photoString) => {
@@ -24,9 +25,9 @@ const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
   if (!isOpen) return null;
 
   const icons = {
-    success: <CheckCircle className="w-24 h-24 text-green-600" />,
-    error: <XCircle className="w-24 h-24 text-red-600" />,
-    warning: <Clock className="w-24 h-24 text-yellow-600" />
+    success: <CheckCircle className="w-16 md:w-24 h-16 md:h-24 text-green-600" />,
+    error: <XCircle className="w-16 md:w-24 h-16 md:h-24 text-red-600" />,
+    warning: <Clock className="w-16 md:w-24 h-16 md:h-24 text-yellow-600" />
   };
 
   const bgColors = {
@@ -43,15 +44,15 @@ const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-[2.5rem] p-12 w-full max-w-lg shadow-2xl flex flex-col items-center text-center animate-in zoom-in duration-300">
-        <div className={`w-48 h-48 ${bgColors[type]} rounded-full flex items-center justify-center mb-8 shadow-inner`}>
+      <div className="bg-white rounded-3xl md:rounded-[2.5rem] p-8 md:p-12 w-full max-w-sm md:max-w-lg shadow-2xl flex flex-col items-center text-center animate-in zoom-in duration-300">
+        <div className={`w-32 h-32 md:w-48 md:h-48 ${bgColors[type]} rounded-full flex items-center justify-center mb-6 md:mb-8 shadow-inner`}>
           {icons[type]}
         </div>
-        <h2 className="text-2xl font-black text-gray-800 uppercase mb-2 tracking-tight">{title}</h2>
-        <p className={`${textColors[type]} font-semibold text-lg mb-6`}>{message}</p>
+        <h2 className="text-xl md:text-2xl font-black text-gray-800 uppercase mb-2 tracking-tight">{title}</h2>
+        <p className={`${textColors[type]} font-semibold text-base md:text-lg mb-4 md:mb-6`}>{message}</p>
         <button 
           onClick={onClose}
-          className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 uppercase tracking-wider"
+          className="px-6 md:px-8 py-2.5 md:py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 uppercase tracking-wider text-sm md:text-base"
         >
           OK
         </button>
@@ -79,8 +80,6 @@ const DetailTrukAir = () => {
   const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
   const [previewLaporan, setPreviewLaporan] = useState(null);
   const [previewAll, setPreviewAll] = useState(false);
-  
-  // ✅ TAMBAHAN: State untuk modal unduh laporan
   const [showUnduhModal, setShowUnduhModal] = useState(false);
 
   const showModal = (type, title, message) => {
@@ -337,25 +336,23 @@ const DetailTrukAir = () => {
         />
       )}
 
-      {/* ✅ TAMBAHAN: Render modal unduh laporan */}
-        {showUnduhModal && (
-    <UnduhLaporanTrukAir
-        isOpen={showUnduhModal}
-        onClose={() => setShowUnduhModal(false)}
-        laporanList={filteredLaporan}
-        kegiatan={kegiatan}
-       
-        transporter={displayedTransporter()} 
-    />
-    )}
+      {showUnduhModal && (
+        <UnduhLaporanTrukAir
+          isOpen={showUnduhModal}
+          onClose={() => setShowUnduhModal(false)}
+          laporanList={filteredLaporan}
+          kegiatan={kegiatan}
+          transporter={displayedTransporter()} 
+        />
+      )}
 
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="flex-1 overflow-y-auto p-3 md:p-6">
 
-          <button onClick={() => window.history.back()} className="flex items-center gap-2 text-gray-600 hover:text-red-600 mb-6 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
+          <button onClick={() => window.history.back()} className="flex items-center gap-2 text-gray-600 hover:text-red-600 mb-4 md:mb-6 transition-colors text-sm md:text-base">
+            <ArrowLeft className="w-4 h-4 md:w-5 md:h-5" />
             <span className="font-medium">Kembali ke Daftar Truk Air</span>
           </button>
 
@@ -382,29 +379,26 @@ const DetailTrukAir = () => {
             setSelectedDate={setSelectedDate}
           />
 
-          {/* ✅ PERBAIKAN: Tombol Preview Semua & Unduh Laporan */}
-          <div className="flex items-center justify-between mb-4 gap-3">
-            {filteredLaporan.length > 0 && (
-              <>
-                <button
-                  onClick={() => setPreviewAll(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-                >
-                  <FileText className="w-4 h-4" />
-                  Preview Semua Laporan
-                </button>
+          {/* Tombol Preview & Unduh - RESPONSIVE */}
+          {filteredLaporan.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 mb-4">
+              <button
+                onClick={() => setPreviewAll(true)}
+                className="flex items-center justify-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs md:text-sm font-semibold transition-colors shadow-sm"
+              >
+                <FileText className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span>Preview Semua Laporan</span>
+              </button>
 
-                {/* ✅ TOMBOL UNDUH LAPORAN YANG HILANG */}
-                <button
-                  onClick={() => setShowUnduhModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-                >
-                  <FileDown className="w-4 h-4" />
-                  Unduh Laporan
-                </button>
-              </>
-            )}
-          </div>
+              <button
+                onClick={() => setShowUnduhModal(true)}
+                className="flex items-center justify-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs md:text-sm font-semibold transition-colors shadow-sm"
+              >
+                <FileDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span>Unduh Laporan</span>
+              </button>
+            </div>
+          )}
 
           <LaporanTable 
             laporanList={filteredLaporan} 
@@ -489,12 +483,12 @@ const NoDataScreen = ({ isSidebarOpen, onToggle }) => (
 );
 
 const TransporterDropdown = ({ transporterList, selectedTransporter, setSelectedTransporter }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-    <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Transporter</label>
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-4 mb-4 md:mb-6">
+    <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2">Pilih Transporter</label>
     <select 
       value={selectedTransporter} 
       onChange={(e) => setSelectedTransporter(e.target.value)}
-      className="w-full md:w-64 px-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-300 text-sm"
+      className="w-full md:w-64 px-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-300 text-xs md:text-sm"
     >
       <option>Semua Transporter</option>
       {transporterList.map(t => (
@@ -505,11 +499,11 @@ const TransporterDropdown = ({ transporterList, selectedTransporter, setSelected
 );
 
 const HeaderPO = ({ kegiatan, displayedTransporter, formatDate }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-    <h1 className="text-2xl font-bold text-gray-900 mb-6">PO {kegiatan.no_po}</h1>
-    <div className="mb-6">
-      <h2 className="text-sm font-semibold text-gray-700 mb-4">Informasi Kegiatan</h2>
-      <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 mb-4 md:mb-6">
+    <h1 className="text-lg md:text-2xl font-bold text-gray-900 mb-4 md:mb-6">PO {kegiatan.no_po}</h1>
+    <div className="mb-4 md:mb-6">
+      <h2 className="text-xs md:text-sm font-semibold text-gray-700 mb-3 md:mb-4">Informasi Kegiatan</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 md:gap-x-8 gap-y-3 md:gap-y-4">
         <InfoRow label="No PO" value={kegiatan.no_po} />
         <InfoRow label="Transporter" value={displayedTransporter} />
         <InfoRow label="Material" value={kegiatan.material || '-'} />
@@ -526,7 +520,7 @@ const HeaderPO = ({ kegiatan, displayedTransporter, formatDate }) => (
 );
 
 const StatistikCards = ({ statistik }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
     <StatCard title="Total Laporan" value={statistik.total_laporan} bgColor="bg-blue-50" textColor="text-blue-700" />
     <StatCard title="Total Truk Air" value={statistik.total_truk_air} bgColor="bg-green-50" textColor="text-green-700" />
     <StatCard title="Completed" value={statistik.completed} bgColor="bg-green-50" textColor="text-green-700" />
@@ -535,23 +529,32 @@ const StatistikCards = ({ statistik }) => (
 );
 
 const FilterBar = ({ searchQuery, setSearchQuery, selectedDate, setSelectedDate }) => (
-  <div className="bg-gray-100 rounded-xl p-3 mb-6 w-full flex flex-col md:flex-row gap-3 items-start md:items-center">
-    <div className="relative flex-1 min-w-0">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-      <input 
-        type="text" 
-        placeholder="Cari plat nomor, nama patroler, atau area pembersihan" 
-        value={searchQuery} 
-        onChange={e => setSearchQuery(e.target.value)} 
-        className="block w-full pl-9 pr-3 py-2 bg-white rounded-lg border-0 focus:ring-2 focus:ring-red-300 text-sm" 
-      />
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-4 mb-4 md:mb-6">
+    <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
+      {/* Search Input */}
+      <div className="relative flex-1 min-w-0">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none z-10" />
+        <input 
+          type="text" 
+          placeholder="Cari plat nomor, nama patroler..." 
+          value={searchQuery} 
+          onChange={e => setSearchQuery(e.target.value)} 
+          className="block w-full pl-9 pr-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200 focus:ring-2 focus:ring-red-300 focus:border-transparent text-sm transition-all" 
+        />
+      </div>
+      
+      {/* Date Input with Calendar Icon */}
+      <div className="relative w-full sm:w-auto sm:min-w-[160px]">
+        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none z-10" />
+        <input 
+          type="date" 
+          value={selectedDate} 
+          onChange={e => setSelectedDate(e.target.value)} 
+          className="block w-full pl-9 pr-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200 focus:ring-2 focus:ring-red-300 focus:border-transparent text-sm transition-all" 
+          style={{ colorScheme: 'light' }}
+        />
+      </div>
     </div>
-    <input 
-      type="date" 
-      value={selectedDate} 
-      onChange={e => setSelectedDate(e.target.value)} 
-      className="w-full md:w-36 lg:w-40 px-3 py-2 bg-white rounded-lg border-0 focus:ring-2 focus:ring-red-300 text-sm" 
-    />
   </div>
 );
 
@@ -561,39 +564,39 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
       <table className="w-full">
         <thead>
           <tr className="bg-red-600 text-white">
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Tanggal & Jam
             </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Nama Patroler
             </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Area Pembersihan
             </th>
             {showTransporterColumn && (
-              <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+              <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
                 Transporter
               </th>
             )}
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Plat Nomor Truk Air
             </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Foto Truk Air
             </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Foto Sebelum
             </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Foto Sedang
             </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Foto Setelah
             </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold border-r border-red-500/30 whitespace-nowrap">
               Status
             </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold whitespace-nowrap">
+            <th className="px-2 md:px-3 py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold whitespace-nowrap">
               Aksi
             </th>
           </tr>
@@ -601,10 +604,10 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
         <tbody>
           {laporanList.length === 0 ? (
             <tr>
-              <td colSpan={showTransporterColumn ? "11" : "10"} className="px-6 py-12 text-center">
-                <Truck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500 font-medium">Tidak ada data laporan</p>
-                <p className="text-sm text-gray-400 mt-1">Belum ada laporan pembersihan jalan</p>
+              <td colSpan={showTransporterColumn ? "11" : "10"} className="px-4 md:px-6 py-8 md:py-12 text-center">
+                <Truck className="w-10 h-10 md:w-12 md:h-12 mx-auto mb-2 md:mb-3 text-gray-300" />
+                <p className="text-gray-500 font-medium text-sm md:text-base">Tidak ada data laporan</p>
+                <p className="text-xs md:text-sm text-gray-400 mt-1">Belum ada laporan pembersihan jalan</p>
               </td>
             </tr>
           ) : (
@@ -617,22 +620,22 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
 
               return (
                 <tr key={index} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200 whitespace-nowrap">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200 whitespace-nowrap">
                     {formatDateTime(lap.created_at)}
                   </td>
                   
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
                     <div className="font-medium text-gray-900 whitespace-nowrap">
                       {lap.nama_petugas || '-'}
                     </div>
                     {lap.no_telp_petugas && (
-                      <div className="text-xs text-black-600 font-semibold whitespace-nowrap mt-0.5">
+                      <div className="text-[10px] md:text-xs text-black-600 font-semibold whitespace-nowrap mt-0.5">
                         {lap.no_telp_petugas}
                       </div>
                     )}
                   </td>
 
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
                     <div className="flex items-start gap-1 max-w-xs">
                       <span className="text-gray-800 font-medium leading-tight">
                         {lap.lokasi_pembersihan || '-'}
@@ -641,18 +644,18 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                   </td>
 
                   {showTransporterColumn && (
-                    <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
-                      <div className="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-semibold whitespace-nowrap">
+                    <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
+                      <div className="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-700 rounded text-[10px] md:text-xs font-semibold whitespace-nowrap">
                         {lap.nama_transporter || '-'}
                       </div>
                     </td>
                   )}
                   
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
                     {platNomorArr.length > 0 ? (
                       <div className="flex flex-col gap-1.5">
                         {platNomorArr.map((plat, idx) => (
-                          <div key={idx} className="inline-flex items-center justify-center px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold whitespace-nowrap">
+                          <div key={idx} className="inline-flex items-center justify-center px-2 py-1 bg-purple-100 text-purple-700 rounded text-[10px] md:text-xs font-bold whitespace-nowrap">
                             {plat}
                           </div>
                         ))}
@@ -661,14 +664,14 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                       <span className="text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
                     <PhotoCell 
                       photos={fotoTrukArr} 
                       label="Foto Truk Air"
                       onImageClick={(src) => setSelectedImage({ src: getPhotoUrl(src), label: 'Foto Truk Air', tanggal: lap.created_at })}
                     />
                   </td>
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
                     <PhotoCell 
                       photos={fotoSebelumArr} 
                       label="Foto Sebelum"
@@ -677,7 +680,7 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                       location={lap.lokasi_foto_sebelum}
                     />
                   </td>
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
                     <PhotoCell 
                       photos={fotoSedangArr} 
                       label="Foto Sedang"
@@ -686,7 +689,7 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                       location={lap.lokasi_foto_sedang}
                     />
                   </td>
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
                     <PhotoCell 
                       photos={fotoSetelahArr} 
                       label="Foto Setelah"
@@ -695,27 +698,27 @@ const LaporanTable = ({ laporanList, setSelectedImage, formatDateTime, handlePri
                       location={lap.lokasi_foto_setelah}
                     />
                   </td>
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top border-r border-gray-200">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top border-r border-gray-200">
                     <div className="flex justify-center">
                       {lap.status === 'Completed' ? (
-                        <span className="inline-flex px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium items-center gap-1 whitespace-nowrap">
-                          <CheckCircle className="w-3 h-3" /> Completed
+                        <span className="inline-flex px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] md:text-xs font-medium items-center gap-1 whitespace-nowrap">
+                          <CheckCircle className="w-3 h-3" /> <span className="hidden sm:inline">Completed</span>
                         </span>
                       ) : (
-                        <span className="inline-flex px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium whitespace-nowrap">
+                        <span className="inline-flex px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-[10px] md:text-xs font-medium whitespace-nowrap">
                           Draft
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                  <td className="px-2 md:px-3 py-2 md:py-3 text-[10px] md:text-xs text-gray-700 align-top">
                     <button
                       onClick={() => handlePrintPreview(lap)}
-                      className="w-full px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center justify-center gap-1 transition-colors text-xs font-medium whitespace-nowrap"
+                      className="w-full px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center justify-center gap-1 transition-colors text-[10px] md:text-xs font-medium whitespace-nowrap"
                       title="Lihat Preview Lengkap"
                     >
                       <FileText className="w-3 h-3" />
-                      Preview
+                      <span className="hidden sm:inline">Preview</span>
                     </button>
                   </td>
                 </tr>
@@ -792,20 +795,20 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
   };
 
   if (!photos || photos.length === 0) {
-    return <span className="text-gray-400 text-xs">-</span>;
+    return <span className="text-gray-400 text-[10px] md:text-xs">-</span>;
   }
 
   const truncatedAddress = getTruncatedAddress(address);
   const isAddressLong = address.length > 50;
 
   return (
-    <div className="space-y-1.5 min-w-[160px]">
+    <div className="space-y-1.5 min-w-[120px] md:min-w-[160px]">
       <div className="flex flex-wrap gap-1">
         {photos.map((photo, idx) => (
           <button
             key={idx}
             onClick={() => onImageClick(photo)}
-            className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 font-medium transition-colors whitespace-nowrap"
+            className="px-1.5 md:px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] md:text-xs hover:bg-blue-200 font-medium transition-colors whitespace-nowrap"
           >
             Foto {idx + 1}
           </button>
@@ -813,7 +816,7 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
       </div>
       
       {timestamp && (
-        <div className="flex items-center gap-1 text-xs text-gray-500">
+        <div className="flex items-center gap-1 text-[10px] md:text-xs text-gray-500">
           <Clock className="w-3 h-3 flex-shrink-0" />
           <span className="whitespace-nowrap">{formatTime(timestamp)}</span>
         </div>
@@ -821,7 +824,7 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
       
       {address && (
         <div className="relative group">
-          <div className="flex items-start gap-1 text-xs text-gray-600 leading-tight">
+          <div className="flex items-start gap-1 text-[10px] md:text-xs text-gray-600 leading-tight">
             <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0 text-red-500" />
             <span className="break-words">{truncatedAddress}</span>
           </div>
@@ -843,15 +846,15 @@ const PhotoCell = ({ photos, label, onImageClick, timestamp, location }) => {
 
 const InfoRow = ({ label, value }) => (
   <div className="flex justify-between items-start py-2 border-b border-gray-100">
-    <span className="text-sm text-gray-500">{label}</span>
-    <span className="text-sm font-medium text-gray-900 text-right">{value}</span>
+    <span className="text-xs md:text-sm text-gray-500">{label}</span>
+    <span className="text-xs md:text-sm font-medium text-gray-900 text-right">{value}</span>
   </div>
 );
 
 const StatCard = ({ title, value, bgColor, textColor }) => (
-  <div className={`${bgColor} rounded-xl p-5 border border-gray-200`}>
-    <p className="text-sm text-gray-600 mb-1">{title}</p>
-    <p className={`text-3xl font-bold ${textColor}`}>{value}</p>
+  <div className={`${bgColor} rounded-lg md:rounded-xl p-3 md:p-5 border border-gray-200`}>
+    <p className="text-xs md:text-sm text-gray-600 mb-1">{title}</p>
+    <p className={`text-xl md:text-3xl font-bold ${textColor}`}>{value}</p>
   </div>
 );
 

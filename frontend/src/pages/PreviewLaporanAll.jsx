@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, MapPin, CheckCircle, Truck, User, Phone, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import API_BASE_URL from '../config/api';
 
 /* ─── reverse geocode ─── */
 const useResolveLocation = (lokasiRaw) => {
@@ -25,17 +26,17 @@ const useResolveLocation = (lokasiRaw) => {
 const getPhotoUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('data:') || path.startsWith('http')) return path;
-  return `http://localhost:3000${path}`;
+  return `${API_BASE_URL}${path}`;
 };
 const splitPhotos = (str) => (str ? str.split(',').map(s => s.trim()).filter(Boolean) : []);
 
 /* ─── sub-components ─── */
 const InfoRow = ({ label, value, icon: Icon }) => (
   <div className="flex flex-col gap-0.5">
-    <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#9a8a8a' }}>{label}</span>
-    <span className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-      {Icon && <Icon className="w-3.5 h-3.5" style={{ color: '#c0392b' }} />}
-      {value || '–'}
+    <span className="text-[10px] md:text-xs font-medium uppercase tracking-wider" style={{ color: '#9a8a8a' }}>{label}</span>
+    <span className="text-xs md:text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+      {Icon && <Icon className="w-3 md:w-3.5 h-3 md:h-3.5" style={{ color: '#c0392b' }} />}
+      <span className="break-words">{value || '–'}</span>
     </span>
   </div>
 );
@@ -44,17 +45,17 @@ const MetaBar = ({ jam, lokasi }) => {
   const resolved = useResolveLocation(lokasi);
   if (!jam && !lokasi) return null;
   return (
-    <div className="flex flex-wrap items-center gap-4 mb-3 px-1">
+    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-4 mb-3 px-1">
       {jam && (
-        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-          <Clock className="w-3.5 h-3.5" style={{ color: '#c0392b' }} />
-          <span>{new Date(jam).toLocaleString('id-ID')}</span>
+        <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-gray-500">
+          <Clock className="w-3 md:w-3.5 h-3 md:h-3.5 flex-shrink-0" style={{ color: '#c0392b' }} />
+          <span className="break-words">{new Date(jam).toLocaleString('id-ID')}</span>
         </div>
       )}
       {lokasi && (
-        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-          <MapPin className="w-3.5 h-3.5" style={{ color: '#c0392b' }} />
-          <span>{resolved || '…'}</span>
+        <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-gray-500">
+          <MapPin className="w-3 md:w-3.5 h-3 md:h-3.5 flex-shrink-0" style={{ color: '#c0392b' }} />
+          <span className="break-words line-clamp-2">{resolved || '…'}</span>
         </div>
       )}
     </div>
@@ -62,23 +63,23 @@ const MetaBar = ({ jam, lokasi }) => {
 };
 
 const SectionDivider = ({ label }) => (
-  <div className="flex items-center gap-2 mb-3">
-    <div className="w-1 h-5 rounded-full" style={{ background: 'linear-gradient(180deg, #c0392b, #d9534f)' }}></div>
-    <h4 className="text-sm font-bold text-gray-600 uppercase tracking-wider">{label}</h4>
+  <div className="flex items-center gap-2 mb-2 md:mb-3">
+    <div className="w-1 h-4 md:h-5 rounded-full flex-shrink-0" style={{ background: 'linear-gradient(180deg, #c0392b, #d9534f)' }}></div>
+    <h4 className="text-xs md:text-sm font-bold text-gray-600 uppercase tracking-wider break-words">{label}</h4>
   </div>
 );
 
 const PhotoGrid = ({ photos, altPrefix, onPhotoClick, globalOffset }) => {
   if (!photos.length) return null;
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-2 md:gap-3">
       {photos.map((foto, idx) => (
         <div
           key={idx}
-          className="rounded-xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-200 transition-all"
+          className="rounded-lg md:rounded-xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-200 transition-all"
           onClick={() => onPhotoClick(globalOffset + idx)}
         >
-          <img src={getPhotoUrl(foto)} alt={`${altPrefix} ${idx + 1}`} className="w-full object-cover" style={{ height: '220px' }} />
+          <img src={getPhotoUrl(foto)} alt={`${altPrefix} ${idx + 1}`} className="w-full object-cover" style={{ height: '150px', maxHeight: '220px' }} />
         </div>
       ))}
     </div>
@@ -99,18 +100,19 @@ const Lightbox = ({ src, label, index, total, onClose, onPrev, onNext }) => {
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.88)' }} onClick={onClose}>
-      <button onClick={onClose} className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors">
-        <X className="w-6 h-6" />
+      <button onClick={onClose} className="absolute top-2 md:top-4 right-2 md:right-4 z-10 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors">
+        <X className="w-5 h-5 md:w-6 md:h-6" />
       </button>
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full text-xs font-semibold text-white" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' }}>
-        {label} — {index + 1} / {total}
+      <div className="absolute top-2 md:top-4 left-1/2 -translate-x-1/2 z-10 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs font-semibold text-white max-w-[80vw] text-center" style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' }}>
+        <span className="block truncate">{label}</span>
+        <span className="block">{index + 1} / {total}</span>
       </div>
-      <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="absolute left-3 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors">
-        <ChevronLeft className="w-6 h-6" />
+      <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="absolute left-1 md:left-3 z-10 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors">
+        <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
       </button>
       <img src={src} alt={label} className="max-w-[90vw] max-h-[85vh] object-contain" onClick={(e) => e.stopPropagation()} />
-      <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="absolute right-3 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors">
-        <ChevronRight className="w-6 h-6" />
+      <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="absolute right-1 md:right-3 z-10 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors">
+        <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
       </button>
     </div>
   );
@@ -124,8 +126,8 @@ const PreviewLaporanAll = ({ laporanList, onClose }) => {
   const [lightboxIdx, setLightboxIdx] = useState(null);
 
   /* ── bangun flat list foto dari semua laporan ── */
-  const allPhotos = [];                          // { src, label }
-  const laporanMeta = [];                        // per-laporan: { startIdx, groups }
+  const allPhotos = [];
+  const laporanMeta = [];
 
   laporanList.forEach((lap, lapIdx) => {
     const truk    = splitPhotos(lap.foto_truk_air);
@@ -159,46 +161,46 @@ const PreviewLaporanAll = ({ laporanList, onClose }) => {
     <>
       {/* ── modal ── */}
       <div className="fixed inset-0 z-[9999] overflow-y-auto" style={{ background: 'rgba(20,18,18,0.65)', backdropFilter: 'blur(3px)' }}>
-        <div className={`min-h-screen flex items-start justify-center ${isFullscreen ? 'p-0' : 'py-10 px-4'}`}>
-          <div className={`bg-white shadow-2xl w-full ${isFullscreen ? 'min-h-screen rounded-none max-w-none' : 'rounded-2xl max-w-4xl'}`} style={{ fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+        <div className={`min-h-screen flex items-start justify-center ${isFullscreen ? 'p-0' : 'py-2 md:py-10 px-2 md:px-4'}`}>
+          <div className={`bg-white shadow-2xl w-full ${isFullscreen ? 'min-h-screen rounded-none max-w-none' : 'rounded-xl md:rounded-2xl max-w-4xl'}`} style={{ fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
 
-            {/* header sticky */}
-            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg, #f5eeee 0%, #f0e8e8 100%)' }}>
-              <div className="flex items-center gap-3">
-                <h2 className="text-base font-bold text-gray-700">Preview Semua Laporan</h2>
-                <span className="px-2 py-0.5 rounded-full text-xs font-bold text-white" style={{ background: '#c0392b' }}>
-                  {laporanList.length} Laporan
+            {/* header sticky - RESPONSIVE */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 py-2.5 md:py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg, #f5eeee 0%, #f0e8e8 100%)' }}>
+              <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+                <h2 className="text-sm md:text-base font-bold text-gray-700 truncate">Preview Semua Laporan</h2>
+                <span className="px-1.5 md:px-2 py-0.5 rounded-full text-[10px] md:text-xs font-bold text-white whitespace-nowrap flex-shrink-0" style={{ background: '#c0392b' }}>
+                  {laporanList.length}
                 </span>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setIsFullscreen(f => !f)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title={isFullscreen ? 'Kembalikan ukuran' : 'Perbesar'}>
-                  {isFullscreen ? <Minimize2 className="w-4.5 h-4.5" /> : <Maximize2 className="w-4.5 h-4.5" />}
+              <div className="flex items-center gap-0.5 md:gap-1">
+                <button onClick={() => setIsFullscreen(f => !f)} className="w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title={isFullscreen ? 'Kembalikan ukuran' : 'Perbesar'}>
+                  {isFullscreen ? <Minimize2 className="w-3.5 md:w-4.5 h-3.5 md:h-4.5" /> : <Maximize2 className="w-3.5 md:w-4.5 h-3.5 md:h-4.5" />}
                 </button>
-                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-                  <X className="w-5 h-5" />
+                <button onClick={onClose} className="w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                  <X className="w-4 md:w-5 h-4 md:h-5" />
                 </button>
               </div>
             </div>
 
-            {/* body */}
-            <div className={isFullscreen ? 'p-10 max-w-5xl mx-auto' : 'p-8'}>
+            {/* body - RESPONSIVE PADDING */}
+            <div className={isFullscreen ? 'p-4 md:p-10 max-w-5xl mx-auto' : 'p-3 md:p-8'}>
 
               {laporanList.length === 0 && (
-                <p className="text-center text-gray-400 italic py-16">Tidak ada laporan untuk ditampilkan.</p>
+                <p className="text-center text-gray-400 italic py-10 md:py-16 text-sm">Tidak ada laporan untuk ditampilkan.</p>
               )}
 
               {laporanMeta.map(({ startIdx, groups, lap }, lapIdx) => {
                 const platNomorArr = lap.plat_nomor_truk_air ? lap.plat_nomor_truk_air.split(',').map(s => s.trim()) : [];
                 const isCompleted  = lap.status === 'Completed';
-                let photoOffset    = startIdx;   // running pointer untuk global foto index
+                let photoOffset    = startIdx;
 
                 return (
                   <div key={lapIdx}>
                     {/* ── separator antar laporan ── */}
                     {lapIdx > 0 && (
-                      <div className="my-10 flex items-center gap-4">
+                      <div className="my-6 md:my-10 flex items-center gap-3 md:gap-4">
                         <div className="flex-1 h-px bg-gray-200"></div>
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest px-3 py-1 rounded-full bg-gray-100">
+                        <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest px-2 md:px-3 py-1 rounded-full bg-gray-100 whitespace-nowrap">
                           Laporan berikutnya
                         </span>
                         <div className="flex-1 h-px bg-gray-200"></div>
@@ -206,22 +208,22 @@ const PreviewLaporanAll = ({ laporanList, onClose }) => {
                     )}
 
                     {/* ── nomor laporan ── */}
-                    <div className="flex items-center gap-3 mb-5">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm" style={{ background: 'linear-gradient(135deg, #c0392b, #d9534f)' }}>
+                    <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-5">
+                      <div className="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white text-xs md:text-sm font-bold shadow-sm flex-shrink-0" style={{ background: 'linear-gradient(135deg, #c0392b, #d9534f)' }}>
                         {lapIdx + 1}
                       </div>
-                      <h3 className="text-base font-bold text-gray-800">Laporan {lapIdx + 1}</h3>
-                      <span className={`ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${isCompleted ? 'text-emerald-700' : 'text-amber-700'}`}
+                      <h3 className="text-sm md:text-base font-bold text-gray-800">Laporan {lapIdx + 1}</h3>
+                      <span className={`ml-auto inline-flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold flex-shrink-0 ${isCompleted ? 'text-emerald-700' : 'text-amber-700'}`}
                         style={{ background: isCompleted ? '#dcfce7' : '#fef3c7' }}>
-                        {isCompleted ? <CheckCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                        {isCompleted ? 'Completed' : 'Draft'}
+                        {isCompleted ? <CheckCircle className="w-3 md:w-3.5 h-3 md:h-3.5" /> : <Clock className="w-3 md:w-3.5 h-3 md:h-3.5" />}
+                        <span className="hidden sm:inline">{isCompleted ? 'Completed' : 'Draft'}</span>
                       </span>
                     </div>
 
-                    {/* ── info laporan ── */}
-                    <div className="rounded-xl p-5 mb-5" style={{ background: 'linear-gradient(135deg, #f5eeee 0%, #f2e6e6 100%)', border: '1px solid #eedede' }}>
+                    {/* ── info laporan - RESPONSIVE GRID ── */}
+                    <div className="rounded-lg md:rounded-xl p-3 md:p-5 mb-3 md:mb-5" style={{ background: 'linear-gradient(135deg, #f5eeee 0%, #f2e6e6 100%)', border: '1px solid #eedede' }}>
                       <SectionDivider label="Informasi Laporan" />
-                      <div className="grid grid-cols-3 gap-x-6 gap-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-x-6 md:gap-y-4">
                         <InfoRow label="Nama Petugas Lapangan" value={lap.nama_petugas || '-'}       icon={User} />
                         <InfoRow label="No. Telepon"           value={lap.no_telp_petugas || '-'}    icon={Phone} />
                         <InfoRow label="Transporter"           value={lap.nama_transporter || '-'}   icon={Truck} />
@@ -230,39 +232,38 @@ const PreviewLaporanAll = ({ laporanList, onClose }) => {
 
                     {/* ── area pembersihan ── */}
                     {lap.lokasi_pembersihan && (
-                      <div className="rounded-xl p-5 mb-5" style={{ background: '#fafafa', border: '1px solid #e8d8d8' }}>
+                      <div className="rounded-lg md:rounded-xl p-3 md:p-5 mb-3 md:mb-5" style={{ background: '#fafafa', border: '1px solid #e8d8d8' }}>
                         <SectionDivider label="Area Pembersihan" />
-                        <div className="flex items-start gap-2 text-sm text-gray-700">
-                          <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#c0392b' }} />
-                          <span className="font-medium">{lap.lokasi_pembersihan}</span>
+                        <div className="flex items-start gap-2 text-xs md:text-sm text-gray-700">
+                          <MapPin className="w-3.5 md:w-4 h-3.5 md:h-4 mt-0.5 flex-shrink-0" style={{ color: '#c0392b' }} />
+                          <span className="font-medium break-words">{lap.lokasi_pembersihan}</span>
                         </div>
                       </div>
                     )}
 
-                    {/* ── plat nomor ── */}
-                    <div className="rounded-xl p-5 mb-5" style={{ background: '#fafafa', border: '1px solid #e8d8d8' }}>
+                    {/* ── plat nomor - RESPONSIVE ── */}
+                    <div className="rounded-lg md:rounded-xl p-3 md:p-5 mb-3 md:mb-5" style={{ background: '#fafafa', border: '1px solid #e8d8d8' }}>
                       <SectionDivider label="Plat Nomor Truk Air" />
                       {platNomorArr.length > 0 ? (
-                        <div className="flex flex-wrap gap-2.5">
+                        <div className="flex flex-wrap gap-2 md:gap-2.5">
                           {platNomorArr.map((plat, i) => (
-                            <div key={i} className="px-5 py-2 rounded-lg font-bold text-base tracking-widest shadow-sm"
+                            <div key={i} className="px-3 md:px-5 py-1.5 md:py-2 rounded-lg font-bold text-sm md:text-base tracking-widest shadow-sm"
                               style={{ background: 'linear-gradient(135deg, #f5eeee, #eedede)', color: '#a33025', border: '1px solid #d9c0c2' }}>
                               {plat}
                             </div>
                           ))}
                         </div>
-                      ) : <p className="text-xs text-gray-400 italic">Tidak ada data plat nomor</p>}
+                      ) : <p className="text-[10px] md:text-xs text-gray-400 italic">Tidak ada data plat nomor</p>}
                     </div>
 
                     {/* ── foto per grup ── */}
                     {groups.map((g) => {
                       const currentOffset = photoOffset;
-                      photoOffset += g.photos.length;   // geser pointer
+                      photoOffset += g.photos.length;
 
                       return (
-                        <div key={g.key} className="mb-5">
+                        <div key={g.key} className="mb-3 md:mb-5">
                           <SectionDivider label={g.label} />
-                          {/* metabar hanya untuk grup yang punya timestamp/lokasi */}
                           {g.key === 'sebelum' && <MetaBar jam={lap.jam_foto_sebelum} lokasi={lap.lokasi_foto_sebelum} />}
                           {g.key === 'sedang'  && <MetaBar jam={lap.jam_foto_sedang}  lokasi={lap.lokasi_foto_sedang} />}
                           {g.key === 'setelah' && <MetaBar jam={lap.jam_foto_setelah} lokasi={lap.lokasi_foto_setelah} />}
@@ -275,11 +276,11 @@ const PreviewLaporanAll = ({ laporanList, onClose }) => {
               })}
 
               {/* footer */}
-              <div className="mt-10 pt-4 text-center" style={{ borderTop: '1px dashed #d8cece' }}>
-                <p className="text-xs text-gray-400">
+              <div className="mt-6 md:mt-10 pt-3 md:pt-4 text-center" style={{ borderTop: '1px dashed #d8cece' }}>
+                <p className="text-[10px] md:text-xs text-gray-400">
                   Preview dibuat pada: <span className="font-medium text-gray-500">{new Date().toLocaleString('id-ID')}</span>
                 </p>
-                <p className="text-xs text-gray-300 mt-0.5">{laporanList.length} laporan ditampilkan</p>
+                <p className="text-[10px] md:text-xs text-gray-300 mt-0.5">{laporanList.length} laporan ditampilkan</p>
               </div>
             </div>
           </div>
