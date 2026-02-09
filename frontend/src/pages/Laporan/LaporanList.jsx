@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../../components/Sidebar';
 import Topbar from '../../components/Topbar';
+import API_BASE_URL from '../../config/api'; // <--- IMPORT CONFIG
 
 const LaporanList = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -31,7 +32,8 @@ const LaporanList = () => {
     const fetchRiwayatLaporan = async () => {
         try {
             setLoading(true);
-            const res = await axios.get('http://localhost:3000/api/laporan');
+            // GUNAKAN API_BASE_URL
+            const res = await axios.get(`${API_BASE_URL}/api/laporan`);
             setDaftarLaporan(res.data.data || []);
         } catch (err) {
             console.error("Gagal memuat riwayat laporan:", err);
@@ -44,7 +46,8 @@ const LaporanList = () => {
     const handleDelete = async () => {
         if (!reportToDelete) return;
         try {
-            await axios.delete(`http://localhost:3000/api/laporan/${reportToDelete.id}`);
+            // GUNAKAN API_BASE_URL
+            await axios.delete(`${API_BASE_URL}/api/laporan/${reportToDelete.id}`);
             setIsDeleteModalOpen(false);
             setReportToDelete(null);
             fetchRiwayatLaporan(); 
@@ -57,7 +60,8 @@ const LaporanList = () => {
     // 2. Ambil daftar PO untuk pilihan di Modal
     const handleOpenModal = async () => {
         try {
-            const res = await axios.get('http://localhost:3000/api/kegiatan');
+            // GUNAKAN API_BASE_URL
+            const res = await axios.get(`${API_BASE_URL}/api/kegiatan`);
             setPoList(res.data);
             setIsModalOpen(true);
         } catch (err) {
@@ -73,7 +77,8 @@ const LaporanList = () => {
         if (reportType === 'po') {
             if (!selectedPo) return alert("Silakan pilih No PO terlebih dahulu");
             
-            await axios.post('http://localhost:3000/api/laporan/add', {
+            // GUNAKAN API_BASE_URL
+            await axios.post(`${API_BASE_URL}/api/laporan/add`, {
                 judul: `Laporan Rekapitulasi PO ${selectedPo}`,
                 tipe_laporan: 'Mingguan', // Ubah agar tidak bentrok dengan filter 'Lainnya'
                 file_path: `/laporan/detail/${selectedPo}`,
@@ -88,7 +93,8 @@ const LaporanList = () => {
             let kategori = 'Bulanan';
             if (diffInDays > 60) kategori = 'Lainnya'; // Ini yang akan muncul saat filter 'Per Tahun'
 
-            await axios.post('http://localhost:3000/api/laporan/add', {
+            // GUNAKAN API_BASE_URL
+            await axios.post(`${API_BASE_URL}/api/laporan/add`, {
                 judul: `Laporan Periodik (${startDate} s/d ${endDate})`,
                 tipe_laporan: kategori, 
                 file_path: `/laporan/periodik?start=${startDate}&end=${endDate}`,

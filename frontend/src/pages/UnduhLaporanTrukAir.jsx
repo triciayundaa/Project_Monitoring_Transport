@@ -3,6 +3,7 @@ import { X, FileText, FileSpreadsheet, FileDown, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import API_BASE_URL from '../config/api'; // <--- IMPORT FILE BARU TADI
 
 const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transporter }) => {
   const [selectedFormat, setSelectedFormat] = useState('pdf');
@@ -10,7 +11,8 @@ const UnduhLaporanTrukAir = ({ isOpen, onClose, laporanList, kegiatan, transport
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
 
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+  // GUNAKAN API_BASE_URL DARI CONFIG
+  const BACKEND_URL = API_BASE_URL;
 
   if (!isOpen) return null;
 

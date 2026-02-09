@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../../components/Sidebar';
 import Topbar from '../../components/Topbar';
+import API_BASE_URL from '../../config/api'; // <--- IMPORT CONFIG
 
 const VehicleList = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -15,8 +16,8 @@ const VehicleList = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            // Memanggil endpoint yang sudah diperbarui logic count-nya di backend
-            const response = await axios.get('http://localhost:3000/api/vehicles/transporters');
+            // GUNAKAN API_BASE_URL
+            const response = await axios.get(`${API_BASE_URL}/api/vehicles/transporters`);
             console.log('📦 Data dari API Transporters:', response.data); 
             setTransporters(response.data);
             

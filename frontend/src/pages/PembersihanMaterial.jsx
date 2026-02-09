@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-
-// --- PENTING: PENGATURAN ALAMAT SERVER ---
-// Ganti localhost dengan IP Laptop jika dijalankan di HP (misal: 192.168.1.5)
-const API_BASE_URL = 'http://localhost:3000'; 
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
 const getPhotoUrl = (photoData) => {
     if (!photoData) return null;
     if (photoData.startsWith('data:image')) return photoData; 
+    // GUNAKAN API_BASE_URL
     return `${API_BASE_URL}${photoData}`; 
 };
 
@@ -86,6 +84,7 @@ const PembersihanMaterial = () => {
 
     const fetchMasterData = async () => { 
         try { 
+            // GUNAKAN API_BASE_URL
             const res = await axios.get(`${API_BASE_URL}/api/water-truck/active-po`); 
             if (res.data.status === 'Success' && Array.isArray(res.data.data)) {
                 const rawData = res.data.data;
@@ -104,6 +103,7 @@ const PembersihanMaterial = () => {
     const fetchData = async () => {
         if (!user) return;
         try {
+            // GUNAKAN API_BASE_URL
             const res = await axios.get(`${API_BASE_URL}/api/water-truck`, { 
                 params: { email_patroler: user.email, tanggal: selectedDate } 
             });
@@ -324,7 +324,6 @@ const PembersihanMaterial = () => {
                             const data = await response.json();
                             
                             if (data && data.display_name) {
-                                // Ambil 3 bagian pertama alamat
                                 const addressStr = data.display_name.split(',').slice(0, 3).join(',');
                                 // --- FORMAT BARU: NAMA JALAN (LAT, LONG) ---
                                 lastLocation = `${addressStr} (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
@@ -380,7 +379,6 @@ const PembersihanMaterial = () => {
                 
                 ctx.font = `${fontSizeSmall}px Arial`;
                 let displayLoc = lastLocation;
-                // Logika pemotongan teks agar tidak keluar kotak
                 const maxChars = Math.floor(canvas.width / (fontSizeSmall * 0.6));
                 if (displayLoc.length > maxChars) {
                     displayLoc = displayLoc.substring(0, maxChars) + "...";
@@ -434,6 +432,7 @@ const PembersihanMaterial = () => {
                 lokasi_setelah: formData.lokasi_setelah
             };
 
+            // GUNAKAN API_BASE_URL
             const res = await axios.post(`${API_BASE_URL}/api/water-truck`, payload);
             setSuccessMessage(res.data.message);
             setShowModalSuccess(true);

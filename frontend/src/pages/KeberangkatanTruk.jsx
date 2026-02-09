@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_BASE_URL from '../config/api'; 
 
 // --- HELPER UNTUK URL FOTO ---
 const getPhotoUrl = (photoData) => {
@@ -8,7 +9,7 @@ const getPhotoUrl = (photoData) => {
     if (photoData.startsWith('data:image')) {
         return photoData; 
     }
-    return `http://localhost:3000${photoData}`;
+    return `${API_BASE_URL}${photoData}`;
 };
 
 const getBadgeColor = (name) => {
@@ -87,7 +88,7 @@ const KeberangkatanTruk = () => {
         const checkUserShiftStatus = async () => {
             if (!user?.email || !selectedDate) return;
             try {
-                const res = await axios.get(`http://localhost:3000/api/keberangkatan/status-shift`, {
+                const res = await axios.get(`${API_BASE_URL}/api/keberangkatan/status-shift`, {
                     params: { email: user.email, tanggal: selectedDate }
                 });
                 if (res.data.status === 'Success') {
@@ -108,7 +109,7 @@ const KeberangkatanTruk = () => {
             const year = currentMonthInfo.year;
             const month = String(currentMonthInfo.month + 1).padStart(2, '0');
             const monthKey = `${year}-${month}`;
-            const res = await axios.get(`http://localhost:3000/api/jadwal?month=${monthKey}`);
+            const res = await axios.get(`${API_BASE_URL}/api/jadwal?month=${monthKey}`);
             if (res.data.status === 'Success') {
                 setJadwalBulanan(res.data.data);
             } else {
@@ -138,7 +139,7 @@ const KeberangkatanTruk = () => {
     const loadKeberangkatanData = async () => {
         if (!user || !user.email) return;
         try {
-            const response = await axios.get(`http://localhost:3000/api/keberangkatan`, {
+            const response = await axios.get(`${API_BASE_URL}/api/keberangkatan`, {
                 params: { tanggal: selectedDate, email_user: user.email }
             });
             if (response.data.status === 'Success') {
@@ -203,7 +204,7 @@ const KeberangkatanTruk = () => {
         setEditDataId(truck.id);
         setLoading(true);
         try {
-            const response = await axios.post('http://localhost:3000/api/keberangkatan/cek-po', { no_po: truck.no_po });
+            const response = await axios.post(`${API_BASE_URL}/api/keberangkatan/cek-po`, { no_po: truck.no_po });
             if (response.data.status === 'Success') {
                 const dataPO = response.data.data;
                 setPoData(dataPO);
@@ -238,14 +239,31 @@ const KeberangkatanTruk = () => {
         }
         setLoading(true);
         try {
-            const response = await axios.post('http://localhost:3000/api/keberangkatan/cek-po', { no_po: noPOTrimmed });
+            const response = await axios.post(`${API_BASE_URL}/api/keberangkatan/cek-po`, { no_po: noPOTrimmed });
             if (response.data.status === 'Success') {
                 const dataPO = response.data.data;
+                
+                // --- MODIFIKASI VALIDASI TANGGAL ---
+                // Pastikan 'dataPO.tanggal_mulai' (dari DB) formatnya YYYY-MM-DD
+                const todayStr = getLocalTodayDate(); // YYYY-MM-DD
+                
+                // Ambil tanggal mulai dari data PO (asumsi format YYYY-MM-DD atau ISO)
+                // Kita ambil 10 karakter pertama biar aman (YYYY-MM-DD)
+                const poStartDate = String(dataPO.tanggal_mulai).substring(0, 10);
+
+                if (poStartDate !== todayStr) {
+                    setWarningMessage(`GAGAL: PO ${dataPO.no_po} dimulai tanggal ${formatDateForDisplay(poStartDate)}. Anda hanya bisa input PO yang dimulai HARI INI (${formatDateForDisplay(todayStr)}).`);
+                    setShowModalWarning(true);
+                    return; // Stop eksekusi
+                }
+                // -----------------------------------
+
                 if (dataPO.status === 'Completed') {
                     setWarningMessage(`Nomor PO ${dataPO.no_po} sudah berstatus COMPLETED (Selesai). Data tidak dapat ditambah lagi.`);
                     setShowModalWarning(true);
                     return;
                 }
+                
                 setPoData(dataPO);
                 setTransporterList(response.data.transporters || []); 
                 setShowModalPO(false);
@@ -332,7 +350,7 @@ const KeberangkatanTruk = () => {
         setLoading(true);
         try {
             if (isEditMode && editDataId) {
-                const response = await axios.put(`http://localhost:3000/api/keberangkatan/${editDataId}`, {
+                const response = await axios.put(`${API_BASE_URL}/api/keberangkatan/${editDataId}`, {
                     kegiatan_id: poData.id,
                     transporter_id: formData.transporter_id,
                     no_polisi: formData.no_polisi.trim(),
@@ -348,7 +366,7 @@ const KeberangkatanTruk = () => {
                     loadKeberangkatanData();
                 }
             } else {
-                const response = await axios.post('http://localhost:3000/api/keberangkatan', {
+                const response = await axios.post(`${API_BASE_URL}/api/keberangkatan`, {
                     kegiatan_id: poData.id,
                     transporter_id: formData.transporter_id,
                     no_polisi: formData.no_polisi.trim(),

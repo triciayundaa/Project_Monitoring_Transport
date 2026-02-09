@@ -3,8 +3,10 @@ import { Eye, Search } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { useNavigate } from 'react-router-dom';
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
-const API = 'http://localhost:3000/api/water-truck/list';
+// GUNAKAN API_BASE_URL
+const API = `${API_BASE_URL}/api/water-truck/list`;
 
 const filterInput = 'w-full px-4 py-2.5 rounded-[12px] bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-200';
 

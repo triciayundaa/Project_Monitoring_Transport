@@ -6,13 +6,16 @@ import { useParams } from 'react-router-dom';
 import PreviewLaporan from './PreviewLaporan';
 import PreviewLaporanAll from './PreviewLaporanAll';
 import UnduhLaporanTrukAir from './UnduhLaporanTrukAir'; // ✅ Import sudah ada
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
-const API = 'http://localhost:3000/api/water-truck';
+// GUNAKAN API_BASE_URL
+const API = `${API_BASE_URL}/api/water-truck`;
 
 const getPhotoUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('data:') || path.startsWith('http')) return path;
-  return `http://localhost:3000${path}`;
+  // GUNAKAN API_BASE_URL
+  return `${API_BASE_URL}${path}`;
 };
 
 const splitPhotos = (photoString) => {

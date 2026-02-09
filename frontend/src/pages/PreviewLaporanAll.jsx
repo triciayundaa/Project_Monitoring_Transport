@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, MapPin, CheckCircle, Truck, User, Phone, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import API_BASE_URL from '../config/api'; // <--- IMPORT FILE CONFIG
 
 /* ─── reverse geocode ─── */
 const useResolveLocation = (lokasiRaw) => {
@@ -25,7 +26,8 @@ const useResolveLocation = (lokasiRaw) => {
 const getPhotoUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('data:') || path.startsWith('http')) return path;
-  return `http://localhost:3000${path}`;
+  // GUNAKAN API_BASE_URL
+  return `${API_BASE_URL}${path}`;
 };
 const splitPhotos = (str) => (str ? str.split(',').map(s => s.trim()).filter(Boolean) : []);
 

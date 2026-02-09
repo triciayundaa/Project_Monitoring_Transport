@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, MapPin, CheckCircle, Truck, User, Phone, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
 /* ─── reverse geocode koordinat → nama tempat (Nominatim, gratis) ─── */
 const useResolveLocation = (lokasiRaw) => {
@@ -38,7 +39,8 @@ const useResolveLocation = (lokasiRaw) => {
 const getPhotoUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('data:') || path.startsWith('http')) return path;
-  return `http://localhost:3000${path}`;
+  // GUNAKAN API_BASE_URL
+  return `${API_BASE_URL}${path}`;
 };
 
 const splitPhotos = (photoString) => {
@@ -187,7 +189,7 @@ const PreviewLaporan = ({ laporan, onClose, kegiatan, formatDateTime, allTranspo
   const [isFullscreen, setIsFullscreen] = useState(false);
   // groups: semua grup foto dikumpulkan buat nav prev/next lintas grup
   const groups = [
-    { key: 'truk',    label: 'Foto Truk Air',           photos: fotoTrukArr },
+    { key: 'truk',    label: 'Foto Truk Air',          photos: fotoTrukArr },
     { key: 'sebelum', label: 'Foto Sebelum Pembersihan', photos: fotoSebelumArr },
     { key: 'sedang',  label: 'Foto Sedang Pembersihan',  photos: fotoSedangArr },
     { key: 'setelah', label: 'Foto Setelah Pembersihan', photos: fotoSetelahArr },

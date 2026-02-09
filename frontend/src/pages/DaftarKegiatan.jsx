@@ -4,8 +4,10 @@ import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import TambahKegiatan from './TambahKegiatan';
 import { useNavigate } from 'react-router-dom';
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
-const API = 'http://localhost:3000/api/kegiatan';
+// GUNAKAN API_BASE_URL
+const API = `${API_BASE_URL}/api/kegiatan`;
 
 // Modern Modal Component
 const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
@@ -417,7 +419,9 @@ const DaftarKegiatan = () => {
                                                             {tIdx === 0 && (
                                                                 <>
                                                                     <td className="px-3 py-2 text-xs leading-tight border-r border-gray-200" rowSpan={transporterCount}>
-                                                                        <div>{formatDate(item.tanggal_mulai)}</div>
+                                                                        <div className="font-medium">
+                                                                            {formatDate(item.tanggal_mulai)}
+                                                                        </div>
                                                                         <div className="text-gray-400 truncate">
                                                                             s.d {formatDate(item.tanggal_selesai)}
                                                                         </div>
@@ -426,7 +430,7 @@ const DaftarKegiatan = () => {
                                                                     <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.vendor}</td>
                                                                     <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.nama_kapal || '-'}</td>
                                                                     <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>
-                                                                        <div className="max-w-xs truncate" title={item.material}>{item.material}</div>
+                                                                        <div className="max-w-xs truncate">{item.material}</div>
                                                                     </td>
                                                                     <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.incoterm || '-'}</td>
                                                                     <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.no_bl || '-'}</td>
@@ -442,7 +446,7 @@ const DaftarKegiatan = () => {
                                                             
                                                             <td className="px-4 py-3 border-r border-gray-200">
                                                                 <span className={`inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${getStatusColor(item.statuses?.[tIdx])}`}>
-                                                                    {item.statuses?.[tIdx] || 'Waiting'}
+                                                                        {item.statuses?.[tIdx] || 'Waiting'}
                                                                 </span>
                                                             </td>
 
@@ -497,7 +501,9 @@ const DaftarKegiatan = () => {
                                                 ) : (
                                                     <tr className={`border-b border-gray-200 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                                                         <td className="px-3 py-2 text-xs leading-tight border-r border-gray-200">
-                                                            <div>{formatDate(item.tanggal_mulai)}</div>
+                                                            <div className="font-medium">
+                                                                {formatDate(item.tanggal_mulai)}
+                                                            </div>
                                                             <div className="text-gray-400 truncate">
                                                                 s.d {formatDate(item.tanggal_selesai)}
                                                             </div>
@@ -521,19 +527,21 @@ const DaftarKegiatan = () => {
                                                         <td className="px-4 py-3">
                                                             <div className="flex justify-center gap-2">
                                                                 <button
-                                                                    className="p-2 rounded hover:bg-gray-200"
+                                                                    className="p-2 rounded hover:bg-gray-200 transition-colors"
                                                                     onClick={() => navigate(`/manajemen-kegiatan/detail/${item.no_po}`)}
                                                                     title="Lihat detail"
                                                                 >
                                                                     <Eye size={16} />
                                                                 </button>
+                                                                
                                                                 <button
                                                                     onClick={() => handleEdit(item)}
-                                                                    className="p-2 rounded hover:bg-blue-100 text-blue-600"
+                                                                    className="p-2 rounded hover:bg-blue-100 text-blue-600 transition-colors"
                                                                     title="Edit kegiatan"
                                                                 >
                                                                     <Edit size={16} />
                                                                 </button>
+                                                                
                                                                 <button
                                                                     onClick={() => handleDelete(item.no_po)}
                                                                     disabled={item.realisasi_truk > 0}

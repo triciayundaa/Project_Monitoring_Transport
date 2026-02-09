@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import Sidebar from '../../components/Sidebar';
 import Topbar from '../../components/Topbar';
+import API_BASE_URL from '../../config/api'; // <--- IMPORT CONFIG
 
 // 1. IMPORT LOGO DARI ASSETS
 import logoSemenPadang from '../../assets/logo-semen-padang.png';
@@ -23,7 +24,8 @@ const LaporanDetail = () => {
         const fetchDetail = async () => {
             try {
                 setLoading(true);
-                const res = await axios.get(`http://localhost:3000/api/laporan/detail/${id}`);
+                // GUNAKAN API_BASE_URL
+                const res = await axios.get(`${API_BASE_URL}/api/laporan/detail/${id}`);
                 setData(res.data);
             } catch (err) {
                 console.error("Gagal memuat detail laporan:", err);

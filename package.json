@@ -20,6 +20,8 @@
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "file-saver": "^2.0.5",
+    "jspdf": "^4.1.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.562.0",
     "multer": "^2.0.2",
     "mysql2": "^3.16.0",

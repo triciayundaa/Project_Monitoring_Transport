@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../../components/Sidebar';
 import Topbar from '../../components/Topbar';
+import API_BASE_URL from '../../config/api';
 
 const VehicleDetail = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -35,13 +36,7 @@ const VehicleDetail = () => {
     const [selectedTransporterId, setSelectedTransporterId] = useState(transporterId || 'all');
 
     // --- PERBAIKAN DI SINI: FORMAT NOPOL ---
-    // Sekarang hanya mengubah ke Huruf Besar dan menghapus karakter aneh (selain huruf/angka/spasi)
     const formatNopol = (value) => {
-        // Opsi 1: Hapus spasi juga (misal: "B 1234 ABC" -> "B1234ABC")
-        // return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-
-        // Opsi 2 (Yang Anda Minta): Biarkan apa adanya tapi UpperCase (misal: "b 1234 abc" -> "B 1234 ABC")
-        // Saya pakai Opsi 2 agar lebih fleksibel sesuai permintaan Anda "bisa B saja"
         return value.toUpperCase(); 
     };
 
@@ -49,7 +44,7 @@ const VehicleDetail = () => {
         if (!noPo) return;
         try {
             setLoading(true);
-            const response = await axios.get(`http://localhost:3000/api/vehicles/${noPo}`, {
+            const response = await axios.get(`${API_BASE_URL}/api/vehicles/${noPo}`, {
                 params: { transporter_id: selectedTransporterId }
             });
             if (response.data) {
@@ -75,7 +70,7 @@ const VehicleDetail = () => {
 
     const fetchTransportersByPo = async () => {
         try {
-            const res = await axios.get(`http://localhost:3000/api/kegiatan/${noPo}/transporters`);
+            const res = await axios.get(`${API_BASE_URL}/api/kegiatan/${noPo}/transporters`);
             setTransporterList(res.data); 
             if (selectedTransporterId === 'all' && transporterId) {
                 setSelectedTransporterId(transporterId);
@@ -93,7 +88,7 @@ const VehicleDetail = () => {
             return;
         }
         try {
-            const res = await axios.get(`http://localhost:3000/api/vehicles/master/${finalId}`);
+            const res = await axios.get(`${API_BASE_URL}/api/vehicles/master/${finalId}`);
             setMasterAssets(res.data);
             setIsMasterModalOpen(true);
         } catch (err) {
@@ -118,7 +113,7 @@ const VehicleDetail = () => {
             setLoading(true);
             await Promise.all(
                 tempNopolList.map(nopol => 
-                    axios.post('http://localhost:3000/api/vehicles/add', {
+                    axios.post(`${API_BASE_URL}/api/vehicles/add`, {
                         no_po: noPo,
                         nopol: nopol,
                         transporter_id: finalId 
@@ -143,7 +138,8 @@ const VehicleDetail = () => {
         const finalId = (selectedTransporterId && selectedTransporterId !== 'all') ? selectedTransporterId : transporterId;
         try {
             setLoading(true);
-            await axios.post('http://localhost:3000/api/vehicles/assign-master', {
+            // ✅ PERBAIKAN: Menggunakan backtick (`) bukan kutip satu (')
+            await axios.post(`${API_BASE_URL}/api/vehicles/assign-master`, {
                 no_po: noPo,
                 transporter_id: finalId,
                 vehicle_ids: selectedMasterIds
@@ -168,7 +164,7 @@ const VehicleDetail = () => {
     const executeDelete = async () => {
         try {
             setLoading(true);
-            await axios.delete(`http://localhost:3000/api/vehicles/${selectedVehicleId}`);
+            await axios.delete(`${API_BASE_URL}/api/vehicles/${selectedVehicleId}`);
             setIsDeleteModalOpen(false);
             fetchVehicleData();
         } catch (error) {
@@ -194,7 +190,7 @@ const VehicleDetail = () => {
         e.preventDefault();
         try {
             setLoading(true);
-            await axios.put(`http://localhost:3000/api/vehicles/${editData.id}`, {
+            await axios.put(`${API_BASE_URL}/api/vehicles/${editData.id}`, {
                 nopol: editData.newNopol.toUpperCase().trim()
             });
             setIsEditModalOpen(false);

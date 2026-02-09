@@ -7,6 +7,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area
 } from 'recharts';
 import { Package, Users, Clock, Activity, CheckCircle, Truck, Calendar } from 'lucide-react';
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -126,11 +127,12 @@ const Dashboard = () => {
 
     // ✅ FUNGSI FETCH KEBERANGKATAN DENGAN MULTIPLE FALLBACK
     const fetchKeberangkatanData = async () => {
+        // GUNAKAN API_BASE_URL
         const endpoints = [
-            'http://localhost:3000/api/keberangkatan-truk?all=true',
-            'http://localhost:3000/api/keberangkatan?all=true',
-            'http://localhost:3000/api/truk?all=true',
-            'http://localhost:3000/api/keberangkatan-truk',
+            `${API_BASE_URL}/api/keberangkatan-truk?all=true`,
+            `${API_BASE_URL}/api/keberangkatan?all=true`,
+            `${API_BASE_URL}/api/truk?all=true`,
+            `${API_BASE_URL}/api/keberangkatan-truk`,
         ];
 
         for (const endpoint of endpoints) {
@@ -169,8 +171,8 @@ const Dashboard = () => {
                 setLoading(true);
                 setError(null);
                 
-                // Fetch kegiatan
-                const resKegiatan = await fetch('http://localhost:3000/api/kegiatan');
+                // Fetch kegiatan (GUNAKAN API_BASE_URL)
+                const resKegiatan = await fetch(`${API_BASE_URL}/api/kegiatan`);
                 if (!resKegiatan.ok) throw new Error('Gagal mengambil data kegiatan');
                 const jsonKegiatan = await resKegiatan.json();
                 
@@ -182,10 +184,10 @@ const Dashboard = () => {
                 
                 console.log(`📊 Using endpoint: ${keberangkatanResult.endpoint}`);
                 
-                // Fetch users dan transporter
+                // Fetch users dan transporter (GUNAKAN API_BASE_URL)
                 const [resUsers, resTransporter] = await Promise.all([
-                    fetch('http://localhost:3000/api/users'),
-                    fetch('http://localhost:3000/api/kegiatan/transporters')
+                    fetch(`${API_BASE_URL}/api/users`),
+                    fetch(`${API_BASE_URL}/api/kegiatan/transporters`)
                 ]);
                 
                 if (!resUsers.ok) throw new Error('Gagal mengambil data users');
@@ -231,9 +233,10 @@ const Dashboard = () => {
 
         const processData = async () => {
             try {
+                // GUNAKAN API_BASE_URL
                 const [resUsers, resTransporter] = await Promise.all([
-                    fetch('http://localhost:3000/api/users'),
-                    fetch('http://localhost:3000/api/kegiatan/transporters')
+                    fetch(`${API_BASE_URL}/api/users`),
+                    fetch(`${API_BASE_URL}/api/kegiatan/transporters`)
                 ]);
                 
                 const jsonUsers = await resUsers.json();

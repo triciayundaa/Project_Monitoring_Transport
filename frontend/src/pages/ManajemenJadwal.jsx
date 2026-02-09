@@ -4,6 +4,7 @@ import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import * as XLSX from 'xlsx'; 
+import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
 // --- HELPER FUNGSI ---
 const generateMonthDays = (year, month) => {
@@ -64,7 +65,8 @@ const ManajemenJadwal = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const resUsers = await axios.get('http://localhost:3000/api/users');
+        // GUNAKAN API_BASE_URL
+        const resUsers = await axios.get(`${API_BASE_URL}/api/users`);
         if (resUsers.data) {
             const personils = resUsers.data
                 .filter(u => u.role === 'personil') 
@@ -73,7 +75,8 @@ const ManajemenJadwal = () => {
             setPersonOptions([null, ...personils]); 
         }
 
-        const resJadwal = await axios.get(`http://localhost:3000/api/jadwal?month=${monthKey}`);
+        // GUNAKAN API_BASE_URL
+        const resJadwal = await axios.get(`${API_BASE_URL}/api/jadwal?month=${monthKey}`);
         if (resJadwal.data.status === 'Success') {
           setSchedules(prev => ({ ...prev, [monthKey]: resJadwal.data.data }));
         } else {
@@ -136,13 +139,15 @@ const ManajemenJadwal = () => {
       setLoadingAction(true);
       try {
           if (actionType === 'generate') {
-              const res = await axios.post(`http://localhost:3000/api/jadwal/generate?month=${monthKey}`);
+              // GUNAKAN API_BASE_URL
+              const res = await axios.post(`${API_BASE_URL}/api/jadwal/generate?month=${monthKey}`);
               if (res.data.status === 'Success') {
                   setSchedules(prev => ({ ...prev, [monthKey]: res.data.data }));
                   showSuccess("Berhasil", "Jadwal berhasil digenerate!");
               }
           } else if (actionType === 'delete') {
-              await axios.delete(`http://localhost:3000/api/jadwal?month=${monthKey}`);
+              // GUNAKAN API_BASE_URL
+              await axios.delete(`${API_BASE_URL}/api/jadwal?month=${monthKey}`);
               setSchedules(prev => ({ ...prev, [monthKey]: {} }));
               showSuccess("Berhasil", "Jadwal berhasil dihapus.");
           }
@@ -160,14 +165,17 @@ const ManajemenJadwal = () => {
     oldRow[personIndex] = value;
     monthData[dateKey] = oldRow;
     setSchedules(prev => ({ ...prev, [monthKey]: monthData }));
-    axios.patch('http://localhost:3000/api/jadwal/day', { date: dateKey, slots: oldRow })
+    
+    // GUNAKAN API_BASE_URL
+    axios.patch(`${API_BASE_URL}/api/jadwal/day`, { date: dateKey, slots: oldRow })
           .catch(err => console.error("Auto-save failed", err));
   };
 
   const handleSaveAll = async () => {
     const monthData = schedules[monthKey] || {};
     try {
-      await axios.put('http://localhost:3000/api/jadwal', { month: monthKey, data: monthData });
+      // GUNAKAN API_BASE_URL
+      await axios.put(`${API_BASE_URL}/api/jadwal`, { month: monthKey, data: monthData });
       setIsEditing(false);
       showSuccess("Tersimpan", "Perubahan jadwal berhasil disimpan.");
     } catch (err) {

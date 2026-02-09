@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import Sidebar from '../../components/Sidebar';
 import Topbar from '../../components/Topbar';
+import API_BASE_URL from '../../config/api'; // <--- IMPORT CONFIG
 
 const LaporanPeriodik = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -22,7 +23,8 @@ const LaporanPeriodik = () => {
             try {
                 setLoading(true);
                 if (start && end) {
-                    const res = await axios.get(`http://localhost:3000/api/laporan/periodik?start=${start}&end=${end}`);
+                    // GUNAKAN API_BASE_URL
+                    const res = await axios.get(`${API_BASE_URL}/api/laporan/periodik?start=${start}&end=${end}`);
                     setData(res.data);
                     
                     // --- PERBAIKAN LOGIKA GROUPING (NORMALISASI KEY) ---

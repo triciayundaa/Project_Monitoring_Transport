@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
+import API_BASE_URL from '../config/api'; // <--- IMPORT FILE BARU TADI
 
 const UserList = () => {
     // Default sidebar tertutup di mobile
@@ -28,7 +29,8 @@ const UserList = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const response = await axios.get('http://localhost:3000/api/users');
+            // GUNAKAN API_BASE_URL
+            const response = await axios.get(`${API_BASE_URL}/api/users`);
             setUsers(response.data);
         } catch (error) {
             console.error("Error fetching users", error);
@@ -68,11 +70,14 @@ const UserList = () => {
         if (e) e.preventDefault();
         try {
             if (modalType === 'add') {
-                await axios.post('http://localhost:3000/api/users/add', formData);
+                // GUNAKAN API_BASE_URL
+                await axios.post(`${API_BASE_URL}/api/users/add`, formData);
             } else if (modalType === 'edit') {
-                await axios.put(`http://localhost:3000/api/users/${selectedUser.email}`, formData);
+                // GUNAKAN API_BASE_URL
+                await axios.put(`${API_BASE_URL}/api/users/${selectedUser.email}`, formData);
             } else if (modalType === 'delete') {
-                await axios.delete(`http://localhost:3000/api/users/${selectedUser.email}`);
+                // GUNAKAN API_BASE_URL
+                await axios.delete(`${API_BASE_URL}/api/users/${selectedUser.email}`);
             }
             setModalType('success');
             fetchUsers();
@@ -233,14 +238,14 @@ const UserList = () => {
                                 </label>
                                 <div className="relative">
                                     <input 
-                                        type={showNewPassword ? "text" : "password"}
-                                        required={modalType === 'add'}
-                                        /* PERBAIKAN: Menggunakan new-password untuk mematikan autofill browser */
-                                        autoComplete="new-password" 
-                                        placeholder={modalType === 'edit' ? "Biarkan kosong jika tidak ubah" : "Min. 12 Karakter dengan salah satu Huruf Kapital"}
-                                        className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-red-600 font-bold text-gray-700 bg-white pr-10"
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                                            type={showNewPassword ? "text" : "password"}
+                                            required={modalType === 'add'}
+                                            /* PERBAIKAN: Menggunakan new-password untuk mematikan autofill browser */
+                                            autoComplete="new-password" 
+                                            placeholder={modalType === 'edit' ? "Biarkan kosong jika tidak ubah" : "Min. 12 Karakter dengan salah satu Huruf Kapital"}
+                                            className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-red-600 font-bold text-gray-700 bg-white pr-10"
+                                            value={formData.password}
+                                            onChange={(e) => setFormData({...formData, password: e.target.value})}
                                     />
                                     <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-600">
                                     </button>
