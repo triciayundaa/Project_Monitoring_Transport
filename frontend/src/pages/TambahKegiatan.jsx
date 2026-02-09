@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, AlertCircle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 
-// Modern Modal Component
+
 const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
     if (!isOpen) return null;
 
