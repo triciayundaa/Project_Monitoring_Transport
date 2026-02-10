@@ -222,54 +222,115 @@ const Dashboard = () => {
         return () => clearInterval(interval);
     }, []);
 
-    useEffect(() => {
-        if (loading) return;
+    // Di dalam useEffect yang kedua, ubah bagian penghitungan status transportir:
 
-        const processData = async () => {
-            try {
-                const [resUsers, resTransporter] = await Promise.all([
-                    fetch(`${API_BASE_URL}/api/users`),
-                    fetch(`${API_BASE_URL}/api/kegiatan/transporters`)
-                ]);
+useEffect(() => {
+    if (loading) return;
+
+    const processData = async () => {
+        try {
+            const [resUsers, resTransporter] = await Promise.all([
+                fetch(`${API_BASE_URL}/api/users`),
+                fetch(`${API_BASE_URL}/api/kegiatan/transporters`)
+            ]);
+            
+            const jsonUsers = await resUsers.json();
+            const jsonTransporter = await resTransporter.json();
+
+            const filteredKegiatan = filterData(rawKegiatan, 'tanggal_mulai');
+            const filteredKeberangkatan = filterData(rawKeberangkatan, 'created_at');
+
+            // ========== PERBAIKAN DI SINI ==========
+            // Hitung kegiatan yang sedang berlangsung berdasarkan range tanggal
+            const getActiveKegiatan = () => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
                 
-                const jsonUsers = await resUsers.json();
-                const jsonTransporter = await resTransporter.json();
-
-                const filteredKegiatan = filterData(rawKegiatan, 'tanggal_mulai');
-                const filteredKeberangkatan = filterData(rawKeberangkatan, 'created_at');
-
-                const totalKegiatan = filteredKegiatan.length;
-                const totalTransportir = jsonTransporter.length;
-                const totalPersonil = Array.isArray(jsonUsers) ? jsonUsers.filter(u => u.role === 'personil').length : 0;
-
-                let waitingCount = 0;
-                let progressCount = 0;
-                let completedCount = 0;
-
-                filteredKegiatan.forEach(kegiatan => {
-                    if (kegiatan.transporters && Array.isArray(kegiatan.transporters)) {
-                        kegiatan.transporters.forEach(t => {
-                            if (t.status === 'Waiting') waitingCount++;
-                            else if (t.status === 'On Progress') progressCount++;
-                            else if (t.status === 'Completed') completedCount++;
-                        });
+                return rawKegiatan.filter(kegiatan => {
+                    const startDate = new Date(kegiatan.tanggal_mulai);
+                    const endDate = kegiatan.tanggal_selesai 
+                        ? new Date(kegiatan.tanggal_selesai) 
+                        : startDate;
+                    
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate.setHours(23, 59, 59, 999);
+                    
+                    // Filter berdasarkan tahun dan bulan jika dipilih
+                    if (selectedYear && startDate.getFullYear() !== parseInt(selectedYear)) {
+                        return false;
                     }
+                    
+                    if (selectedMonth !== '' && startDate.getMonth() !== parseInt(selectedMonth)) {
+                        return false;
+                    }
+                    
+                    // Cek apakah kegiatan sedang berlangsung di periode yang dipilih
+                    if (selectedPeriod === 'today') {
+                        // Kegiatan aktif jika hari ini berada di antara tanggal_mulai dan tanggal_selesai
+                        return startDate <= today && endDate >= today;
+                    } else if (selectedPeriod === 'week') {
+                        const startOfWeek = new Date(today);
+                        const day = today.getDay();
+                        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+                        startOfWeek.setDate(diff);
+                        startOfWeek.setHours(0, 0, 0, 0);
+                        
+                        const endOfWeek = new Date(startOfWeek);
+                        endOfWeek.setDate(startOfWeek.getDate() + 6);
+                        endOfWeek.setHours(23, 59, 59, 999);
+                        
+                        // Kegiatan aktif jika ada overlap dengan minggu ini
+                        return startDate <= endOfWeek && endDate >= startOfWeek;
+                    } else if (selectedPeriod === 'month') {
+                        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+                        
+                        // Kegiatan aktif jika ada overlap dengan bulan ini
+                        return startDate <= endOfMonth && endDate >= startOfMonth;
+                    }
+                    
+                    return true;
                 });
+            };
+            
+            const activeKegiatan = getActiveKegiatan();
 
-                setKpiStats([
-                    { label: 'Total Kegiatan', value: totalKegiatan, color: 'bg-red-50', iconColor: 'text-red-600', icon: Package },
-                    { label: 'Total Transportir', value: totalTransportir, color: 'bg-purple-50', iconColor: 'text-purple-600', icon: Truck },
-                    { label: 'Total Personil', value: totalPersonil, color: 'bg-indigo-50', iconColor: 'text-indigo-600', icon: Users },
-                    { label: 'Waiting', value: waitingCount, color: 'bg-yellow-50', iconColor: 'text-yellow-600', icon: Clock },
-                    { label: 'On Progress', value: progressCount, color: 'bg-blue-50', iconColor: 'text-blue-600', icon: Activity },
-                    { label: 'Completed', value: completedCount, color: 'bg-green-50', iconColor: 'text-green-600', icon: CheckCircle },
-                ]);
+            // Gunakan activeKegiatan untuk Total Kegiatan
+            const totalKegiatan = activeKegiatan.length; // ← UBAH INI
+            const totalTransportir = jsonTransporter.length;
+            const totalPersonil = Array.isArray(jsonUsers) ? jsonUsers.filter(u => u.role === 'personil').length : 0;
+            // ========== AKHIR PERBAIKAN ==========
 
-                setDataPie([
-                    { name: 'Waiting', value: waitingCount, color: '#EAB308' },
-                    { name: 'On Progress', value: progressCount, color: '#3B82F6' },
-                    { name: 'Completed', value: completedCount, color: '#16A34A' },
-                ]);
+            let waitingCount = 0;
+            let progressCount = 0;
+            let completedCount = 0;
+
+            // Hitung dari kegiatan yang sedang berlangsung
+            activeKegiatan.forEach(kegiatan => {
+                if (kegiatan.transporters && Array.isArray(kegiatan.transporters)) {
+                    kegiatan.transporters.forEach(t => {
+                        if (t.status === 'Waiting') waitingCount++;
+                        else if (t.status === 'On Progress') progressCount++;
+                        else if (t.status === 'Completed') completedCount++;
+                    });
+                }
+            });
+
+            setKpiStats([
+                { label: 'Total Kegiatan', value: totalKegiatan, color: 'bg-red-50', iconColor: 'text-red-600', icon: Package },
+                { label: 'Total Transportir', value: totalTransportir, color: 'bg-purple-50', iconColor: 'text-purple-600', icon: Truck },
+                { label: 'Total Personil', value: totalPersonil, color: 'bg-indigo-50', iconColor: 'text-indigo-600', icon: Users },
+                { label: 'Waiting', value: waitingCount, color: 'bg-yellow-50', iconColor: 'text-yellow-600', icon: Clock },
+                { label: 'On Progress', value: progressCount, color: 'bg-blue-50', iconColor: 'text-blue-600', icon: Activity },
+                { label: 'Completed', value: completedCount, color: 'bg-green-50', iconColor: 'text-green-600', icon: CheckCircle },
+            ]);
+
+            setDataPie([
+                { name: 'Waiting', value: waitingCount, color: '#EAB308' },
+                { name: 'On Progress', value: progressCount, color: '#3B82F6' },
+                { name: 'Completed', value: completedCount, color: '#16A34A' },
+            ]);
+
 
                 const hourlyMap = Array.from({ length: 24 }, (_, i) => ({ 
                     hour: `${String(i).padStart(2, '0')}:00`, 
@@ -534,110 +595,171 @@ const Dashboard = () => {
     };
 
     const CustomPieTooltip = ({ active, payload }) => {
-        if (!active || !payload || !payload.length) return null;
+    if (!active || !payload || !payload.length) return null;
+    
+    const status = payload[0].name;
+    const count = payload[0].value;
+    
+    if (count === 0) return null;
+    
+    const detailData = [];
+    
+    // ========== PERBAIKAN DI SINI ==========
+    // Fungsi untuk cek apakah kegiatan aktif berdasarkan filter
+    const isKegiatanActive = (kegiatan) => {
+        const startDate = new Date(kegiatan.tanggal_mulai);
+        const endDate = kegiatan.tanggal_selesai 
+            ? new Date(kegiatan.tanggal_selesai) 
+            : startDate;
         
-        const status = payload[0].name;
-        const count = payload[0].value;
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
         
-        if (count === 0) return null;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         
-        const detailData = [];
+        // Filter berdasarkan tahun
+        if (selectedYear && startDate.getFullYear() !== parseInt(selectedYear)) {
+            return false;
+        }
         
-        rawKegiatan.forEach(kegiatan => {
-            if (kegiatan.transporters && Array.isArray(kegiatan.transporters)) {
-                kegiatan.transporters.forEach(t => {
-                    if (t.status === status) {
-                        detailData.push({
-                            no_po: kegiatan.no_po,
-                            vendor: kegiatan.vendor,
-                            kapal: kegiatan.nama_kapal || '-',
-                            transporter: t.nama_transporter || t.nama || '-',
-                            material: kegiatan.material || '-',
-                            tanggal_mulai: kegiatan.tanggal_mulai,
-                            tanggal_selesai: kegiatan.tanggal_selesai
-                        });
-                    }
-                });
-            }
-        });
+        // Filter berdasarkan bulan
+        if (selectedMonth !== '' && startDate.getMonth() !== parseInt(selectedMonth)) {
+            return false;
+        }
         
-        return (
-            <div 
-                className="bg-white rounded-xl shadow-xl border-2 border-gray-200"
-                style={{ 
-                    width: '380px',
-                    maxHeight: '450px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    position: 'relative'
-                }}
-                onWheel={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-            >
-                <div className="p-4 border-b-2 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="font-bold text-gray-900 text-base mb-1">
-                        Status: {status}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                        Total: {count} Transportir
-                    </div>
+        // Filter berdasarkan periode
+        if (selectedPeriod === 'today') {
+            // Kegiatan aktif jika hari ini berada di antara tanggal_mulai dan tanggal_selesai
+            return startDate <= today && endDate >= today;
+        } else if (selectedPeriod === 'week') {
+            const startOfWeek = new Date(today);
+            const day = today.getDay();
+            const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+            startOfWeek.setDate(diff);
+            startOfWeek.setHours(0, 0, 0, 0);
+            
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+            endOfWeek.setHours(23, 59, 59, 999);
+            
+            // Kegiatan aktif jika ada overlap dengan minggu ini
+            return startDate <= endOfWeek && endDate >= startOfWeek;
+        } else if (selectedPeriod === 'month') {
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+            
+            // Kegiatan aktif jika ada overlap dengan bulan ini
+            return startDate <= endOfMonth && endDate >= startOfMonth;
+        }
+        
+        return true; // Jika tidak ada filter periode, tampilkan semua
+    };
+    
+    rawKegiatan.forEach(kegiatan => {
+        // Cek apakah kegiatan aktif berdasarkan filter
+        if (!isKegiatanActive(kegiatan)) {
+            return; // Skip kegiatan yang tidak aktif
+        }
+        
+        if (kegiatan.transporters && Array.isArray(kegiatan.transporters)) {
+            kegiatan.transporters.forEach(t => {
+                if (t.status === status) {
+                    detailData.push({
+                        no_po: kegiatan.no_po,
+                        vendor: kegiatan.vendor,
+                        kapal: kegiatan.nama_kapal || '-',
+                        transporter: t.nama_transporter || t.nama || '-',
+                        material: kegiatan.material || '-',
+                        tanggal_mulai: kegiatan.tanggal_mulai,
+                        tanggal_selesai: kegiatan.tanggal_selesai
+                    });
+                }
+            });
+        }
+    });
+    // ========== AKHIR PERBAIKAN ==========
+    
+    // Jika setelah filtering tidak ada data, jangan tampilkan tooltip
+    if (detailData.length === 0) return null;
+    
+    return (
+        <div 
+            className="bg-white rounded-xl shadow-xl border-2 border-gray-200"
+            style={{ 
+                width: '380px',
+                maxHeight: '450px',
+                display: 'flex',
+                flexDirection: 'column',
+                position: 'relative'
+            }}
+            onWheel={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+        >
+            <div className="p-4 border-b-2 bg-gradient-to-r from-gray-50 to-white">
+                <div className="font-bold text-gray-900 text-base mb-1">
+                    Status: {status}
                 </div>
-                
-                <div 
-                    className="p-4 pt-2"
-                    style={{ 
-                        maxHeight: '380px',
-                        overflowY: 'auto',
-                        overflowX: 'hidden'
-                    }}
-                >
-                    <div className="space-y-3">
-                        {detailData.map((item, idx) => (
-                            <div key={idx} className="p-3 bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 hover:shadow-md transition-all">
-                                <div className="flex items-start justify-between mb-2">
-                                    <div className="font-bold text-sm text-gray-900">
-                                        PO {item.no_po}
-                                    </div>
-                                    <div className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${
-                                        status === 'Completed' ? 'bg-green-100 text-green-700' :
-                                        status === 'On Progress' ? 'bg-blue-100 text-blue-700' :
-                                        'bg-yellow-100 text-yellow-700'
-                                    }`}>
-                                        {status}
-                                    </div>
-                                </div>
-                                
-                                <div className="space-y-1.5">
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Vendor:</span>
-                                        <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.vendor}</span>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Kapal:</span>
-                                        <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.kapal}</span>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Material:</span>
-                                        <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.material}</span>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Transporter:</span>
-                                        <span className="text-xs text-gray-900 font-semibold flex-1 text-purple-700 break-words">{item.transporter}</span>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Periode:</span>
-                                        <span className="text-xs text-gray-700 flex-1">
-                                            {new Date(item.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} - {item.tanggal_selesai ? new Date(item.tanggal_selesai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                <div className="text-sm text-gray-600">
+                    Total: {detailData.length} Transportir
                 </div>
             </div>
-        );
-    };
+            
+            <div 
+                className="p-4 pt-2"
+                style={{ 
+                    maxHeight: '380px',
+                    overflowY: 'auto',
+                    overflowX: 'hidden'
+                }}
+            >
+                <div className="space-y-3">
+                    {detailData.map((item, idx) => (
+                        <div key={idx} className="p-3 bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 hover:shadow-md transition-all">
+                            <div className="flex items-start justify-between mb-2">
+                                <div className="font-bold text-sm text-gray-900">
+                                    PO {item.no_po}
+                                </div>
+                                <div className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${
+                                    status === 'Completed' ? 'bg-green-100 text-green-700' :
+                                    status === 'On Progress' ? 'bg-blue-100 text-blue-700' :
+                                    'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                    {status}
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-1.5">
+                                <div className="flex items-start gap-2">
+                                    <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Vendor:</span>
+                                    <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.vendor}</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Kapal:</span>
+                                    <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.kapal}</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Material:</span>
+                                    <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.material}</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Transporter:</span>
+                                    <span className="text-xs text-gray-900 font-semibold flex-1 text-purple-700 break-words">{item.transporter}</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Periode:</span>
+                                    <span className="text-xs text-gray-700 flex-1">
+                                        {new Date(item.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} - {item.tanggal_selesai ? new Date(item.tanggal_selesai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
 
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
