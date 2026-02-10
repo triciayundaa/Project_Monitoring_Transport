@@ -2,6 +2,15 @@ const db = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 
+// --- HELPER: GET LOCAL TODAY DATE ---
+const getLocalTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 // --- HELPER: CONVERT BASE64 KE FILE ---
 const saveBase64ToFile = (base64String, prefix) => {
     if (!base64String || !base64String.includes('base64')) return null;
@@ -34,6 +43,16 @@ const getShiftFromTime = (currentHour) => {
     if (currentHour >= 7 && currentHour < 15) return 'Shift 1';
     if (currentHour >= 15 && currentHour < 23) return 'Shift 2';
     return 'Shift 3'; 
+};
+
+// --- HELPER: FORMAT DATE FOR DISPLAY ---
+const formatDateForDisplay = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
 };
 
 // --- FUNGSI UTAMA ---
@@ -108,7 +127,7 @@ const cekStatusShiftUser = async (req, res) => {
     }
 };
 
-// API 2: CEK PO
+// API 2: CEK PO (DENGAN VALIDASI RENTANG TANGGAL)
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
@@ -120,6 +139,38 @@ const cekPO = async (req, res) => {
         if (kegiatan.length === 0) return res.status(404).json({ status: 'Error', message: 'Nomor PO Tidak Ditemukan' });
 
         const kegiatanId = kegiatan[0].id;
+
+        // --- VALIDASI RENTANG TANGGAL ---
+        const todayStr = getLocalTodayDate(); // YYYY-MM-DD
+        
+        // Ambil tanggal mulai dan selesai dari data PO
+        const poStartDate = String(kegiatan[0].tanggal_mulai).substring(0, 10);
+        const poEndDate = String(kegiatan[0].tanggal_selesai).substring(0, 10);
+
+        // Cek apakah hari ini sebelum tanggal mulai
+        if (todayStr < poStartDate) {
+            return res.status(403).json({ 
+                status: 'Error', 
+                message: `GAGAL: PO ${kegiatan[0].no_po} dimulai tanggal ${formatDateForDisplay(poStartDate)}. Anda hanya bisa input PO yang dimulai HARI INI (${formatDateForDisplay(todayStr)}) atau sudah berlangsung.` 
+            });
+        }
+
+        // Cek apakah hari ini setelah tanggal selesai
+        if (todayStr > poEndDate) {
+            return res.status(403).json({ 
+                status: 'Error', 
+                message: `GAGAL: PO ${kegiatan[0].no_po} sudah selesai pada tanggal ${formatDateForDisplay(poEndDate)}. Tidak dapat menginput data untuk PO yang sudah berakhir.` 
+            });
+        }
+        // -----------------------------------
+
+        // Cek status completed
+        if (kegiatan[0].status === 'Completed') {
+            return res.status(403).json({ 
+                status: 'Error', 
+                message: `Nomor PO ${kegiatan[0].no_po} sudah berstatus COMPLETED (Selesai). Data tidak dapat ditambah lagi.` 
+            });
+        }
 
         const [transporters] = await db.query(`
             SELECT t.id, t.nama_transporter, kt.id as kegiatan_transporter_id,
@@ -350,6 +401,7 @@ const getKeberangkatanByDate = async (req, res) => {
     }
 };
 
+// API 6: HAPUS DATA
 const hapusKeberangkatan = async (req, res) => {
     const { id } = req.params;
     try {
@@ -371,6 +423,7 @@ const hapusKeberangkatan = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
+// API 7: VERIFIKASI DATA
 const verifikasiKeberangkatan = async (req, res) => {
     try {
         const { id } = req.params;
@@ -381,6 +434,11 @@ const verifikasiKeberangkatan = async (req, res) => {
 };
 
 module.exports = {
-    cekStatusShiftUser, cekPO, simpanKeberangkatan, getKeberangkatanByDate,
-    hapusKeberangkatan, verifikasiKeberangkatan, updateTruk
+    cekStatusShiftUser, 
+    cekPO, 
+    simpanKeberangkatan, 
+    getKeberangkatanByDate,
+    hapusKeberangkatan, 
+    verifikasiKeberangkatan, 
+    updateTruk
 };

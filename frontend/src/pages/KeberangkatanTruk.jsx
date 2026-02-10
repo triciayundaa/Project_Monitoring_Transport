@@ -243,21 +243,9 @@ const KeberangkatanTruk = () => {
             if (response.data.status === 'Success') {
                 const dataPO = response.data.data;
                 
-                // --- MODIFIKASI VALIDASI TANGGAL ---
-                // Pastikan 'dataPO.tanggal_mulai' (dari DB) formatnya YYYY-MM-DD
-                const todayStr = getLocalTodayDate(); // YYYY-MM-DD
+                // VALIDASI TANGGAL SUDAH DIHAPUS - DIHANDLE DI BACKEND
                 
-                // Ambil tanggal mulai dari data PO (asumsi format YYYY-MM-DD atau ISO)
-                // Kita ambil 10 karakter pertama biar aman (YYYY-MM-DD)
-                const poStartDate = String(dataPO.tanggal_mulai).substring(0, 10);
-
-                if (poStartDate !== todayStr) {
-                    setWarningMessage(`GAGAL: PO ${dataPO.no_po} dimulai tanggal ${formatDateForDisplay(poStartDate)}. Anda hanya bisa input PO yang dimulai HARI INI (${formatDateForDisplay(todayStr)}).`);
-                    setShowModalWarning(true);
-                    return; // Stop eksekusi
-                }
-                // -----------------------------------
-
+                // Hanya cek status completed
                 if (dataPO.status === 'Completed') {
                     setWarningMessage(`Nomor PO ${dataPO.no_po} sudah berstatus COMPLETED (Selesai). Data tidak dapat ditambah lagi.`);
                     setShowModalWarning(true);
@@ -273,11 +261,19 @@ const KeberangkatanTruk = () => {
             if (error.response?.status === 404) { 
                 setShowModalPO(false); 
                 setShowModalError(true); 
+            } else if (error.response?.status === 403) {
+                // Handle error dari backend (validasi tanggal rentang, dll)
+                setWarningMessage(error.response?.data?.message || 'PO tidak dapat diproses');
+                setShowModalWarning(true);
+                setShowModalPO(false);
             } else { 
                 setWarningMessage(error.response?.data?.message || 'Terjadi kesalahan saat mengecek PO'); 
                 setShowModalWarning(true); 
+                setShowModalPO(false);
             }
-        } finally { setLoading(false); }
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     const handleCapturePhoto = async (field) => {
