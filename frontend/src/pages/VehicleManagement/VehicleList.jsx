@@ -72,14 +72,7 @@ const VehicleList = () => {
                         
                         {/* Header Section */}
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 md:mb-8 gap-4">
-                            <div>
-                                <h2 className="text-2xl md:text-3xl font-black text-red-600 uppercase tracking-tighter">
-                                    Manajemen Unit
-                                </h2>
-                                <p className="text-xs md:text-sm text-gray-500 font-medium tracking-tight">
-                                    Kelola armada yang dialokasikan khusus per Nomor PO
-                                </p>
-                            </div>
+                    
                             
                             {/* Search Input */}
                             <div className="relative group">
