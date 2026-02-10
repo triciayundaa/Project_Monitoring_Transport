@@ -65,19 +65,17 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
                 />
             )}
             
-            {/* Sidebar */}
+            {/* Sidebar Container dengan width dinamis */}
             <div
                 className={`
                     bg-white border-r border-gray-200 h-full
-                    transition-transform duration-300 ease-in-out
+                    transition-all duration-300 ease-in-out
                     
-                    fixed lg:sticky top-0 left-0 z-50
+                    fixed lg:relative top-0 left-0 z-50
                     
-                    w-64
+                    ${isOpen ? 'w-64' : 'w-0 lg:w-0'}
                     
-                    ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-                    
-                    lg:translate-x-0
+                    overflow-hidden
                 `}
             >
                 <div className="w-64 h-full flex flex-col">

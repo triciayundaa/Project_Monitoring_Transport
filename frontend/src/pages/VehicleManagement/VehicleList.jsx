@@ -6,7 +6,7 @@ import Topbar from '../../components/Topbar';
 import API_BASE_URL from '../../config/api';
 
 const VehicleList = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [transporters, setTransporters] = useState([]);
     const [groupedData, setGroupedData] = useState({});
     const [searchTerm, setSearchTerm] = useState('');

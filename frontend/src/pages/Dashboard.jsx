@@ -11,7 +11,7 @@ import API_BASE_URL from '../config/api';
 
 const Dashboard = () => {
     const navigate = useNavigate();
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     

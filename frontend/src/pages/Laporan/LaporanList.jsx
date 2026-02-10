@@ -6,7 +6,7 @@ import Topbar from '../../components/Topbar';
 import API_BASE_URL from '../../config/api';
 
 const LaporanList = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [filter, setFilter] = useState('Semua Laporan');
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
