@@ -8,7 +8,7 @@ import Topbar from '../../components/Topbar';
 import API_BASE_URL from '../../config/api';
 
 const LaporanPeriodik = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [data, setData] = useState(null);
     const [groupedData, setGroupedData] = useState({});
     const [loading, setLoading] = useState(true);

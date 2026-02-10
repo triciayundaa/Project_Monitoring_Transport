@@ -6,29 +6,25 @@ import Topbar from '../../components/Topbar';
 import API_BASE_URL from '../../config/api';
 
 const LaporanList = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [filter, setFilter] = useState('Semua Laporan');
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     
-    // State Data
     const [daftarLaporan, setDaftarLaporan] = useState([]);
     const [poList, setPoList] = useState([]);
     const [selectedPo, setSelectedPo] = useState('');
     
-    // State Baru untuk Laporan Periodik
     const [reportType, setReportType] = useState('po');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
-    // State untuk Modal Hapus
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [reportToDelete, setReportToDelete] = useState(null);
     
     const navigate = useNavigate();
 
-    // 1. Ambil riwayat laporan dari database
     const fetchRiwayatLaporan = async () => {
         try {
             setLoading(true);
@@ -41,7 +37,6 @@ const LaporanList = () => {
         }
     };
 
-    // --- FUNGSI HAPUS LAPORAN ---
     const handleDelete = async () => {
         if (!reportToDelete) return;
         try {
@@ -55,7 +50,6 @@ const LaporanList = () => {
         }
     };
 
-    // 2. Ambil daftar PO untuk pilihan di Modal
     const handleOpenModal = async () => {
         try {
             const res = await axios.get(`${API_BASE_URL}/api/kegiatan`);
@@ -108,7 +102,6 @@ const LaporanList = () => {
         fetchRiwayatLaporan();
     }, []);
 
-    // --- LOGIKA FILTER & PENCARIAN ---
     const filteredData = daftarLaporan.filter(item => {
         const matchType = filter === 'Semua Laporan' || item.tipe_laporan === filter;
         const matchSearch = 
@@ -118,44 +111,46 @@ const LaporanList = () => {
     });
 
     return (
-        <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
+        <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
+            {/* Sidebar */}
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
             
-            <div className="flex-1 flex flex-col min-w-0">
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} title="Laporan" />
                 
-                <main className="flex-grow p-3 md:p-8 overflow-y-auto">
+                <main className="flex-1 p-4 md:p-6 overflow-y-auto">
                     <div className="max-w-6xl mx-auto">
                         
-                        {/* Header Section - Desktop layout unchanged, mobile adjusted */}
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-12">
+                        {/* Header Section */}
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 md:mb-12">
                             <button 
                                 onClick={handleOpenModal}
-                                className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-10 py-3 rounded-xl font-bold shadow-lg transition-all text-sm uppercase tracking-wider transform hover:scale-105 active:scale-95"
+                                className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-8 md:px-10 py-2.5 md:py-3 rounded-xl font-bold shadow-lg transition-all text-xs md:text-sm uppercase tracking-wider transform hover:scale-105 active:scale-95"
                             >
                                 <i className="fas fa-plus-circle mr-2"></i>
                                 Generate laporan
                             </button>
 
                             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto flex-1 md:justify-end">
-                                {/* SEARCH BAR */}
+                                {/* Search Bar */}
                                 <div className="relative flex-1 max-w-md">
                                     <input 
                                         type="text"
                                         placeholder="Cari No. PO..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full bg-white border border-gray-200 pl-10 pr-4 py-3 rounded-xl shadow-sm outline-none focus:border-red-500 font-medium text-sm transition-all"
+                                        className="w-full bg-white border border-gray-200 pl-10 pr-4 py-2.5 md:py-3 rounded-xl shadow-sm outline-none focus:border-red-500 font-medium text-sm transition-all"
                                     />
                                     <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                                 </div>
 
-                                {/* DROPDOWN FILTER */}
+                                {/* Filter Dropdown */}
                                 <div className="relative inline-block w-full md:w-52">
                                     <select 
                                         value={filter}
                                         onChange={(e) => setFilter(e.target.value)}
-                                        className="w-full bg-white border border-gray-200 p-3 rounded-xl shadow-sm outline-none font-bold text-gray-700 appearance-none cursor-pointer focus:border-red-500 text-sm transition-colors"
+                                        className="w-full bg-white border border-gray-200 p-2.5 md:p-3 rounded-xl shadow-sm outline-none font-bold text-gray-700 appearance-none cursor-pointer focus:border-red-500 text-sm transition-colors"
                                     >
                                         <option value="Semua Laporan">Semua Laporan</option>
                                         <option value="Bulanan">Per Bulan</option>
@@ -171,7 +166,7 @@ const LaporanList = () => {
                         {/* List Section */}
                         <div className="space-y-3 md:space-y-6">
                             {/* Title Section */}
-                            <div className="flex items-center space-x-4 mb-6">
+                            <div className="flex items-center space-x-4 mb-4 md:mb-6">
                                 <h2 className="text-xl md:text-3xl font-black text-red-600 tracking-tighter uppercase">
                                     Daftar Laporan
                                 </h2>
@@ -188,7 +183,7 @@ const LaporanList = () => {
                                         key={item.id} 
                                         className="group bg-white border-2 border-red-500 rounded-2xl md:rounded-[2rem] p-4 md:p-6 shadow-sm hover:shadow-xl hover:bg-red-50/40 transition-all duration-300"
                                     >
-                                        {/* Desktop Layout - Unchanged from original */}
+                                        {/* Desktop Layout */}
                                         <div className="hidden md:flex justify-between items-center">
                                             <div className="flex items-center space-x-6">
                                                 <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 text-2xl group-hover:bg-red-600 group-hover:text-white shadow-inner transition-all duration-300">
@@ -233,9 +228,8 @@ const LaporanList = () => {
                                             </div>
                                         </div>
 
-                                        {/* Mobile Layout Only */}
+                                        {/* Mobile Layout */}
                                         <div className="md:hidden">
-                                            {/* Icon and Title */}
                                             <div className="flex items-start space-x-3 mb-3">
                                                 <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-red-600 text-xl group-hover:bg-red-600 group-hover:text-white shadow-inner transition-all flex-shrink-0">
                                                     <i className="fas fa-file-invoice"></i>
@@ -247,7 +241,6 @@ const LaporanList = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Info - Date and Creator */}
                                             <div className="flex flex-col space-y-1 text-[10px] font-bold text-gray-400 uppercase mb-3 pl-1">
                                                 <span className="flex items-center">
                                                     <i className="far fa-calendar-alt mr-2 text-red-400"></i> 
@@ -259,7 +252,6 @@ const LaporanList = () => {
                                                 </span>
                                             </div>
 
-                                            {/* Action Buttons */}
                                             <div className="flex items-center gap-2">
                                                 <button 
                                                     onClick={() => navigate(item.file_path)}

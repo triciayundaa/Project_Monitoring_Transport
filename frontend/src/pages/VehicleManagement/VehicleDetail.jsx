@@ -6,7 +6,7 @@ import Topbar from '../../components/Topbar';
 import API_BASE_URL from '../../config/api';
 
 const VehicleDetail = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [vehicles, setVehicles] = useState([]);
     const [transporterName, setTransporterName] = useState('');
     const [loading, setLoading] = useState(true);

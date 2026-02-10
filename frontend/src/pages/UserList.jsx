@@ -6,7 +6,7 @@ import API_BASE_URL from '../config/api';
 
 const UserList = () => {
     // State sidebar konsisten dengan halaman lain - TIDAK ada auto-close
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -77,13 +77,13 @@ const UserList = () => {
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
             
             {/* MAIN CONTENT */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} title="Manajemen Pengguna" />
                 
-                <main className="flex-grow p-4 md:p-6 overflow-y-auto w-full">
-                    <div className="max-w-7xl mx-auto w-full">
+                <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+                    <div className="max-w-7xl mx-auto">
                         
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 gap-4">
                             <div className="w-full sm:w-auto"></div>
                             <button onClick={openAddModal} className="w-full sm:w-auto bg-cyan-400 hover:bg-cyan-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all uppercase text-sm flex items-center justify-center gap-2">
                                 <i className="fas fa-plus"></i> Tambah Akun
@@ -118,7 +118,7 @@ const UserList = () => {
                         </div>
 
                         {/* DESKTOP VIEW */}
-                        <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-sm border border-gray-50 overflow-hidden w-full">
+                        <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-sm border border-gray-50 overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>

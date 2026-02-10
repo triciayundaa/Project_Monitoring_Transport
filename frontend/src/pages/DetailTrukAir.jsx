@@ -63,7 +63,7 @@ const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
 
 const DetailTrukAir = () => {
   const { id } = useParams();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');

@@ -9,7 +9,7 @@ import API_BASE_URL from '../../config/api';
 import logoSemenPadang from '../../assets/logo-semen-padang.png';
 
 const LaporanDetail = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const { id } = useParams();
     const navigate = useNavigate();
 

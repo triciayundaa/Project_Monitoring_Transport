@@ -26,7 +26,7 @@ const formatDateKey = (dateObj) => {
 
 const ManajemenJadwal = () => {
   const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());

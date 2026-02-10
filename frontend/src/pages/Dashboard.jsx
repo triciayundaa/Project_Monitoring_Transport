@@ -7,11 +7,11 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area
 } from 'recharts';
 import { Package, Users, Clock, Activity, CheckCircle, Truck, Calendar } from 'lucide-react';
-import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
+import API_BASE_URL from '../config/api';
 
 const Dashboard = () => {
     const navigate = useNavigate();
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
@@ -125,9 +125,7 @@ const Dashboard = () => {
         setAvailableMonths(sortedMonths);
     };
 
-    // ✅ FUNGSI FETCH KEBERANGKATAN DENGAN MULTIPLE FALLBACK
     const fetchKeberangkatanData = async () => {
-        // GUNAKAN API_BASE_URL
         const endpoints = [
             `${API_BASE_URL}/api/keberangkatan-truk?all=true`,
             `${API_BASE_URL}/api/keberangkatan?all=true`,
@@ -144,7 +142,6 @@ const Dashboard = () => {
                     const json = await response.json();
                     console.log(`✅ Success with endpoint: ${endpoint}`, json);
                     
-                    // Handle different response structures
                     let data = [];
                     if (json.status === 'Success' && json.data && Array.isArray(json.data)) {
                         data = json.data;
@@ -171,12 +168,10 @@ const Dashboard = () => {
                 setLoading(true);
                 setError(null);
                 
-                // Fetch kegiatan (GUNAKAN API_BASE_URL)
                 const resKegiatan = await fetch(`${API_BASE_URL}/api/kegiatan`);
                 if (!resKegiatan.ok) throw new Error('Gagal mengambil data kegiatan');
                 const jsonKegiatan = await resKegiatan.json();
                 
-                // Fetch keberangkatan dengan multiple fallback
                 const keberangkatanResult = await fetchKeberangkatanData();
                 if (!keberangkatanResult.success) {
                     throw new Error('Gagal mengambil data keberangkatan dari semua endpoint');
@@ -184,7 +179,6 @@ const Dashboard = () => {
                 
                 console.log(`📊 Using endpoint: ${keberangkatanResult.endpoint}`);
                 
-                // Fetch users dan transporter (GUNAKAN API_BASE_URL)
                 const [resUsers, resTransporter] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/users`),
                     fetch(`${API_BASE_URL}/api/kegiatan/transporters`)
@@ -233,7 +227,6 @@ const Dashboard = () => {
 
         const processData = async () => {
             try {
-                // GUNAKAN API_BASE_URL
                 const [resUsers, resTransporter] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/users`),
                     fetch(`${API_BASE_URL}/api/kegiatan/transporters`)
@@ -278,7 +271,6 @@ const Dashboard = () => {
                     { name: 'Completed', value: completedCount, color: '#16A34A' },
                 ]);
 
-                // Hourly data
                 const hourlyMap = Array.from({ length: 24 }, (_, i) => ({ 
                     hour: `${String(i).padStart(2, '0')}:00`, 
                     count: 0
@@ -296,7 +288,6 @@ const Dashboard = () => {
                 
                 setDataHourly(hourlyMap);
 
-                // Shift data
                 const shiftMap = { 'Shift 1': 0, 'Shift 2': 0, 'Shift 3': 0 };
                 filteredKeberangkatan.forEach(k => {
                     if (k.nama_shift && shiftMap.hasOwnProperty(k.nama_shift)) {
@@ -310,7 +301,6 @@ const Dashboard = () => {
                     { name: 'Shift 3', value: shiftMap['Shift 3'], color: '#1e40af' },
                 ]);
 
-                // Weekly data
                 const todayDate = new Date();
                 const weeklyData = [];
                 const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -357,11 +347,10 @@ const Dashboard = () => {
                                     transporterInfo[namaTransporter] = { masuk: 0 };
                                 }
                                 
-                                // ✅ Cek multiple field possibilities
                                 const trukMasuk = rawKeberangkatan.filter(kb => {
                                     const kbPO = (kb.no_po || '').toString().trim();
                                     const kbTransporter = (
-                                        kb.nama_vendor ||  // Dari backend controller
+                                        kb.nama_vendor ||
                                         kb.nama_transporter || 
                                         kb.transporter ||
                                         ''
@@ -403,7 +392,6 @@ const Dashboard = () => {
                 }
                 setDataWeekly(weeklyData);
 
-                // Kegiatan Mendatang
                 const upcomingKegiatan = rawKegiatan
                     .filter(k => {
                         const startDate = new Date(k.tanggal_mulai);
@@ -445,7 +433,6 @@ const Dashboard = () => {
         processData();
     }, [selectedYear, selectedMonth, selectedPeriod, rawKegiatan, rawKeberangkatan, loading]);
 
-    // Custom Tooltip untuk grafik mingguan
     const CustomWeeklyTooltip = ({ active, payload }) => {
         if (!active || !payload || !payload.length) return null;
         
@@ -546,6 +533,112 @@ const Dashboard = () => {
         );
     };
 
+    const CustomPieTooltip = ({ active, payload }) => {
+        if (!active || !payload || !payload.length) return null;
+        
+        const status = payload[0].name;
+        const count = payload[0].value;
+        
+        if (count === 0) return null;
+        
+        const detailData = [];
+        
+        rawKegiatan.forEach(kegiatan => {
+            if (kegiatan.transporters && Array.isArray(kegiatan.transporters)) {
+                kegiatan.transporters.forEach(t => {
+                    if (t.status === status) {
+                        detailData.push({
+                            no_po: kegiatan.no_po,
+                            vendor: kegiatan.vendor,
+                            kapal: kegiatan.nama_kapal || '-',
+                            transporter: t.nama_transporter || t.nama || '-',
+                            material: kegiatan.material || '-',
+                            tanggal_mulai: kegiatan.tanggal_mulai,
+                            tanggal_selesai: kegiatan.tanggal_selesai
+                        });
+                    }
+                });
+            }
+        });
+        
+        return (
+            <div 
+                className="bg-white rounded-xl shadow-xl border-2 border-gray-200"
+                style={{ 
+                    width: '380px',
+                    maxHeight: '450px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    position: 'relative'
+                }}
+                onWheel={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+            >
+                <div className="p-4 border-b-2 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="font-bold text-gray-900 text-base mb-1">
+                        Status: {status}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                        Total: {count} Transportir
+                    </div>
+                </div>
+                
+                <div 
+                    className="p-4 pt-2"
+                    style={{ 
+                        maxHeight: '380px',
+                        overflowY: 'auto',
+                        overflowX: 'hidden'
+                    }}
+                >
+                    <div className="space-y-3">
+                        {detailData.map((item, idx) => (
+                            <div key={idx} className="p-3 bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 hover:shadow-md transition-all">
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="font-bold text-sm text-gray-900">
+                                        PO {item.no_po}
+                                    </div>
+                                    <div className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${
+                                        status === 'Completed' ? 'bg-green-100 text-green-700' :
+                                        status === 'On Progress' ? 'bg-blue-100 text-blue-700' :
+                                        'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                        {status}
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-1.5">
+                                    <div className="flex items-start gap-2">
+                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Vendor:</span>
+                                        <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.vendor}</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Kapal:</span>
+                                        <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.kapal}</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Material:</span>
+                                        <span className="text-xs text-gray-900 font-semibold flex-1 break-words">{item.material}</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Transporter:</span>
+                                        <span className="text-xs text-gray-900 font-semibold flex-1 text-purple-700 break-words">{item.transporter}</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <span className="text-xs font-bold text-gray-500 w-20 flex-shrink-0">Periode:</span>
+                                        <span className="text-xs text-gray-700 flex-1">
+                                            {new Date(item.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} - {item.tanggal_selesai ? new Date(item.tanggal_selesai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
             return (
@@ -560,7 +653,7 @@ const Dashboard = () => {
 
     if (loading) {
         return (
-            <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 items-center justify-center">
+            <div className="flex h-screen bg-gray-100 items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mb-4 mx-auto"></div>
                     <p className="text-gray-600 font-bold">Memuat Dashboard...</p>
@@ -571,7 +664,7 @@ const Dashboard = () => {
 
     if (error) {
         return (
-            <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 items-center justify-center">
+            <div className="flex h-screen bg-gray-100 items-center justify-center">
                 <div className="text-center bg-white p-8 rounded-2xl shadow-lg max-w-md">
                     <div className="text-red-600 text-5xl mb-4">⚠️</div>
                     <p className="text-gray-800 font-bold text-xl mb-2">Terjadi Kesalahan</p>
@@ -591,10 +684,10 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+        <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
                 <main className="flex-1 p-4 md:p-6 overflow-y-auto">
@@ -681,7 +774,7 @@ const Dashboard = () => {
                         })}
                     </div>
 
-                    {/* KEGIATAN MINGGU INI */}
+                    {/* KEGIATAN MINGGU INI + STATUS TRANSPORTIR */}
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
                         <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                             <div className="flex items-center gap-3 mb-6">
@@ -731,7 +824,11 @@ const Dashboard = () => {
                                                 <Cell key={index} fill={entry.color} />
                                             ))}
                                         </Pie>
-                                        <Tooltip cursor={{ fill: 'rgba(239, 68, 68, 0.1)' }} />
+                                        <Tooltip 
+                                            content={<CustomPieTooltip />}
+                                            wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
+                                            cursor={{ fill: 'rgba(239, 68, 68, 0.1)' }}
+                                        />
                                         <Legend 
                                             iconType="circle" 
                                             layout="horizontal" 
