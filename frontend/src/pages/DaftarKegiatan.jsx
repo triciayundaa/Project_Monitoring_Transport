@@ -4,12 +4,10 @@ import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import TambahKegiatan from './TambahKegiatan';
 import { useNavigate } from 'react-router-dom';
-import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
+import API_BASE_URL from '../config/api';
 
-// GUNAKAN API_BASE_URL
 const API = `${API_BASE_URL}/api/kegiatan`;
 
-// Modern Modal Component
 const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
     if (!isOpen) return null;
 
@@ -50,7 +48,6 @@ const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
     );
 };
 
-// Confirm Modal
 const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
     if (!isOpen) return null;
 
@@ -114,7 +111,6 @@ const DaftarKegiatan = () => {
     const [endDate, setEndDate] = useState('');
     const navigate = useNavigate();
     
-    // Modal states
     const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
@@ -146,11 +142,10 @@ const DaftarKegiatan = () => {
                 statuses: item.transporters?.map(t => t.status || 'Waiting') || []
             }));
             
-            // ✅ SORT: Data terbaru (berdasarkan tanggal_mulai) muncul paling atas
             const sortedData = transformedData.sort((a, b) => {
                 const dateA = new Date(a.tanggal_mulai);
                 const dateB = new Date(b.tanggal_mulai);
-                return dateB - dateA; // Descending (terbaru di atas)
+                return dateB - dateA;
             });
             
             setData(sortedData);
@@ -291,109 +286,64 @@ const DaftarKegiatan = () => {
 
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('id-ID') : '-';
 
-   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
-        {/* Modal Components */}
-        <Modal 
-            isOpen={modal.isOpen}
-            onClose={closeModal}
-            type={modal.type}
-            title={modal.title}
-            message={modal.message}
-        />
+    return (
+        <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
+            <Modal 
+                isOpen={modal.isOpen}
+                onClose={closeModal}
+                type={modal.type}
+                title={modal.title}
+                message={modal.message}
+            />
 
-        <ConfirmModal
-            isOpen={confirmModal.isOpen}
-            onClose={closeConfirm}
-            onConfirm={confirmModal.onConfirm}
-            title={confirmModal.title}
-            message={confirmModal.message}
-        />
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={closeConfirm}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+            />
 
-        {/* Sidebar */}
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-            
-            <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-                <button
-                    onClick={() => setOpenTambah(true)}
-                    className="bg-red-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 mb-4 hover:bg-red-700"
-                >
-                    <Plus size={18} /> Tambah Kegiatan
-                </button>
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                <Topbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+                
+                <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+                    <button
+                        onClick={() => setOpenTambah(true)}
+                        className="bg-red-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 mb-4 hover:bg-red-700"
+                    >
+                        <Plus size={18} /> Tambah Kegiatan
+                    </button>
 
-                {openTambah && (
-                    <TambahKegiatan onClose={() => setOpenTambah(false)} onSuccess={loadData} />
-                )}
+                    {openTambah && (
+                        <TambahKegiatan onClose={() => setOpenTambah(false)} onSuccess={loadData} />
+                    )}
 
-                {openEdit && (
-                    <TambahKegiatan
-                        mode="edit"
-                        data={{ ...selected, old_no_po: selected.no_po }}
-                        onClose={() => setOpenEdit(false)}
-                        onSuccess={loadData}
-                    />
-                )}
+                    {openEdit && (
+                        <TambahKegiatan
+                            mode="edit"
+                            data={{ ...selected, old_no_po: selected.no_po }}
+                            onClose={() => setOpenEdit(false)}
+                            onSuccess={loadData}
+                        />
+                    )}
 
-                {/* Filter Section */}
-                <div className="bg-gray-100 rounded-[14px] p-4 mb-5">
-                    {/* Mobile: Vertical Layout */}
-                    <div className="flex flex-col gap-3 lg:hidden">
-                        <div className="relative">
-                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Cari PO, Vendor, Transporter..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className={`${filterInput} pl-11 w-full`}
-                            />
-                        </div>
+                    {/* Filter Section */}
+                    <div className="bg-gray-100 rounded-[14px] p-4 mb-5">
+                        <div className="flex flex-col gap-3 lg:hidden">
+                            <div className="relative">
+                                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari PO, Vendor, Transporter..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className={`${filterInput} pl-11 w-full`}
+                                />
+                            </div>
 
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className={filterInput}
-                        >
-                            <option>Semua Status</option>
-                            <option>Waiting</option>
-                            <option>On Progress</option>
-                            <option>Completed</option>
-                        </select>
-
-                        <div className="flex gap-2">
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className={filterInput}
-                            />
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className={filterInput}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Desktop: Horizontal Layout */}
-                    <div className="hidden lg:flex flex-wrap items-center gap-3">
-                        <div className="flex-1 min-w-[200px] relative">
-                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Cari PO, Vendor, Transporter, Kapal, Material..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className={`${filterInput} pl-11 w-full`}
-                            />
-                        </div>
-
-                        <div className="min-w-[150px]">
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -404,220 +354,280 @@ const DaftarKegiatan = () => {
                                 <option>On Progress</option>
                                 <option>Completed</option>
                             </select>
+
+                            <div className="flex gap-2">
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className={filterInput}
+                                />
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className={filterInput}
+                                />
+                            </div>
                         </div>
 
-                        <div className="flex gap-2 min-w-[220px]">
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className={filterInput}
-                            />
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className={filterInput}
-                            />
+                        <div className="hidden lg:flex flex-wrap items-center gap-3">
+                            <div className="flex-1 min-w-[200px] relative">
+                                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari PO, Vendor, Transporter, Kapal, Material..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className={`${filterInput} pl-11 w-full`}
+                                />
+                            </div>
+
+                            <div className="min-w-[150px]">
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className={filterInput}
+                                >
+                                    <option>Semua Status</option>
+                                    <option>Waiting</option>
+                                    <option>On Progress</option>
+                                    <option>Completed</option>
+                                </select>
+                            </div>
+
+                            <div className="flex gap-2 min-w-[220px]">
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className={filterInput}
+                                />
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className={filterInput}
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Table Section */}
-                <div className="bg-white rounded-xl shadow overflow-x-auto">
-                    <table className="w-full text-sm min-w-[1100px]">
-                        <thead className="bg-red-600 text-white">
-                            <tr>
-                                <th className="px-4 py-3 border-r border-red-500/30">Tanggal</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">No PO</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">Vendor</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">Nama Kapal</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">Material</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">Incoterm</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">No BL</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">Qty</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">Transporter</th>
-                                <th className="px-4 py-3 border-r border-red-500/30">Status</th>
-                                <th className="px-4 py-3 text-center border-r border-red-500/30">Total Truk</th>
-                                <th className="px-4 py-3 text-center">Aksi</th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            {filteredData.length === 0 ? (
+                    {/* Table Section */}
+                    <div className="bg-white rounded-xl shadow overflow-x-auto">
+                        <table className="w-full text-sm min-w-[1200px]">
+                            <thead className="bg-red-600 text-white">
                                 <tr>
-                                    <td colSpan="12" className="text-center py-10 text-gray-400">
-                                        Tidak ada data kegiatan
-                                    </td>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Tanggal</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">No PO</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Vendor</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Nama Kapal</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Material</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Incoterm</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">No BL</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Qty</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Truk Air</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Transporter</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Status</th>
+                                    <th className="px-4 py-3 text-center border-r border-red-500/30">Total Truk</th>
+                                    <th className="px-4 py-3 text-center">Aksi</th>
                                 </tr>
-                            ) : (
-                                filteredData.map((item, index) => {
-                                    const transporterCount = item.transporters?.length || 0;
-                                    
-                                    return (
-                                        <React.Fragment key={item.no_po}>
-                                            {transporterCount > 0 ? (
-                                                item.transporters.map((transporter, tIdx) => (
-                                                    <tr
-                                                        key={`${item.no_po}-${tIdx}`}
-                                                        className={`border-b border-gray-200 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
-                                                    >
-                                                        {tIdx === 0 && (
-                                                            <>
-                                                                <td className="px-3 py-2 text-xs leading-tight border-r border-gray-200" rowSpan={transporterCount}>
-                                                                    <div className="font-medium">
-                                                                        {formatDate(item.tanggal_mulai)}
-                                                                    </div>
-                                                                    <div className="text-gray-400 truncate">
-                                                                        s.d {formatDate(item.tanggal_selesai)}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-3 font-medium border-r border-gray-200" rowSpan={transporterCount}>{item.no_po}</td>
-                                                                <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.vendor}</td>
-                                                                <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.nama_kapal || '-'}</td>
-                                                                <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>
-                                                                    <div className="max-w-xs truncate">{item.material}</div>
-                                                                </td>
-                                                                <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.incoterm || '-'}</td>
-                                                                <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.no_bl || '-'}</td>
-                                                                <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>
-                                                                    {parseFloat(item.quantity)} ton
-                                                                </td>
-                                                            </>
-                                                        )}
-                                                        
-                                                        <td className="px-4 py-3 border-r border-gray-200">
-                                                            <div className="font-medium text-gray-800">{transporter || '-'}</div>
-                                                        </td>
-                                                        
-                                                        <td className="px-4 py-3 border-r border-gray-200">
-                                                            <span className={`inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${getStatusColor(item.statuses?.[tIdx])}`}>
+                            </thead>
+
+                            <tbody>
+                                {filteredData.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="13" className="text-center py-10 text-gray-400">
+                                            Tidak ada data kegiatan
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredData.map((item, index) => {
+                                        const transporterCount = item.transporters?.length || 0;
+                                        
+                                        return (
+                                            <React.Fragment key={item.no_po}>
+                                                {transporterCount > 0 ? (
+                                                    item.transporters.map((transporter, tIdx) => (
+                                                        <tr
+                                                            key={`${item.no_po}-${tIdx}`}
+                                                            className={`border-b border-gray-200 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                                                        >
+                                                            {tIdx === 0 && (
+                                                                <>
+                                                                    <td className="px-3 py-2 text-xs leading-tight border-r border-gray-200" rowSpan={transporterCount}>
+                                                                        <div className="font-medium">
+                                                                            {formatDate(item.tanggal_mulai)}
+                                                                        </div>
+                                                                        <div className="text-gray-400 truncate">
+                                                                            s.d {formatDate(item.tanggal_selesai)}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 font-medium border-r border-gray-200" rowSpan={transporterCount}>{item.no_po}</td>
+                                                                    <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.vendor}</td>
+                                                                    <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.nama_kapal || '-'}</td>
+                                                                    <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>
+                                                                        <div className="max-w-xs truncate">{item.material}</div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.incoterm || '-'}</td>
+                                                                    <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>{item.no_bl || '-'}</td>
+                                                                    <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>
+                                                                        {parseFloat(item.quantity)} ton
+                                                                    </td>
+                                                                    <td className="px-4 py-3 border-r border-gray-200" rowSpan={transporterCount}>
+                                                                        <span className={`inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
+                                                                            item.butuh_penyiraman === 'Ya' 
+                                                                                ? 'bg-blue-100 text-blue-700' 
+                                                                                : 'bg-gray-100 text-gray-500'
+                                                                        }`}>
+                                                                            {item.butuh_penyiraman === 'Ya' ? '✓ Perlu' : '✗ Tidak'}
+                                                                        </span>
+                                                                    </td>
+                                                                </>
+                                                            )}
+                                                            
+                                                            <td className="px-4 py-3 border-r border-gray-200">
+                                                                <div className="font-medium text-gray-800">{transporter || '-'}</div>
+                                                            </td>
+                                                            
+                                                            <td className="px-4 py-3 border-r border-gray-200">
+                                                                <span className={`inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${getStatusColor(item.statuses?.[tIdx])}`}>
                                                                     {item.statuses?.[tIdx] || 'Waiting'}
+                                                                </span>
+                                                            </td>
+
+                                                            {tIdx === 0 && (
+                                                                <>
+                                                                    <td className="px-4 py-3 text-center font-bold text-gray-700 border-r border-gray-200" rowSpan={transporterCount}>
+                                                                        <span className="inline-flex items-center justify-center bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
+                                                                            {item.realisasi_truk || 0}
+                                                                        </span>
+                                                                    </td>
+
+                                                                    <td className="px-4 py-3" rowSpan={transporterCount}>
+                                                                        <div className="flex justify-center gap-2">
+                                                                            <button
+                                                                                className="p-2 rounded hover:bg-gray-200 transition-colors"
+                                                                                onClick={() => navigate(`/manajemen-kegiatan/detail/${item.no_po}`)}
+                                                                                title="Lihat detail"
+                                                                            >
+                                                                                <Eye size={16} />
+                                                                            </button>
+                                                                            
+                                                                            <button
+                                                                                onClick={() => handleEdit(item)}
+                                                                                className="p-2 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                                                                                title="Edit kegiatan"
+                                                                            >
+                                                                                <Edit size={16} />
+                                                                            </button>
+
+                                                                            <button
+                                                                                onClick={() => handleDelete(item.no_po)}
+                                                                                disabled={item.realisasi_truk > 0}
+                                                                                className={`p-2 rounded transition-colors ${
+                                                                                    item.realisasi_truk > 0
+                                                                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                                                        : 'hover:bg-red-100 text-red-600'
+                                                                                }`}
+                                                                                title={
+                                                                                    item.realisasi_truk > 0 
+                                                                                        ? `Tidak dapat dihapus (${item.realisasi_truk} truk sudah masuk)` 
+                                                                                        : 'Hapus kegiatan'
+                                                                                }
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </>
+                                                            )}
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr className={`border-b border-gray-200 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                                        <td className="px-3 py-2 text-xs leading-tight border-r border-gray-200">
+                                                            <div className="font-medium">
+                                                                {formatDate(item.tanggal_mulai)}
+                                                            </div>
+                                                            <div className="text-gray-400 truncate">
+                                                                s.d {formatDate(item.tanggal_selesai)}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium border-r border-gray-200">{item.no_po}</td>
+                                                        <td className="px-4 py-3 border-r border-gray-200">{item.vendor}</td>
+                                                        <td className="px-4 py-3 border-r border-gray-200">{item.nama_kapal || '-'}</td>
+                                                        <td className="px-4 py-3 border-r border-gray-200">
+                                                            <div className="max-w-xs truncate">{item.material}</div>
+                                                        </td>
+                                                        <td className="px-4 py-3 border-r border-gray-200">{item.incoterm || '-'}</td>
+                                                        <td className="px-4 py-3 border-r border-gray-200">{item.no_bl || '-'}</td>
+                                                        <td className="px-4 py-3 border-r border-gray-200">{parseFloat(item.quantity)} ton</td>
+                                                        <td className="px-4 py-3 border-r border-gray-200">
+                                                            <span className={`inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
+                                                                item.butuh_penyiraman === 'Ya' 
+                                                                    ? 'bg-blue-100 text-blue-700' 
+                                                                    : 'bg-gray-100 text-gray-500'
+                                                            }`}>
+                                                                {item.butuh_penyiraman === 'Ya' ? '✓ Perlu' : '✗ Tidak'}
                                                             </span>
                                                         </td>
-
-                                                        {tIdx === 0 && (
-                                                            <>
-                                                                <td className="px-4 py-3 text-center font-bold text-gray-700 border-r border-gray-200" rowSpan={transporterCount}>
-                                                                    <span className="inline-flex items-center justify-center bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
-                                                                        {item.realisasi_truk || 0}
-                                                                    </span>
-                                                                </td>
-
-                                                                <td className="px-4 py-3" rowSpan={transporterCount}>
-                                                                    <div className="flex justify-center gap-2">
-                                                                        <button
-                                                                            className="p-2 rounded hover:bg-gray-200 transition-colors"
-                                                                            onClick={() => navigate(`/manajemen-kegiatan/detail/${item.no_po}`)}
-                                                                            title="Lihat detail"
-                                                                        >
-                                                                            <Eye size={16} />
-                                                                        </button>
-                                                                        
-                                                                        <button
-                                                                            onClick={() => handleEdit(item)}
-                                                                            className="p-2 rounded hover:bg-blue-100 text-blue-600 transition-colors"
-                                                                            title="Edit kegiatan"
-                                                                        >
-                                                                            <Edit size={16} />
-                                                                        </button>
-
-                                                                        <button
-                                                                            onClick={() => handleDelete(item.no_po)}
-                                                                            disabled={item.realisasi_truk > 0}
-                                                                            className={`p-2 rounded transition-colors ${
-                                                                                item.realisasi_truk > 0
-                                                                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                                                                    : 'hover:bg-red-100 text-red-600'
-                                                                            }`}
-                                                                            title={
-                                                                                item.realisasi_truk > 0 
-                                                                                    ? `Tidak dapat dihapus (${item.realisasi_truk} truk sudah masuk)` 
-                                                                                    : 'Hapus kegiatan'
-                                                                            }
-                                                                        >
-                                                                            <Trash2 size={16} />
-                                                                        </button>
-                                                                    </div>
-                                                                </td>
-                                                            </>
-                                                        )}
+                                                        <td className="px-4 py-3 text-gray-400 italic border-r border-gray-200">Belum ada transporter</td>
+                                                        <td className="px-4 py-3 border-r border-gray-200">-</td>
+                                                        <td className="px-4 py-3 text-center font-bold border-r border-gray-200">
+                                                            <span className="inline-flex items-center justify-center bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
+                                                                {item.realisasi_truk || 0}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex justify-center gap-2">
+                                                                <button
+                                                                    className="p-2 rounded hover:bg-gray-200 transition-colors"
+                                                                    onClick={() => navigate(`/manajemen-kegiatan/detail/${item.no_po}`)}
+                                                                    title="Lihat detail"
+                                                                >
+                                                                    <Eye size={16} />
+                                                                </button>
+                                                                
+                                                                <button
+                                                                    onClick={() => handleEdit(item)}
+                                                                    className="p-2 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                                                                    title="Edit kegiatan"
+                                                                >
+                                                                    <Edit size={16} />
+                                                                </button>
+                                                                
+                                                                <button
+                                                                    onClick={() => handleDelete(item.no_po)}
+                                                                    disabled={item.realisasi_truk > 0}
+                                                                    className={`p-2 rounded transition-colors ${
+                                                                        item.realisasi_truk > 0
+                                                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                                            : 'hover:bg-red-100 text-red-600'
+                                                                    }`}
+                                                                    title={
+                                                                        item.realisasi_truk > 0 
+                                                                            ? `Tidak dapat dihapus (${item.realisasi_truk} truk sudah masuk)` 
+                                                                            : 'Hapus kegiatan'
+                                                                    }
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
                                                     </tr>
-                                                ))
-                                            ) : (
-                                                <tr className={`border-b border-gray-200 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                                                    <td className="px-3 py-2 text-xs leading-tight border-r border-gray-200">
-                                                        <div className="font-medium">
-                                                            {formatDate(item.tanggal_mulai)}
-                                                        </div>
-                                                        <div className="text-gray-400 truncate">
-                                                            s.d {formatDate(item.tanggal_selesai)}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3 font-medium border-r border-gray-200">{item.no_po}</td>
-                                                    <td className="px-4 py-3 border-r border-gray-200">{item.vendor}</td>
-                                                    <td className="px-4 py-3 border-r border-gray-200">{item.nama_kapal || '-'}</td>
-                                                    <td className="px-4 py-3 border-r border-gray-200">
-                                                        <div className="max-w-xs truncate">{item.material}</div>
-                                                    </td>
-                                                    <td className="px-4 py-3 border-r border-gray-200">{item.incoterm || '-'}</td>
-                                                    <td className="px-4 py-3 border-r border-gray-200">{item.no_bl || '-'}</td>
-                                                    <td className="px-4 py-3 border-r border-gray-200">{parseFloat(item.quantity)} ton</td>
-                                                    <td className="px-4 py-3 text-gray-400 italic border-r border-gray-200">Belum ada transporter</td>
-                                                    <td className="px-4 py-3 border-r border-gray-200">-</td>
-                                                    <td className="px-4 py-3 text-center font-bold border-r border-gray-200">
-                                                        <span className="inline-flex items-center justify-center bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
-                                                            {item.realisasi_truk || 0}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex justify-center gap-2">
-                                                            <button
-                                                                className="p-2 rounded hover:bg-gray-200 transition-colors"
-                                                                onClick={() => navigate(`/manajemen-kegiatan/detail/${item.no_po}`)}
-                                                                title="Lihat detail"
-                                                            >
-                                                                <Eye size={16} />
-                                                            </button>
-                                                            
-                                                            <button
-                                                                onClick={() => handleEdit(item)}
-                                                                className="p-2 rounded hover:bg-blue-100 text-blue-600 transition-colors"
-                                                                title="Edit kegiatan"
-                                                            >
-                                                                <Edit size={16} />
-                                                            </button>
-                                                            
-                                                            <button
-                                                                onClick={() => handleDelete(item.no_po)}
-                                                                disabled={item.realisasi_truk > 0}
-                                                                className={`p-2 rounded transition-colors ${
-                                                                    item.realisasi_truk > 0
-                                                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                                                        : 'hover:bg-red-100 text-red-600'
-                                                                }`}
-                                                                title={
-                                                                    item.realisasi_truk > 0 
-                                                                        ? `Tidak dapat dihapus (${item.realisasi_truk} truk sudah masuk)` 
-                                                                        : 'Hapus kegiatan'
-                                                                }
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </main>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </main>
+            </div>
         </div>
-    </div>
-);
+    );
 };
+
 export default DaftarKegiatan;

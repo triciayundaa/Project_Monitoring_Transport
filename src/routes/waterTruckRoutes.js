@@ -22,4 +22,7 @@ router.get('/', waterTruckController.getDataPembersihan);
 // POST SAVE
 router.post('/', waterTruckController.simpanPembersihan);
 
+router.post('/water-truck/check-po', waterTruckController.checkPoStatus);
+router.post('/check-po', waterTruckController.checkPoStatus);
+
 module.exports = router;

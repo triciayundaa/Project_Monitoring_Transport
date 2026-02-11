@@ -10,6 +10,7 @@ const getAll = async (req, res) => {
             SELECT 
                 k.id, k.no_po, v.nama_vendor AS vendor, k.nama_kapal, k.material,
                 k.incoterm, k.no_bl, k.quantity, k.tanggal_mulai, k.tanggal_selesai,
+                k.butuh_penyiraman,
                 kt.id AS kegiatan_transporter_id, t.id AS transporter_id,
                 t.nama_transporter, kt.status,
                 (
@@ -43,6 +44,7 @@ const getAll = async (req, res) => {
                     quantity: row.quantity,
                     tanggal_mulai: row.tanggal_mulai,
                     tanggal_selesai: row.tanggal_selesai,
+                    butuh_penyiraman: row.butuh_penyiraman || 'Tidak',
                     total_truk: 0, // Akan diakumulasi di bawah
                     transporters: []
                 };
@@ -70,9 +72,6 @@ const getAll = async (req, res) => {
     }
 };
 
-// ==========================================
-// 2. AMBIL DETAIL LENGKAP
-// ==========================================
 // ==========================================
 // 2. AMBIL DETAIL LENGKAP (REVISI QUERY TRUK)
 // ==========================================
@@ -116,7 +115,7 @@ const getDetailByPO = async (req, res) => {
                 kbt.status, u.nama as nama_personil, s.nama_shift, 
                 ken.plat_nomor as nopol, 
                 t.nama_transporter, 
-                t.id as transporter_id, -- ⬅️ Tambahkan baris ini agar Frontend tidak error
+                t.id as transporter_id,
                 kt.id as kegiatan_transporter_id
             FROM keberangkatan_truk kbt
             JOIN kegiatan_kendaraan kk ON kbt.kegiatan_kendaraan_id = kk.id
@@ -148,6 +147,7 @@ const getDetailByPO = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
 // 2a. AMBIL SEMUA TRANSPORTER
 const getAllTransporters = async (req, res) => {
     try {
@@ -159,18 +159,30 @@ const getAllTransporters = async (req, res) => {
     }
 };
 
-// 3. TAMBAH KEGIATAN
+// ==========================================
+// 3. TAMBAH KEGIATAN (DENGAN BUTUH_PENYIRAMAN)
+// ==========================================
 const create = async (req, res) => {
     try {
         const no_po = req.body.no_po || req.body.noPo || req.body.nomor_po;
         const nama_vendor = req.body.nama_vendor || req.body.vendor || req.body.namaVendor;
         const transporters = req.body.transporters || [];
-        const { nama_kapal, material, incoterm, no_bl, quantity, tanggal_mulai, tanggal_selesai } = req.body;
+        const { 
+            nama_kapal, 
+            material, 
+            incoterm, 
+            no_bl, 
+            quantity, 
+            tanggal_mulai, 
+            tanggal_selesai,
+            butuh_penyiraman // 🔥 TAMBAHAN FIELD BARU
+        } = req.body;
 
         if (!no_po || !nama_vendor) {
             return res.status(400).json({ message: "Gagal: No PO dan Vendor wajib diisi." });
         }
 
+        // Cari atau buat vendor
         let vendorId;
         const [existingVendor] = await db.query('SELECT id FROM vendor WHERE nama_vendor = ?', [nama_vendor]);
         if (existingVendor.length > 0) {
@@ -180,15 +192,20 @@ const create = async (req, res) => {
             vendorId = newVendor.insertId;
         }
 
+        // Set default value untuk butuh_penyiraman jika tidak ada
+        const finalButuhPenyiraman = butuh_penyiraman || 'Tidak';
+
+        // 🔥 INSERT dengan butuh_penyiraman
         const [kegiatanResult] = await db.query(
             `INSERT INTO kegiatan 
-            (no_po, vendor_id, nama_kapal, material, incoterm, no_bl, quantity, tanggal_mulai, tanggal_selesai) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [no_po, vendorId, nama_kapal, material, incoterm, no_bl, quantity, tanggal_mulai, tanggal_selesai]
+            (no_po, vendor_id, nama_kapal, material, incoterm, no_bl, quantity, tanggal_mulai, tanggal_selesai, butuh_penyiraman) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [no_po, vendorId, nama_kapal, material, incoterm, no_bl, quantity, tanggal_mulai, tanggal_selesai, finalButuhPenyiraman]
         );
 
         const kegiatanId = kegiatanResult.insertId;
 
+        // Insert transporters
         if (transporters && transporters.length > 0) {
             for (const transporterName of transporters) {
                 if (!transporterName || transporterName.trim() === '') continue;
@@ -209,6 +226,7 @@ const create = async (req, res) => {
                 );
             }
         }
+        
         res.status(201).json({ message: 'Kegiatan berhasil ditambahkan' });
     } catch (error) {
         console.error("CREATE ERROR:", error);
@@ -247,7 +265,9 @@ const updateStatus = async (req, res) => {
     }
 };
 
-// 5. UPDATE DATA KEGIATAN
+// ==========================================
+// 5. UPDATE DATA KEGIATAN (DENGAN BUTUH_PENYIRAMAN)
+// ==========================================
 const update = async (req, res) => {
     const { no_po } = req.params; 
     const body = req.body;      
@@ -259,7 +279,9 @@ const update = async (req, res) => {
         const oldData = existingData[0];
         let final_no_po = body.no_po || oldData.no_po;
         let final_tanggal_mulai = body.tanggal_mulai || oldData.tanggal_mulai;
+        let final_butuh_penyiraman = body.butuh_penyiraman || oldData.butuh_penyiraman || 'Tidak'; // 🔥 TAMBAHAN
 
+        // Handle vendor
         let vendorId = oldData.vendor_id; 
         if (body.nama_vendor) {
             const [existingVendor] = await db.query('SELECT id FROM vendor WHERE nama_vendor = ?', [body.nama_vendor]);
@@ -271,13 +293,33 @@ const update = async (req, res) => {
             }
         }
 
+        // 🔥 UPDATE dengan butuh_penyiraman
         await db.query(`
             UPDATE kegiatan SET 
-                no_po = ?, vendor_id = ?, nama_kapal = ?, material = ?, 
-                incoterm = ?, no_bl = ?, quantity = ?, 
-                tanggal_mulai = ?, tanggal_selesai = ?
+                no_po = ?, 
+                vendor_id = ?, 
+                nama_kapal = ?, 
+                material = ?, 
+                incoterm = ?, 
+                no_bl = ?, 
+                quantity = ?, 
+                tanggal_mulai = ?, 
+                tanggal_selesai = ?,
+                butuh_penyiraman = ?
             WHERE no_po = ?`,
-            [final_no_po, vendorId, body.nama_kapal, body.material, body.incoterm, body.no_bl, body.quantity, final_tanggal_mulai, body.tanggal_selesai, no_po]
+            [
+                final_no_po, 
+                vendorId, 
+                body.nama_kapal, 
+                body.material, 
+                body.incoterm, 
+                body.no_bl, 
+                body.quantity, 
+                final_tanggal_mulai, 
+                body.tanggal_selesai,
+                final_butuh_penyiraman, // 🔥 TAMBAHAN
+                no_po
+            ]
         );
 
         // HANDLE TRANSPORTERS
@@ -318,6 +360,7 @@ const update = async (req, res) => {
                 }
             }
 
+            // Hapus transporter yang tidak digunakan lagi (hanya jika Waiting dan tidak ada truk)
             for (const et of existingTransporters) {
                 if (!usedKegiatanTransporterIds.has(et.kegiatan_transporter_id)) {
                     if (et.status === 'Waiting' && et.jumlah_truk === 0) {
@@ -326,6 +369,7 @@ const update = async (req, res) => {
                 }
             }
         }
+        
         res.json({ message: "Data kegiatan berhasil diperbarui" });
     } catch (error) {
         console.error("UPDATE ERROR:", error);
@@ -382,7 +426,7 @@ const updateTransporterStatus = async (req, res) => {
     }
 };
 
-// Ambil daftar truk yang sudah dialokasikan ke PO dan Transporter tertentu
+// 8. Ambil daftar truk yang sudah dialokasikan ke PO dan Transporter tertentu
 const getTrukByAlokasi = async (req, res) => {
     const { kegiatan_id, transporter_id } = req.params;
     try {

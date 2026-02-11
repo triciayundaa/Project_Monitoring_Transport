@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Truck, CheckCircle, XCircle, Search, AlertCircle, Calendar } from 'lucide-react';
+import { ArrowLeft, Truck, CheckCircle, XCircle, Search, AlertCircle, Calendar, Plus } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
+import ManualInputModal from './ManualInputModal';
 import API_BASE_URL from '../config/api';
 
 const API = `${API_BASE_URL}/api/kegiatan`;
@@ -104,10 +105,6 @@ const DetailKegiatan = () => {
     const [selectedDate, setSelectedDate] = useState('');
     const [selectedImage, setSelectedImage] = useState(null);
     const [isUpdatingComplete, setIsUpdatingComplete] = useState(false);
-    const [editingRow, setEditingRow] = useState(null);
-    const [editFormData, setEditFormData] = useState({});
-    const [availableUsers, setAvailableUsers] = useState([]);
-    const [availableKendaraan, setAvailableKendaraan] = useState([]);
 
     const [modalSize, setModalSize] = useState({ width: 520, height: 320, isMax: false });
     const [modalPos, setModalPos] = useState({ x: (window.innerWidth - 520) / 2, y: 80 });
@@ -119,6 +116,11 @@ const DetailKegiatan = () => {
 
     const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+    
+    // 🔥 STATE untuk Manual Input Modal (Create & Edit)
+    const [isManualInputOpen, setIsManualInputOpen] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [selectedTrukForEdit, setSelectedTrukForEdit] = useState(null);
 
     const showModal = (type, title, message) => {
         setModal({ isOpen: true, type, title, message });
@@ -232,24 +234,6 @@ const DetailKegiatan = () => {
         }
     }, [data]);
 
-    useEffect(() => {
-        const fetchDropdownData = async () => {
-            try {
-                const [usersRes, kendaraanRes] = await Promise.all([
-                    fetch(`${API_BASE_URL}/api/users`),
-                    fetch(`${API_BASE_URL}/api/kendaraan`)
-                ]);
-                const usersData = await usersRes.json();
-                const kendaraanData = await kendaraanRes.json();
-                setAvailableUsers(usersData);
-                setAvailableKendaraan(kendaraanData);
-            } catch (err) {
-                console.error('Error fetching dropdown data:', err);
-            }
-        };
-        fetchDropdownData();
-    }, []);
-
     const transporterList = data?.transporters || [];
     const hasMultipleTransporters = transporterList.length > 1;
 
@@ -316,9 +300,16 @@ const DetailKegiatan = () => {
         return new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
+    // 🔥 PERBAIKAN: Format DateTime tanpa AM/PM (format 24 jam)
     const formatDateTime = (date) => {
         if (!date) return '-';
-        return new Date(date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const d = new Date(date);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
     };
 
     const dataURLToBlob = (dataurl) => {
@@ -423,8 +414,9 @@ const DetailKegiatan = () => {
         });
     };
 
+    // 🔥 PERBAIKAN: FUNGSI EDIT - Pastikan semua data terkirim lengkap
     const handleEditRow = async (truk) => {
-        console.log('🔧 Edit Row Clicked:', truk);
+        console.log('🔧 Opening Edit Modal for:', truk);
         
         if (!truk || !data?.kegiatan?.id) {
             showModal('error', 'Gagal', 'Data kegiatan belum siap.');
@@ -437,112 +429,56 @@ const DetailKegiatan = () => {
             return;
         }
 
-        setEditingRow(truk.id);
-        setTrukTersediaPerBaris([]);
+        // Load kendaraan alokasi untuk dropdown
         setIsLoadingTruk(true);
-
-        setEditFormData({
-            nopol: truk.nopol || '',
-            nama_personil: truk.nama_personil || '',
-            no_seri_pengantar: truk.no_seri_pengantar || '',
-            keterangan: truk.keterangan || '',
-            status: truk.status || 'Valid'
-        });
-
+        setTrukTersediaPerBaris([]);
+        
         try {
-            console.log(`📡 Fetching truk alokasi: kegiatan_id=${data.kegiatan.id}, transporter_id=${truk.transporter_id}`);
-            
             const url = `${API_BASE_URL}/api/kegiatan/truk-alokasi/${data.kegiatan.id}/${truk.transporter_id}`;
-            console.log('🌐 URL:', url);
-            
             const res = await fetch(url);
             
             if (!res.ok) {
                 const errorText = await res.text();
-                console.error('❌ Response Error:', res.status, errorText);
                 throw new Error(`API Error ${res.status}: ${errorText}`);
             }
             
             const json = await res.json();
-            console.log('✅ Data truk alokasi berhasil dimuat:', json);
             
             if (Array.isArray(json) && json.length > 0) {
                 setTrukTersediaPerBaris(json);
             } else {
-                console.warn('⚠️ Tidak ada truk teralokasi, gunakan fallback');
                 setTrukTersediaPerBaris([{ id: 0, plat_nomor: truk.nopol }]);
             }
+
+            // 🔥 PERBAIKAN: Pastikan semua data terkirim ke modal (termasuk ID untuk update)
+            const editDataComplete = {
+                ...truk,
+                id: truk.id, // PENTING: ID untuk endpoint PUT /api/keberangkatan/:id
+                kegiatan_id: data.kegiatan.id,
+                transporter_id: truk.transporter_id,
+                nopol: truk.nopol,
+                nama_personil: truk.nama_personil,
+                shift_id: truk.shift_id,
+                created_at: truk.created_at,
+                no_seri_pengantar: truk.no_seri_pengantar,
+                foto_truk: truk.foto_truk,
+                foto_surat: truk.foto_surat,
+                keterangan: truk.keterangan,
+                status: truk.status
+            };
+
+            console.log('📦 Edit Data Complete:', editDataComplete);
+
+            setSelectedTrukForEdit(editDataComplete);
+            setIsEditMode(true);
+            setIsManualInputOpen(true);
+            
         } catch (err) {
             console.error("❌ Error fetch alokasi:", err);
             showModal('error', 'Gagal Memuat Data', `Tidak dapat memuat daftar truk: ${err.message}`);
-            
-            setTrukTersediaPerBaris([{ id: 0, plat_nomor: truk.nopol }]);
         } finally {
             setIsLoadingTruk(false);
         }
-    };
-
-    const handleCancelEdit = () => {
-        setEditingRow(null);
-        setEditFormData({});
-        setTrukTersediaPerBaris([]);
-        setIsLoadingTruk(false);
-    };
-
-    const handleSaveEdit = async (trukId) => {
-        if (!editFormData.nopol || !editFormData.nama_personil) {
-            showModal('warning', 'Data Kurang', 'Plat nomor dan nama personil harus diisi');
-            return;
-        }
-
-        const targetTruk = data.truk.find(t => t.id === trukId);
-        const transporterId = targetTruk?.transporter_id;
-
-        if (!transporterId) {
-            showModal('error', 'Gagal', 'ID Transporter tidak ditemukan. Coba refresh halaman.');
-            return;
-        }
-
-        const isValidNopol = trukTersediaPerBaris.some(
-            ken => ken.plat_nomor.trim().toLowerCase() === editFormData.nopol.trim().toLowerCase()
-        );
-
-        if (!isValidNopol) {
-            showModal('error', 'Nopol Tidak Valid', `Nomor polisi ${editFormData.nopol} tidak terdaftar untuk transporter ${targetTruk.nama_transporter} di PO ini.`);
-            return;
-        }
-
-        showConfirm('Simpan Perubahan?', 'Apakah Anda yakin ingin menyimpan perubahan data truk ini?', async () => {
-            closeConfirm();
-            
-            try {
-                const payload = {
-                    kegiatan_id: data.kegiatan.id,
-                    transporter_id: transporterId,
-                    no_polisi: editFormData.nopol,
-                    no_seri_pengantar: editFormData.no_seri_pengantar,
-                    keterangan: editFormData.keterangan,
-                    status: editFormData.status
-                };
-
-                const res = await fetch(`${API_BASE_URL}/api/keberangkatan/${trukId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const responseData = await res.json();
-                if (!res.ok) throw new Error(responseData.message || `Server error: ${res.status}`);
-
-                await fetchDetail(); 
-                setEditingRow(null);
-                setEditFormData({});
-                setTrukTersediaPerBaris([]);
-                showModal('success', 'Berhasil', 'Data berhasil diperbarui');
-            } catch (err) {
-                showModal('error', 'Gagal Menyimpan', err.message);
-            }
-        });
     };
 
     if (loading) return <LoadingScreen isSidebarOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />;
@@ -568,6 +504,23 @@ const DetailKegiatan = () => {
                 onConfirm={confirmModal.onConfirm}
                 title={confirmModal.title}
                 message={confirmModal.message}
+            />
+
+            {/* 🔥 MANUAL INPUT MODAL (Support Create & Edit) */}
+            <ManualInputModal
+                isOpen={isManualInputOpen}
+                onClose={() => {
+                    setIsManualInputOpen(false);
+                    setIsEditMode(false);
+                    setSelectedTrukForEdit(null);
+                    setTrukTersediaPerBaris([]);
+                }}
+                onSuccess={fetchDetail}
+                kegiatanData={data?.kegiatan}
+                transporterList={transporterList}
+                // 🆕 Props untuk Edit Mode
+                editMode={isEditMode}
+                editData={selectedTrukForEdit}
             />
 
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -597,6 +550,18 @@ const DetailKegiatan = () => {
 
                     <StatistikCards statistik={statistik} />
 
+                    {/* 🔥 TOMBOL INPUT MANUAL */}
+                    <div className="flex justify-end mb-4">
+                        <button
+                            onClick={() => setIsManualInputOpen(true)}
+                            className="flex items-center gap-2 px-4 md:px-5 py-2.5 md:py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 text-white font-bold rounded-xl shadow-lg transition-all transform hover:scale-105 active:scale-95"
+                        >
+                            <Plus size={20} className="hidden sm:inline" />
+                            <Plus size={16} className="sm:hidden" />
+                            <span className="text-sm md:text-base">Tambah List Truk</span>
+                        </button>
+                    </div>
+
                     <FilterBar 
                         shifts={shifts} 
                         searchQuery={searchQuery} 
@@ -611,16 +576,7 @@ const DetailKegiatan = () => {
                         trukList={filteredTruk} 
                         setSelectedImage={setSelectedImage} 
                         formatDateTime={formatDateTime}
-                        editingRow={editingRow}
-                        editFormData={editFormData}
-                        setEditFormData={setEditFormData}
                         handleEditRow={handleEditRow}
-                        handleCancelEdit={handleCancelEdit}
-                        handleSaveEdit={handleSaveEdit}
-                        availableUsers={availableUsers}
-                        availableKendaraan={availableKendaraan}
-                        trukTersediaPerBaris={trukTersediaPerBaris}
-                        isLoadingTruk={isLoadingTruk}
                     />
 
                     <div className="flex justify-end mt-4">
@@ -810,20 +766,12 @@ const FilterBar = ({ shifts, searchQuery, setSearchQuery, statusFilter, setStatu
     </div>
 );
 
+// 🆕 SIMPLIFIED TRUK TABLE (Tanpa Inline Editing)
 const TrukTable = ({ 
     trukList, 
     setSelectedImage, 
     formatDateTime, 
-    editingRow, 
-    editFormData, 
-    setEditFormData, 
-    handleEditRow, 
-    handleCancelEdit, 
-    handleSaveEdit, 
-    availableUsers, 
-    availableKendaraan,
-    trukTersediaPerBaris,
-    isLoadingTruk
+    handleEditRow
 }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -854,107 +802,74 @@ const TrukTable = ({
                         </tr>
                     ) : (
                         trukList.map((truk, index) => (
-                            <tr key={index} className={`border-b ${editingRow === truk.id ? 'border-gray-400 bg-blue-50' : 'border-gray-200'} hover:bg-gray-50`}>
-                                <Td><span className="inline-flex px-2 py-1 bg-purple-100 text-purple-700 rounded text-[10px] md:text-xs font-medium">{truk.nama_transporter || '-'}</span></Td>
+                            <tr key={index} className="border-b border-gray-200 hover:bg-gray-50">
+                                <Td>
+                                    <span className="inline-flex px-2 py-1 bg-purple-100 text-purple-700 rounded text-[10px] md:text-xs font-medium">
+                                        {truk.nama_transporter || '-'}
+                                    </span>
+                                </Td>
                                 <Td>{formatDateTime(truk.created_at)}</Td>
-                                <Td><span className="inline-flex px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] md:text-xs font-medium">{truk.nama_shift}</span></Td>
                                 <Td>
-                                    {editingRow === truk.id ? (
-                                        <div className="relative">
-                                            <input
-                                                list={`users-${truk.id}`}
-                                                type="text"
-                                                value={editFormData.nama_personil}
-                                                onChange={(e) => setEditFormData(prev => ({ ...prev, nama_personil: e.target.value }))}
-                                                className="w-full px-2 py-1 border border-gray-300 rounded text-xs md:text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
-                                                placeholder="Ketik atau pilih nama"
-                                            />
-                                            <datalist id={`users-${truk.id}`}>
-                                                {availableUsers.map(user => (
-                                                    <option key={user.email} value={user.nama} />
-                                                ))}
-                                            </datalist>
-                                        </div>
-                                    ) : (
-                                        truk.nama_personil
-                                    )}
+                                    <span className="inline-flex px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] md:text-xs font-medium">
+                                        {truk.nama_shift}
+                                    </span>
+                                </Td>
+                                <Td>{truk.nama_personil || '-'}</Td>
+                                <Td>
+                                    <span className="font-medium text-gray-900">{truk.nopol}</span>
                                 </Td>
                                 <Td>
-                                    {editingRow === truk.id ? (
-                                        <div className="relative">
-                                            {isLoadingTruk ? (
-                                                <div className="px-2 py-1 text-xs md:text-sm text-gray-500 italic">Memuat...</div>
-                                            ) : (
-                                                <>
-                                                    <input
-                                                        list={`kendaraan-${truk.id}`}
-                                                        type="text"
-                                                        value={editFormData.nopol || ''}
-                                                        onChange={(e) => setEditFormData(prev => ({ ...prev, nopol: e.target.value }))}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs md:text-sm font-medium focus:ring-2 focus:ring-blue-300 focus:outline-none"
-                                                        placeholder="Pilih nopol..."
-                                                        disabled={isLoadingTruk}
-                                                    />
-                                                    <datalist id={`kendaraan-${truk.id}`}>
-                                                        {trukTersediaPerBaris && trukTersediaPerBaris.length > 0 && trukTersediaPerBaris.map(ken => (
-                                                            <option key={ken.id} value={ken.plat_nomor} />
-                                                        ))}
-                                                    </datalist>
-                                                </>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <span className="font-medium text-gray-900">{truk.nopol}</span>
-                                    )}
+                                    <span className="text-gray-500">{truk.no_seri_pengantar || '-'}</span>
                                 </Td>
                                 <Td>
-                                    {editingRow === truk.id ? (
-                                        <input
-                                            type="text"
-                                            value={editFormData.no_seri_pengantar}
-                                            onChange={(e) => setEditFormData(prev => ({ ...prev, no_seri_pengantar: e.target.value }))}
-                                            className="w-full px-2 py-1 border border-gray-300 rounded text-xs md:text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
-                                        />
-                                    ) : (
-                                        <span className="text-gray-500">{truk.no_seri_pengantar || '-'}</span>
-                                    )}
-                                </Td>
-                                <Td>{truk.foto_truk ? <button onClick={() => setSelectedImage({ src: getPhotoUrl(truk.foto_truk), type: 'foto_truk', nopol: truk.nopol, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-xs md:text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-xs md:text-sm">-</span>}</Td>
-                                <Td>{truk.foto_surat ? <button onClick={() => setSelectedImage({ src: getPhotoUrl(truk.foto_surat), type: 'foto_surat', no_seri_pengantar: truk.no_seri_pengantar, tanggal: truk.created_at })} className="text-blue-600 hover:text-blue-800 text-xs md:text-sm underline">Lihat Foto</button> : <span className="text-gray-400 text-xs md:text-sm">-</span>}</Td>
-                                
-                                <Td>
-                                    {editingRow === truk.id ? (
-                                        <input
-                                            type="text"
-                                            value={editFormData.keterangan || ''}
-                                            onChange={(e) => setEditFormData(prev => ({ ...prev, keterangan: e.target.value }))}
-                                            className="w-full px-2 py-1 border border-gray-300 rounded text-xs md:text-sm font-medium focus:ring-2 focus:ring-blue-300 focus:outline-none"
-                                            placeholder="Tambahkan keterangan"
-                                        />
-                                    ) : (
-                                        <span className="text-xs md:text-sm font-medium text-gray-700">
-                                            {truk.keterangan && truk.keterangan.trim() !== '' ? truk.keterangan : '-'}
-                                        </span>
-                                    )}
-                                </Td>
-                                
-                                <Td>
-                                    {editingRow === truk.id ? (
-                                        <select
-                                            value={editFormData.status}
-                                            onChange={(e) => setEditFormData(prev => ({ ...prev, status: e.target.value }))}
-                                            className="w-full px-2 py-1 border border-gray-300 rounded text-xs md:text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                                    {truk.foto_truk ? (
+                                        <button 
+                                            onClick={() => setSelectedImage({ 
+                                                src: getPhotoUrl(truk.foto_truk), 
+                                                type: 'foto_truk', 
+                                                nopol: truk.nopol, 
+                                                tanggal: truk.created_at 
+                                            })} 
+                                            className="text-blue-600 hover:text-blue-800 text-xs md:text-sm underline"
                                         >
-                                            <option value="Valid">Valid</option>
-                                            <option value="Tolak">Tolak</option>
-                                        </select>
-                                    ) : truk.status === 'Valid' ? (
+                                            Lihat Foto
+                                        </button>
+                                    ) : (
+                                        <span className="text-gray-400 text-xs md:text-sm">-</span>
+                                    )}
+                                </Td>
+                                <Td>
+                                    {truk.foto_surat ? (
+                                        <button 
+                                            onClick={() => setSelectedImage({ 
+                                                src: getPhotoUrl(truk.foto_surat), 
+                                                type: 'foto_surat', 
+                                                no_seri_pengantar: truk.no_seri_pengantar, 
+                                                tanggal: truk.created_at 
+                                            })} 
+                                            className="text-blue-600 hover:text-blue-800 text-xs md:text-sm underline"
+                                        >
+                                            Lihat Foto
+                                        </button>
+                                    ) : (
+                                        <span className="text-gray-400 text-xs md:text-sm">-</span>
+                                    )}
+                                </Td>
+                                <Td>
+                                    <span className="text-xs md:text-sm font-medium text-gray-700">
+                                        {truk.keterangan && truk.keterangan.trim() !== '' ? truk.keterangan : '-'}
+                                    </span>
+                                </Td>
+                                <Td>
+                                    {truk.status === 'Valid' ? (
                                         <span className="inline-flex px-2 md:px-3 py-1 md:py-1.5 bg-green-100 text-green-700 rounded text-[10px] md:text-sm font-medium items-center gap-1 md:gap-1.5">
-                                            <CheckCircle className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Valid</span>
+                                            <CheckCircle className="w-3 h-3 md:w-4 md:h-4" /> 
+                                            <span className="hidden sm:inline">Valid</span>
                                         </span>
                                     ) : truk.status === 'Tolak' ? (
                                         <span className="inline-flex px-2 md:px-3 py-1 md:py-1.5 bg-red-100 text-red-700 rounded text-[10px] md:text-sm font-medium items-center gap-1 md:gap-1.5">
-                                            <XCircle className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Tolak</span>
+                                            <XCircle className="w-3 h-3 md:w-4 md:h-4" /> 
+                                            <span className="hidden sm:inline">Tolak</span>
                                         </span>
                                     ) : (
                                         <span className="inline-flex px-2 md:px-3 py-1 md:py-1.5 bg-yellow-100 text-yellow-700 rounded text-[10px] md:text-sm font-medium">
@@ -963,36 +878,25 @@ const TrukTable = ({
                                     )}
                                 </Td>
                                 <Td>
-                                    {editingRow === truk.id ? (
-                                        <div className="flex gap-1">
-                                            <button
-                                                onClick={() => handleSaveEdit(truk.id)}
-                                                className="p-1 md:p-1.5 bg-green-600 text-white rounded hover:bg-green-700"
-                                                title="Simpan"
-                                                disabled={isLoadingTruk}
-                                            >
-                                                <CheckCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                            </button>
-                                            <button
-                                                onClick={handleCancelEdit}
-                                                className="p-1 md:p-1.5 bg-gray-500 text-white rounded hover:bg-gray-600"
-                                                title="Batal"
-                                            >
-                                                <XCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleEditRow(truk)}
-                                            className="p-1 md:p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
-                                            title="Edit"
+                                    <button
+                                        onClick={() => handleEditRow(truk)}
+                                        className="p-1 md:p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                        title="Edit"
+                                    >
+                                        <svg 
+                                            xmlns="http://www.w3.org/2000/svg" 
+                                            className="w-3.5 h-3.5 md:w-4 md:h-4" 
+                                            viewBox="0 0 24 24" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            strokeWidth="2" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                                            </svg>
-                                        </button>
-                                    )}
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                        </svg>
+                                    </button>
                                 </Td>
                             </tr>
                         ))
