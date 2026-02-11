@@ -53,6 +53,7 @@ const initDb = async () => {
         no_bl VARCHAR(50),
         quantity DECIMAL(10,4),
         tanggal_mulai DATE,
+        butuh_penyiraman ENUM('Ya', 'Tidak') DEFAULT 'Tidak',
         tanggal_selesai DATE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (vendor_id) REFERENCES vendor(id) ON DELETE SET NULL
@@ -99,7 +100,7 @@ const initDb = async () => {
       ) ENGINE=InnoDB;
     `);
 
-    // 9. KEBERANGKATAN_TRUK
+    // 9. KEBERANGKATAN_TRUK (UPDATED: created_at bisa NULL dan diset manual)
     await db.query(`
       CREATE TABLE IF NOT EXISTS keberangkatan_truk (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -112,7 +113,7 @@ const initDb = async () => {
         foto_truk VARCHAR(255),
         foto_surat VARCHAR(255),
         status ENUM('Valid', 'Tolak') DEFAULT 'Valid',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (kegiatan_kendaraan_id) REFERENCES kegiatan_kendaraan(id) ON DELETE CASCADE,
         FOREIGN KEY (email_user) REFERENCES users(email) ON DELETE CASCADE,
         FOREIGN KEY (shift_id) REFERENCES shift(id) ON DELETE CASCADE
@@ -146,6 +147,7 @@ const initDb = async () => {
         no_telp_petugas VARCHAR(20),     
         lokasi_pembersihan TEXT,         
         status ENUM('Draft', 'Completed') DEFAULT 'Draft',
+      
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT fk_bersih_kt FOREIGN KEY (kegiatan_transporter_id) REFERENCES kegiatan_transporter(id) ON DELETE CASCADE,
         CONSTRAINT fk_bersih_patroler FOREIGN KEY (email_patroler) REFERENCES users(email) ON DELETE CASCADE

@@ -6,17 +6,16 @@ require('dotenv').config();
 
 // --- IMPORT ROUTES ---
 const authRoutes = require('./src/routes/authRoutes');
-
-// 1. Dari HEAD (Fitur Lama/Fathiya/Trici)
 const vehicleRoutes = require('./src/routes/vehicleRoutes'); 
 const userRoutes = require('./src/routes/userRoutes');
 const jadwalRoutes = require('./src/routes/jadwalRoutes');
 const laporanRoutes = require('./src/routes/laporanRoutes');
-
-// 2. Dari OLIVIA (Fitur Baru)
 const keberangkatanRoutes = require('./src/routes/keberangkatanRoutes');
 const kegiatanRoutes = require('./src/routes/kegiatanRoutes'); 
 const waterTruckRoutes = require('./src/routes/waterTruckRoutes');
+
+// 🔥 TAMBAHAN BARU: Import Shift Routes
+const shiftRoutes = require('./src/routes/shiftRoutes');
 
 const app = express();
 
@@ -27,8 +26,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// 🔥 PERBAIKAN UTAMA: Tambahkan Header CORS di Static Folder
-// Ini memaksa server mengizinkan akses gambar dari mana saja (termasuk dari PDF generator)
+// Header CORS di Static Folder
 app.use('/uploads', (req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
@@ -55,7 +53,9 @@ app.use('/api/keberangkatan', keberangkatanRoutes);
 app.use('/api/jadwal', jadwalRoutes);
 app.use('/api/kendaraan', vehicleRoutes);
 
-// 4. Kegiatan (PO) - Fitur Olivia
+// 🔥 TAMBAHAN BARU: Route Shift agar Frontend bisa baca
+app.use('/api/shift', shiftRoutes);
+// 4. Kegiatan (PO)
 app.use('/api/kegiatan', kegiatanRoutes);
 
 // 5. Patroler Water Truck

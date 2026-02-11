@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
+import API_BASE_URL from '../config/api'; 
 
 const getPhotoUrl = (photoData) => {
     if (!photoData) return null;
     if (photoData.startsWith('data:image')) return photoData; 
-    // GUNAKAN API_BASE_URL
     return `${API_BASE_URL}${photoData}`; 
 };
 
@@ -49,8 +48,14 @@ const PembersihanMaterial = () => {
 
     const [masterData, setMasterData] = useState([]); 
     const [uniquePOs, setUniquePOs] = useState([]); 
+    
+    // --- STATE UNTUK PILIHAN TRANSPORTER ---
+    const [transporterOptions, setTransporterOptions] = useState([]); 
     const [filteredTransporters, setFilteredTransporters] = useState([]); 
     const [lockedPhotos, setLockedPhotos] = useState({ before: false, during: false, after: false });
+
+    // State untuk menandai apakah PO sudah dicek dan valid
+    const [isPOValidated, setIsPOValidated] = useState(false);
 
     const [formData, setFormData] = useState({
         id: null, 
@@ -58,7 +63,7 @@ const PembersihanMaterial = () => {
         nama: '',                
         no_telp: '',             
         lokasi_pembersihan: '',  
-        po_number: '',      
+        po_number: '',       
         transporter_name: '', 
         plat_nomor_list: [{ plat: '', photo: null, location: '' }], 
         foto_sebelum_list: [], foto_sedang_list: [], foto_setelah_list: [],
@@ -84,7 +89,6 @@ const PembersihanMaterial = () => {
 
     const fetchMasterData = async () => { 
         try { 
-            // GUNAKAN API_BASE_URL
             const res = await axios.get(`${API_BASE_URL}/api/water-truck/active-po`); 
             if (res.data.status === 'Success' && Array.isArray(res.data.data)) {
                 const rawData = res.data.data;
@@ -103,7 +107,6 @@ const PembersihanMaterial = () => {
     const fetchData = async () => {
         if (!user) return;
         try {
-            // GUNAKAN API_BASE_URL
             const res = await axios.get(`${API_BASE_URL}/api/water-truck`, { 
                 params: { email_patroler: user.email, tanggal: selectedDate } 
             });
@@ -129,6 +132,8 @@ const PembersihanMaterial = () => {
             lokasi_sebelum: '', lokasi_sedang: '', lokasi_setelah: ''
         });
         setFilteredTransporters([]);
+        setTransporterOptions([]); 
+        setIsPOValidated(false); // Reset validasi PO
         setLockedPhotos({ before: false, during: false, after: false }); 
         setIsViewMode(false); setStep(1);
     };
@@ -209,6 +214,8 @@ const PembersihanMaterial = () => {
 
         const transForPO = masterData.filter(d => d.no_po === item.no_po);
         setFilteredTransporters(transForPO);
+        // Di mode view/edit, kita anggap PO valid karena sudah tersimpan
+        setIsPOValidated(true);
 
         setLockedPhotos({
             before: item.foto_sebelum ? true : false,
@@ -217,22 +224,131 @@ const PembersihanMaterial = () => {
         });
     };
 
+    // ============================================
+    // LOGIKA BARU: INPUT PO & AUTO-CHECK (onBlur / onFocus Transporter)
+    // ============================================
+
     const handlePOInput = (e) => {
         const val = e.target.value;
-        setFormData(prev => ({ ...prev, po_number: val, transporter_name: '', kegiatan_transporter_id: '' }));
-        const related = masterData.filter(item => item.no_po === val);
-        setFilteredTransporters(related);
+        // Hanya update state text, reset transporter options karena PO berubah
+        setFormData(prev => ({ 
+            ...prev, 
+            po_number: val, 
+            transporter_name: '', 
+            kegiatan_transporter_id: '' 
+        }));
+        setTransporterOptions([]); // Kosongkan opsi transporter jika PO diketik ulang
+        setIsPOValidated(false);   // Reset validasi
     };
 
-    const handleTransporterInput = (e) => {
-        const val = e.target.value; 
-        const matchedData = filteredTransporters.find(item => item.nama_transporter === val);
+    // Fungsi pengecekan ke server
+    const checkPOValidity = async () => {
+        // Jangan cek jika kosong atau sudah divalidasi dengan sukses sebelumnya (kecuali user ubah input)
+        if (!formData.po_number) return; 
+        if (isPOValidated && transporterOptions.length > 0) return; // Sudah valid, gak perlu cek lagi
+
+        setLoading(true);
+        try {
+            // Panggil API Check PO
+            const res = await axios.post(`${API_BASE_URL}/api/water-truck/check-po`, { 
+                no_po: formData.po_number 
+            });
+
+            if (res.data.status === 'Success') {
+                const listData = res.data.data; // Menerima ARRAY data transporter
+                setTransporterOptions(listData);
+                setIsPOValidated(true);
+
+                if (listData.length === 1) {
+                    // Jika hanya ada 1 transporter, langsung pilih otomatis
+                    setFormData(prev => ({
+                        ...prev,
+                        transporter_name: listData[0].nama_transporter,
+                        kegiatan_transporter_id: listData[0].kegiatan_transporter_id
+                    }));
+                }
+            }
+        } catch (err) {
+            const msg = err.response?.data?.message || "Terjadi kesalahan saat mengecek PO.";
+            setWarningMessage(msg); // Pesan dari backend: "TIDAK TERDAFTAR" atau "TIDAK BUTUH PENYIRAMAN"
+            setShowModalWarning(true);
+            setTransporterOptions([]);
+            setIsPOValidated(false);
+            
+            // Reset Transporter
+            setFormData(prev => ({
+                ...prev,
+                transporter_name: '',
+                kegiatan_transporter_id: ''
+            }));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleTransporterChange = (e) => {
+        const val = e.target.value;
+        const selected = transporterOptions.find(t => t.nama_transporter === val);
+
         setFormData(prev => ({ 
             ...prev, 
             transporter_name: val, 
-            kegiatan_transporter_id: matchedData ? matchedData.id : '' 
+            kegiatan_transporter_id: selected ? selected.kegiatan_transporter_id : '' 
         }));
     };
+
+    // =========================================================
+    // FUNGSI TOMBOL LANJUT (VALIDASI KETAT "SEMUA FORM TERISI")
+    // =========================================================
+    const handleNextStep = () => {
+        if (isViewMode || formData.id) {
+            setStep(2);
+            return;
+        }
+
+        // 1. Validasi Data Petugas
+        if (!formData.nama.trim() || !formData.no_telp.trim() || !formData.lokasi_pembersihan.trim()) {
+            setWarningMessage("Harap lengkapi Data Petugas (Nama, No Telp, Area Penyiraman)!");
+            setShowModalWarning(true);
+            return;
+        }
+        
+        // 2. Validasi Nomor PO
+        if (!formData.po_number.trim()) {
+            setWarningMessage("Nomor PO wajib diisi!");
+            setShowModalWarning(true);
+            return;
+        }
+
+        // 3. Validasi Transporter (Harus Valid ID-nya)
+        if (!formData.transporter_name.trim() || !formData.kegiatan_transporter_id) {
+            setWarningMessage("Transporter belum dipilih! Pastikan Nomor PO valid dan Anda memilih Transporter dari daftar.");
+            setShowModalWarning(true);
+            return;
+        }
+
+        // 4. Validasi Truk (Wajib ada minimal 1, plat terisi, DAN FOTO TERISI)
+        const trukList = formData.plat_nomor_list;
+        if (trukList.length === 0) {
+            setWarningMessage("Minimal harus ada satu Truk Air!");
+            setShowModalWarning(true);
+            return;
+        }
+
+        // Cek apakah ada field plat atau FOTO yang masih kosong
+        // PERBAIKAN: Menambahkan kondisi !item.photo
+        const adaDataKurang = trukList.some(item => item.plat.trim() === '' || !item.photo);
+        if (adaDataKurang) {
+            setWarningMessage("Semua Nopol Truk Air wajib diisi dan HARUS difoto sebagai bukti!");
+            setShowModalWarning(true);
+            return;
+        }
+
+        // Jika semua lolos, baru lanjut
+        setStep(2);
+    };
+
+    // ============================================
 
     const handlePlatTextChange = (i, v) => { 
         const n = [...formData.plat_nomor_list]; 
@@ -272,7 +388,7 @@ const PembersihanMaterial = () => {
     
     const removeActivityPhoto = (field, index) => { setFormData(prev => { const newList = [...prev[field]]; newList.splice(index, 1); return { ...prev, [field]: newList }; }); };
 
-    // --- KAMERA UNIVERSAL (UPDATE: ALAMAT + KOORDINAT DALAM KURUNG) ---
+    // --- KAMERA UNIVERSAL ---
     const openCamera = async (onCapture) => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             setWarningMessage(
@@ -325,9 +441,7 @@ const PembersihanMaterial = () => {
                             
                             if (data && data.display_name) {
                                 const addressStr = data.display_name.split(',').slice(0, 3).join(',');
-                                // --- FORMAT BARU: NAMA JALAN (LAT, LONG) ---
                                 lastLocation = `${addressStr} (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
-                                
                                 locTextEl.innerHTML = `📍 ${addressStr.substring(0, 20)}...`; 
                             } else {
                                 lastLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
@@ -432,7 +546,6 @@ const PembersihanMaterial = () => {
                 lokasi_setelah: formData.lokasi_setelah
             };
 
-            // GUNAKAN API_BASE_URL
             const res = await axios.post(`${API_BASE_URL}/api/water-truck`, payload);
             setSuccessMessage(res.data.message);
             setShowModalSuccess(true);
@@ -443,16 +556,6 @@ const PembersihanMaterial = () => {
             setWarningMessage("Error: " + (err.response?.data?.message || err.message)); 
             setShowModalWarning(true);
         } finally { setLoading(false); }
-    };
-
-    const isStep1Valid = () => {
-        if (isViewMode) return true;
-        const isInfoValid = formData.nama.trim() !== '' && formData.no_telp.trim() !== '' && formData.lokasi_pembersihan.trim() !== '';
-        const isPOValid = formData.po_number && formData.transporter_name && formData.kegiatan_transporter_id;
-        const isPlatValid = formData.plat_nomor_list.length > 0 && formData.plat_nomor_list.every(item => {
-            return item.plat.trim() !== '' && (item.photo !== null);
-        });
-        return isInfoValid && isPOValid && isPlatValid;
     };
 
     const PhotoSection = ({ title, fieldListName, isLocked, locationText }) => (
@@ -533,7 +636,6 @@ const PembersihanMaterial = () => {
                                 </div>
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-4 mb-4 text-sm text-gray-700">
-                                    {/* TAMBAHAN KETAMPILAN DATA BARU */}
                                     {item.nama_petugas && (
                                         <div className="md:col-span-2 bg-blue-50 p-2 rounded-md border border-blue-100 mb-2">
                                             <div className="flex flex-col gap-1">
@@ -559,7 +661,7 @@ const PembersihanMaterial = () => {
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-2 text-xs mb-5">
-                                    <div className={`p-2 rounded text-center border ${item.foto_sebelum ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                                    <div className={`p-2 rounded text-center border ${item.foto_sebelum ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-green-200 text-gray-400'}`}>
                                         <div className="font-bold mb-1">Sblm</div>
                                         <div>{item.foto_sebelum ? formatJam(item.jam_foto_sebelum) : '-'}</div>
                                         {item.lokasi_foto_sebelum && <div className="text-[9px] mt-1 truncate">📍 {item.lokasi_foto_sebelum}</div>}
@@ -644,7 +746,6 @@ const PembersihanMaterial = () => {
                                 <div className="space-y-5">
                                     <div className={`space-y-5 ${formData.id ? '' : ''}`}>
                                         
-                                        {/* FORM INPUT BARU: NAMA, NO TELP, AREA PENYIRAMAN */}
                                         <div>
                                             <label className="block font-bold text-sm mb-2 text-red-600">Nama Petugas</label>
                                             <input 
@@ -679,16 +780,40 @@ const PembersihanMaterial = () => {
                                             />
                                         </div>
 
+                                        {/* MODIFIKASI: INPUT PO DENGAN ON BLUR TRIGGER */}
                                         <div>
                                             <label className="block font-bold text-sm mb-2 text-red-600">Nomor PO</label>
-                                            <input list="po-options" type="text" className="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all" placeholder="Ketik/Pilih No PO..." value={formData.po_number} onChange={handlePOInput} disabled={isViewMode || formData.id}/>
-                                            <datalist id="po-options">{uniquePOs.map((po, idx) => (<option key={idx} value={po} />))}</datalist>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all" 
+                                                placeholder="Ketik Nomor PO..." 
+                                                value={formData.po_number} 
+                                                onChange={handlePOInput} 
+                                                onBlur={checkPOValidity} 
+                                                disabled={isViewMode || formData.id}
+                                            />
                                         </div>
+
+                                        {/* MODIFIKASI: TRANSPORTER KETIK/PILIH */}
                                         <div>
                                             <label className="block font-bold text-sm mb-2 text-red-600">Transporter</label>
-                                            <input list="transporter-options" type="text" className={`w-full border-2 border-gray-300 p-2.5 rounded-lg ${!formData.po_number ? 'bg-gray-100 cursor-not-allowed' : 'bg-gray-50'} focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none`} value={formData.transporter_name} onChange={handleTransporterInput} disabled={isViewMode || formData.id || !formData.po_number} />
-                                            <datalist id="transporter-options">{filteredTransporters.map((item) => (<option key={item.id} value={item.nama_transporter} />))}</datalist>
+                                            <input 
+                                                list="transporter-options"
+                                                type="text" 
+                                                className={`w-full border-2 border-gray-300 p-2.5 rounded-lg ${isViewMode ? 'bg-gray-50' : 'bg-gray-50'} focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200`} 
+                                                value={formData.transporter_name} 
+                                                onChange={handleTransporterChange}
+                                                onFocus={() => { if(!isPOValidated && formData.po_number) checkPOValidity(); }}
+                                                placeholder="Pilih atau Ketik Transporter"
+                                                disabled={isViewMode || formData.id || !formData.po_number} 
+                                            />
+                                            <datalist id="transporter-options">
+                                                {transporterOptions.map((opt) => (
+                                                    <option key={opt.kegiatan_transporter_id} value={opt.nama_transporter} />
+                                                ))}
+                                            </datalist>
                                         </div>
+                                        
                                         <div>
                                             <label className="block font-bold text-sm mb-2 text-red-600">Nopol Truk Air</label>
                                             {formData.plat_nomor_list.map((item, index) => (
@@ -756,18 +881,11 @@ const PembersihanMaterial = () => {
                                     <div className="flex gap-3 pt-4 border-t mt-4">
                                         <button onClick={() => setShowModal(false)} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg font-semibold transition-colors">Tutup</button>
                                         <button 
-                                            onClick={() => { 
-                                                const isValid = isStep1Valid();
-                                                if(!isValid) {
-                                                    setWarningMessage("Harap lengkapi Nama Petugas, No Telp, Area Penyiraman, PO, Transporter, dan data Truk!");
-                                                    setShowModalWarning(true);
-                                                } else { 
-                                                    setStep(2); 
-                                                }
-                                            }} 
-                                            className={`flex-1 py-2.5 rounded-lg font-semibold transition-colors text-white ${isStep1Valid() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'}`}
+                                            onClick={handleNextStep} 
+                                            disabled={loading}
+                                            className={`flex-1 py-2.5 rounded-lg font-semibold transition-colors text-white ${loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`}
                                         >
-                                            {isViewMode ? 'Lihat Foto' : 'Lanjut'}
+                                            {loading ? 'Memproses...' : (isViewMode ? 'Lihat Foto' : 'Lanjut')}
                                         </button>
                                     </div>
                                 </div>
