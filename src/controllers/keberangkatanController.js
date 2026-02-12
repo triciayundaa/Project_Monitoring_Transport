@@ -131,7 +131,7 @@ const cekStatusShiftUser = async (req, res) => {
     }
 };
 
-// API 2: CEK PO (DENGAN VALIDASI RENTANG TANGGAL)
+// API 2: CEK PO (DENGAN VALIDASI RENTANG TANGGAL DAN FILTER TRANSPORTER COMPLETE)
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
@@ -168,15 +168,8 @@ const cekPO = async (req, res) => {
         }
         // -----------------------------------
 
-        // Cek status completed
-        if (kegiatan[0].status === 'Completed') {
-            return res.status(403).json({ 
-                status: 'Error', 
-                message: `Nomor PO ${kegiatan[0].no_po} sudah berstatus COMPLETED (Selesai). Data tidak dapat ditambah lagi.` 
-            });
-        }
-
-        const [transporters] = await db.query(`
+        // Ambil semua transporter untuk kegiatan ini
+        const [allTransporters] = await db.query(`
             SELECT t.id, t.nama_transporter, kt.id as kegiatan_transporter_id,
             kt.status 
             FROM transporter t
@@ -186,44 +179,60 @@ const cekPO = async (req, res) => {
             ORDER BY t.nama_transporter ASC
         `, [kegiatanId]);
 
-        let poStatus = 'On Progress';
-        if (transporters.length > 0) {
-            const allCompleted = transporters.every(t => t.status === 'Completed');
-            if (allCompleted) poStatus = 'Completed';
+        if (allTransporters.length === 0) {
+            return res.status(200).json({ status: 'Success', data: kegiatan[0], transporters: [] });
         }
+
+        // Cek apakah SEMUA transporter sudah Complete
+        const allCompleted = allTransporters.every(t => t.status === 'Completed');
         
-        const finalDataPO = {
-            ...kegiatan[0],
-            status: poStatus 
-        };
-
-        if (transporters.length === 0) {
-            return res.status(200).json({ status: 'Success', data: finalDataPO, transporters: [] });
+        if (allCompleted) {
+            return res.status(403).json({ 
+                status: 'Error', 
+                message: `Kegiatan dengan Nomor PO ${kegiatan[0].no_po} sudah SELESAI. Semua transporter telah menyelesaikan pengiriman. Data tidak dapat ditambah lagi.` 
+            });
         }
 
-        const kegiatanTransporterIds = transporters.map(t => t.kegiatan_transporter_id);
+        // Filter hanya transporter yang statusnya bukan 'Completed'
+        const activeTransporters = allTransporters.filter(t => t.status !== 'Completed');
+
+        if (activeTransporters.length === 0) {
+            return res.status(403).json({ 
+                status: 'Error', 
+                message: `Kegiatan dengan Nomor PO ${kegiatan[0].no_po} sudah SELESAI. Semua transporter telah menyelesaikan pengiriman.` 
+            });
+        }
+
+        // Ambil kendaraan hanya untuk transporter yang aktif
+        const activeKTIds = activeTransporters.map(t => t.kegiatan_transporter_id);
         
         let vehicles = [];
-        if (kegiatanTransporterIds.length > 0) {
+        if (activeKTIds.length > 0) {
             const [vehicleRows] = await db.query(`
                 SELECT k.id, k.plat_nomor, k.transporter_id
                 FROM kendaraan k
                 JOIN kegiatan_kendaraan kk ON k.id = kk.kendaraan_id
                 WHERE kk.kegiatan_transporter_id IN (?)
                 ORDER BY k.plat_nomor ASC
-            `, [kegiatanTransporterIds]);
+            `, [activeKTIds]);
             vehicles = vehicleRows;
         }
 
-        const transporterData = transporters.map(t => {
+        // Return hanya transporter yang aktif (On Progress atau Waiting)
+        const transporterData = activeTransporters.map(t => {
             return {
                 id: t.id,
                 nama_transporter: t.nama_transporter,
+                status: t.status,
                 vehicles: vehicles.filter(v => v.transporter_id === t.id)
             };
         });
 
-        res.status(200).json({ status: 'Success', data: finalDataPO, transporters: transporterData });
+        res.status(200).json({ 
+            status: 'Success', 
+            data: kegiatan[0], 
+            transporters: transporterData 
+        });
 
     } catch (error) {
         res.status(500).json({ message: error.message });
