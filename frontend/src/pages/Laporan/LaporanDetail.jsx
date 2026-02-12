@@ -232,22 +232,53 @@ const LaporanDetail = () => {
                             <div className="flex items-center border-b-2 md:border-b-4 border-black pb-3 md:pb-4 mb-6 md:mb-8">
                                 <img src={logoSemenPadang} alt="Logo Semen Padang" className="w-16 md:w-24 h-auto mr-3 md:mr-6" />
                                 <div className="flex-1 text-left">
-                                    <h1 className="text-base md:text-2xl font-black uppercase tracking-tighter leading-tight">Rekapitulasi Keberangkatan Truk Barang Curah</h1>
+                                    <h1 className="text-base md:text-2xl font-black uppercase tracking-tighter leading-tight">Rekapitulasi Keberangkatan Truk Barang Curah Teluk Bayur - PT Semen Padang</h1>
                                     <p className="text-[10px] md:text-sm font-bold uppercase tracking-wider md:tracking-widest text-gray-600 mt-1">Curah Transportasi - PT Semen Padang</p>
                                 </div>
                             </div>
 
                             {/* Info PO */}
                             <div className="mb-6 md:mb-10 text-[11px] md:text-sm">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-1 md:gap-y-2 font-bold uppercase text-left">
-                                    <p>Nomor PO : <span className="font-medium text-gray-700">{data.header.no_po}</span></p>
-                                    <p>Material : <span className="font-medium text-gray-700">{data.header.material}</span></p>
-                                    <p>Nama Kapal : <span className="font-medium text-gray-700">{data.header.nama_kapal}</span></p>
-                                    <p>Target Qty : <span className="font-medium text-gray-700">{parseFloat(data.header.quantity).toLocaleString()} TON</span></p>
-                                    <p>Incoterm : <span className="font-medium text-gray-700">{data.header.incoterm}</span></p>
-                                    <p>Nomor BL : <span className="font-medium text-gray-700">{data.header.no_bl}</span></p>
-                                </div>
-                            </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 font-bold uppercase">
+        {/* Kolom Kiri */}
+        <div className="space-y-1 md:space-y-2">
+            <div className="grid grid-cols-[100px_10px_1fr]">
+                <span>Nomor PO</span>
+                <span>:</span>
+                <span className="font-medium text-gray-700">{data.header.no_po}</span>
+            </div>
+            <div className="grid grid-cols-[100px_10px_1fr]">
+                <span>Nama Kapal</span>
+                <span>:</span>
+                <span className="font-medium text-gray-700">{data.header.nama_kapal}</span>
+            </div>
+            <div className="grid grid-cols-[100px_10px_1fr]">
+                <span>Material</span>
+                <span>:</span>
+                <span className="font-medium text-gray-700">{data.header.material}</span>
+            </div>
+        </div>
+
+        {/* Kolom Kanan */}
+                    <div className="space-y-1 md:space-y-2">
+                        <div className="grid grid-cols-[100px_10px_1fr]">
+                            <span>Incoterm</span>
+                            <span>:</span>
+                            <span className="font-medium text-gray-700">{data.header.incoterm}</span>
+                        </div>
+                        <div className="grid grid-cols-[100px_10px_1fr]">
+                            <span>Nomor BL</span>
+                            <span>:</span>
+                            <span className="font-medium text-gray-700">{data.header.no_bl}</span>
+                        </div>
+                        <div className="grid grid-cols-[100px_10px_1fr]">
+                            <span>Qty BL</span>
+                            <span>:</span>
+                            <span className="font-medium text-gray-700">{parseFloat(data.header.quantity).toLocaleString()} TON</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
                             {/* Tabel Realisasi */}
                             <div className="mb-6 md:mb-10">

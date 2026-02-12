@@ -115,50 +115,66 @@ exports.deleteLaporan = async (req, res) => {
     }
 };
 
-// 5. AMBIL LAPORAN PERIODIK (Data Kegiatan + Daftar Transporter)
+// 5. AMBIL LAPORAN PERIODIK (Data Kegiatan + Daftar Transporter + Status)
 exports.getLaporanPeriodik = async (req, res) => {
     const { start, end } = req.query;
 
     try {
-        const [logs] = await db.query(`
+        const query = `
             SELECT 
-                k.id,
-                k.no_po,
-                v.nama_vendor,
-                k.nama_kapal,
-                k.material,
-                k.incoterm,
-                k.no_bl,
-                k.quantity,
-                k.tanggal_mulai,
-                k.tanggal_selesai,
-                k.created_at,
+                k.id, k.no_po, v.nama_vendor, k.nama_kapal, k.material,
+                k.incoterm, k.no_bl, k.quantity, k.tanggal_mulai, k.tanggal_selesai,
+                kt.id AS kegiatan_transporter_id, t.id AS transporter_id,
+                t.nama_transporter, kt.status,
                 (
-                    SELECT GROUP_CONCAT(DISTINCT t.nama_transporter SEPARATOR ', ')
-                    FROM kegiatan_transporter kt
-                    JOIN transporter t ON kt.transporter_id = t.id
-                    WHERE kt.kegiatan_id = k.id
-                ) AS daftar_transporter
+                    SELECT COUNT(*)
+                    FROM keberangkatan_truk kbt
+                    JOIN kegiatan_kendaraan kk ON kbt.kegiatan_kendaraan_id = kk.id
+                    WHERE kk.kegiatan_transporter_id = kt.id
+                ) AS jumlah_truk
             FROM kegiatan k
             LEFT JOIN vendor v ON k.vendor_id = v.id
+            LEFT JOIN kegiatan_transporter kt ON kt.kegiatan_id = k.id
+            LEFT JOIN transporter t ON t.id = kt.transporter_id
             WHERE k.tanggal_mulai BETWEEN ? AND ?
             ORDER BY k.material ASC, k.tanggal_mulai ASC
-        `, [start, end]);
+        `;
 
-        const [summaryMaterial] = await db.query(`
-            SELECT 
-                k.material, 
-                COUNT(DISTINCT k.no_po) as total_po, 
-                SUM(k.quantity) as total_tonase_qty 
-            FROM kegiatan k
-            WHERE k.tanggal_mulai BETWEEN ? AND ?
-            GROUP BY k.material
-        `, [start, end]);
+        const [rows] = await db.query(query, [start, end]);
+
+        // --- LOGIKA GROUPING MENGGUNAKAN MAP ---
+        const map = {};
+        rows.forEach(row => {
+            if (!map[row.id]) {
+                map[row.id] = {
+                    id: row.id,
+                    no_po: row.no_po,
+                    nama_vendor: row.nama_vendor,
+                    nama_kapal: row.nama_kapal,
+                    material: row.material,
+                    incoterm: row.incoterm,
+                    no_bl: row.no_bl,
+                    quantity: row.quantity,
+                    tanggal_mulai: row.tanggal_mulai,
+                    tanggal_selesai: row.tanggal_selesai,
+                    transporters: [] 
+                };
+            }
+
+            if (row.transporter_id) {
+                map[row.id].transporters.push({
+                    kegiatan_transporter_id: row.kegiatan_transporter_id,
+                    id: row.transporter_id,
+                    nama: row.nama_transporter,
+                    status: row.status || 'Waiting',
+                    jumlah_truk: row.jumlah_truk
+                });
+            }
+        });
 
         res.status(200).json({
             periode: { start, end },
-            logs,
-            summaryMaterial
+            logs: Object.values(map) // Kirim data yang sudah di-group
         });
     } catch (error) {
         console.error("Error Laporan Periodik:", error.message);

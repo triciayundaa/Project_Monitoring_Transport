@@ -9,7 +9,6 @@ const getPhotoUrl = (photoData) => {
     return `${API_BASE_URL}${photoData}`; 
 };
 
-// Format jam ada detiknya
 const formatJam = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleTimeString('id-ID', {
@@ -33,7 +32,7 @@ const PembersihanMaterial = () => {
     const [dataList, setDataList] = useState([]);
     const [selectedDate, setSelectedDate] = useState(getLocalTodayDate());
     
-    // Modal States
+
     const [showModal, setShowModal] = useState(false);
     const [showModalConfirmLogout, setShowModalConfirmLogout] = useState(false);
     const [showModalWarning, setShowModalWarning] = useState(false);
@@ -49,12 +48,12 @@ const PembersihanMaterial = () => {
     const [masterData, setMasterData] = useState([]); 
     const [uniquePOs, setUniquePOs] = useState([]); 
     
-    // --- STATE UNTUK PILIHAN TRANSPORTER ---
+    
     const [transporterOptions, setTransporterOptions] = useState([]); 
     const [filteredTransporters, setFilteredTransporters] = useState([]); 
     const [lockedPhotos, setLockedPhotos] = useState({ before: false, during: false, after: false });
 
-    // State untuk menandai apakah PO sudah dicek dan valid
+    
     const [isPOValidated, setIsPOValidated] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -133,7 +132,7 @@ const PembersihanMaterial = () => {
         });
         setFilteredTransporters([]);
         setTransporterOptions([]); 
-        setIsPOValidated(false); // Reset validasi PO
+        setIsPOValidated(false); 
         setLockedPhotos({ before: false, during: false, after: false }); 
         setIsViewMode(false); setStep(1);
     };
@@ -214,7 +213,6 @@ const PembersihanMaterial = () => {
 
         const transForPO = masterData.filter(d => d.no_po === item.no_po);
         setFilteredTransporters(transForPO);
-        // Di mode view/edit, kita anggap PO valid karena sudah tersimpan
         setIsPOValidated(true);
 
         setLockedPhotos({
@@ -230,37 +228,36 @@ const PembersihanMaterial = () => {
 
     const handlePOInput = (e) => {
         const val = e.target.value;
-        // Hanya update state text, reset transporter options karena PO berubah
         setFormData(prev => ({ 
             ...prev, 
             po_number: val, 
             transporter_name: '', 
             kegiatan_transporter_id: '' 
         }));
-        setTransporterOptions([]); // Kosongkan opsi transporter jika PO diketik ulang
-        setIsPOValidated(false);   // Reset validasi
+        setTransporterOptions([]); 
+        setIsPOValidated(false);   
     };
 
     // Fungsi pengecekan ke server
     const checkPOValidity = async () => {
-        // Jangan cek jika kosong atau sudah divalidasi dengan sukses sebelumnya (kecuali user ubah input)
+        
         if (!formData.po_number) return; 
-        if (isPOValidated && transporterOptions.length > 0) return; // Sudah valid, gak perlu cek lagi
+        if (isPOValidated && transporterOptions.length > 0) return; 
 
         setLoading(true);
         try {
-            // Panggil API Check PO
+            
             const res = await axios.post(`${API_BASE_URL}/api/water-truck/check-po`, { 
                 no_po: formData.po_number 
             });
 
             if (res.data.status === 'Success') {
-                const listData = res.data.data; // Menerima ARRAY data transporter
+                const listData = res.data.data; 
                 setTransporterOptions(listData);
                 setIsPOValidated(true);
 
                 if (listData.length === 1) {
-                    // Jika hanya ada 1 transporter, langsung pilih otomatis
+                   
                     setFormData(prev => ({
                         ...prev,
                         transporter_name: listData[0].nama_transporter,
@@ -270,12 +267,12 @@ const PembersihanMaterial = () => {
             }
         } catch (err) {
             const msg = err.response?.data?.message || "Terjadi kesalahan saat mengecek PO.";
-            setWarningMessage(msg); // Pesan dari backend: "TIDAK TERDAFTAR" atau "TIDAK BUTUH PENYIRAMAN"
+            setWarningMessage(msg); 
             setShowModalWarning(true);
             setTransporterOptions([]);
             setIsPOValidated(false);
             
-            // Reset Transporter
+            
             setFormData(prev => ({
                 ...prev,
                 transporter_name: '',
@@ -336,7 +333,7 @@ const PembersihanMaterial = () => {
         }
 
         // Cek apakah ada field plat atau FOTO yang masih kosong
-        // PERBAIKAN: Menambahkan kondisi !item.photo
+        
         const adaDataKurang = trukList.some(item => item.plat.trim() === '' || !item.photo);
         if (adaDataKurang) {
             setWarningMessage("Semua Nopol Truk Air wajib diisi dan HARUS difoto sebagai bukti!");
@@ -662,17 +659,17 @@ const PembersihanMaterial = () => {
 
                                 <div className="grid grid-cols-3 gap-2 text-xs mb-5">
                                     <div className={`p-2 rounded text-center border ${item.foto_sebelum ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-green-200 text-gray-400'}`}>
-                                        <div className="font-bold mb-1">Sblm</div>
+                                        <div className="font-bold mb-1">Foto Sebelum Penyiraman</div>
                                         <div>{item.foto_sebelum ? formatJam(item.jam_foto_sebelum) : '-'}</div>
                                         {item.lokasi_foto_sebelum && <div className="text-[9px] mt-1 truncate">📍 {item.lokasi_foto_sebelum}</div>}
                                     </div>
                                     <div className={`p-2 rounded text-center border ${item.foto_sedang ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
-                                        <div className="font-bold mb-1">Sdg</div>
+                                        <div className="font-bold mb-1"> Foto Sedang Penyiraman</div>
                                         <div>{item.foto_sedang ? formatJam(item.jam_foto_sedang) : '-'}</div>
                                         {item.lokasi_foto_sedang && <div className="text-[9px] mt-1 truncate">📍 {item.lokasi_foto_sedang}</div>}
                                     </div>
                                     <div className={`p-2 rounded text-center border ${item.foto_setelah ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
-                                        <div className="font-bold mb-1">Stlh</div>
+                                        <div className="font-bold mb-1"> Foto Setelah Penyiraman</div>
                                         <div>{item.foto_setelah ? formatJam(item.jam_foto_setelah) : '-'}</div>
                                         {item.lokasi_foto_setelah && <div className="text-[9px] mt-1 truncate">📍 {item.lokasi_foto_setelah}</div>}
                                     </div>
@@ -769,7 +766,7 @@ const PembersihanMaterial = () => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="block font-bold text-sm mb-2 text-red-600">Area Penyiraman</label>
+                                            <label className="block font-bold text-sm mb-2 text-red-600">Area</label>
                                             <input 
                                                 type="text" 
                                                 className="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all" 

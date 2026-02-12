@@ -24,7 +24,7 @@ const Dashboard = () => {
     
     const [kpiStats, setKpiStats] = useState([
         { label: 'Total Kegiatan', value: 0, color: 'bg-red-50', iconColor: 'text-red-600', icon: Package },
-        { label: 'Total Transportir', value: 0, color: 'bg-purple-50', iconColor: 'text-purple-600', icon: Truck },
+        { label: 'Total Transporter', value: 0, color: 'bg-purple-50', iconColor: 'text-purple-600', icon: Truck },
         { label: 'Total Personil', value: 0, color: 'bg-indigo-50', iconColor: 'text-indigo-600', icon: Users },
         { label: 'Waiting', value: 0, color: 'bg-yellow-50', iconColor: 'text-yellow-600', icon: Clock },
         { label: 'On Progress', value: 0, color: 'bg-blue-50', iconColor: 'text-blue-600', icon: Activity },
@@ -318,7 +318,7 @@ useEffect(() => {
 
             setKpiStats([
                 { label: 'Total Kegiatan', value: totalKegiatan, color: 'bg-red-50', iconColor: 'text-red-600', icon: Package },
-                { label: 'Total Transportir', value: totalTransportir, color: 'bg-purple-50', iconColor: 'text-purple-600', icon: Truck },
+                { label: 'Total Transporter', value: totalTransportir, color: 'bg-purple-50', iconColor: 'text-purple-600', icon: Truck },
                 { label: 'Total Personil', value: totalPersonil, color: 'bg-indigo-50', iconColor: 'text-indigo-600', icon: Users },
                 { label: 'Waiting', value: waitingCount, color: 'bg-yellow-50', iconColor: 'text-yellow-600', icon: Clock },
                 { label: 'On Progress', value: progressCount, color: 'bg-blue-50', iconColor: 'text-blue-600', icon: Activity },
@@ -563,7 +563,7 @@ useEffect(() => {
                                 
                                 <div className="mt-3 pt-3 border-t border-gray-200">
                                     <div className="text-xs font-bold text-gray-600 mb-2 uppercase">
-                                        Detail Transportir ({activity.total_transportir})
+                                        Detail Transporter ({activity.total_transportir})
                                     </div>
                                     <div className="space-y-2">
                                         {Object.entries(activity.transporterInfo).map(([nama, info], tIdx) => (
@@ -929,7 +929,7 @@ useEffect(() => {
                         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="w-1 h-8 bg-red-600 rounded-full"></div>
-                                <h3 className="text-lg font-black text-gray-900">Status Transportir</h3>
+                                <h3 className="text-lg font-black text-gray-900">Status Transporter</h3>
                             </div>
                             <div style={{ height: '280px' }}>
                                 <ResponsiveContainer width="100%" height="100%">
