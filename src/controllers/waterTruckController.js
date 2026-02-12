@@ -660,6 +660,82 @@ const getActivePO = async (req, res) => {
 };
 
 // ============================================
+// 7. CHECK PO STATUS (NEW FEATURE)
+// ============================================
+// ============================================
+// 7. CHECK PO STATUS (UPDATE: Menggunakan kolom 'butuh_penyiraman')
+// ============================================
+const checkPoStatus = async (req, res) => {
+    let { no_po } = req.body;
+
+    try {
+        if (!no_po) {
+            return res.status(400).json({ status: 'Error', message: 'Nomor PO wajib diisi!' });
+        }
+
+        no_po = no_po.toString().trim(); 
+
+        // 1. CEK KEBERADAAN PO & KOLOM butuh_penyiraman
+        const [poCheck] = await db.query(`SELECT id, butuh_penyiraman FROM kegiatan WHERE no_po = ?`, [no_po]);
+        
+        if (poCheck.length === 0) {
+            return res.status(404).json({ status: 'Error', message: 'NOMOR PO TIDAK TERDAFTAR' });
+        }
+
+        const dataPO = poCheck[0];
+
+        // 2. CEK APAKAH PO BUTUH PENYIRAMAN (Pakai kolom 'butuh_penyiraman')
+        if (dataPO.butuh_penyiraman && (dataPO.butuh_penyiraman === 'Tidak')) {
+            return res.status(400).json({ 
+                status: 'Error', 
+                message: 'NOMOR PO INI TIDAK MEMBUTUHKAN PENYIRAMAN' 
+            });
+        }
+
+        // 3. CEK STATUS PROGRESS TRANSPORTER
+        const [activityCheck] = await db.query(`
+            SELECT 
+                kt.id as kegiatan_transporter_id,
+                kt.status,
+                t.nama_transporter,
+                v.nama_vendor
+            FROM kegiatan_transporter kt
+            JOIN kegiatan k ON kt.kegiatan_id = k.id
+            JOIN transporter t ON kt.transporter_id = t.id
+            LEFT JOIN vendor v ON k.vendor_id = v.id
+            WHERE k.no_po = ?
+        `, [no_po]);
+
+        if (activityCheck.length === 0) {
+            return res.status(400).json({ status: 'Error', message: 'BELUM ADA TRANSPORTER YANG DITUGASKAN UNTUK PO INI' });
+        }
+
+        // Filter status 'On Progress'
+        const onProgressItems = activityCheck.filter(item => item.status === 'On Progress');
+        
+        if (onProgressItems.length > 0) {
+            return res.status(200).json({ status: 'Success', data: onProgressItems });
+        } else {
+            // Cek status lain untuk pesan error
+            const isWaiting = activityCheck.some(item => item.status === 'Waiting');
+            const isCompleted = activityCheck.some(item => item.status === 'Completed');
+
+            if (isWaiting) {
+                return res.status(400).json({ status: 'Error', message: 'NOMOR PO INI STATUSNYA BELUM ON PROGRES' });
+            } else if (isCompleted) {
+                return res.status(400).json({ status: 'Error', message: 'NOMOR PO INI SUDAH SELESAI (COMPLETED)' });
+            } else {
+                return res.status(400).json({ status: 'Error', message: 'STATUS PO TIDAK VALID' });
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ Error checking PO:', error);
+        res.status(500).json({ status: 'Error', message: error.message });
+    }
+};
+
+// ============================================
 // EXPORT ALL FUNCTIONS
 // ============================================
 module.exports = { 
@@ -668,5 +744,6 @@ module.exports = {
     getDetailPembersihan,  // For mobile: edit single report
     getDetailWaterTruck,   // For web: detail per PO & transporter
     simpanPembersihan,     // For mobile: save/update report
-    getActivePO            // For mobile: PO dropdown
+    getActivePO,
+    checkPoStatus            // For mobile: PO dropdown
 };

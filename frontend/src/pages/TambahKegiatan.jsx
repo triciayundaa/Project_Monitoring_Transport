@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, AlertCircle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
-import API_BASE_URL from '../config/api'; // <--- IMPORT FILE CONFIG
-
+import API_BASE_URL from '../config/api';
 
 const Modal = ({ isOpen, onClose, type = 'success', title, message }) => {
     if (!isOpen) return null;
@@ -53,7 +52,8 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
         no_bl: '',
         quantity: '',
         tanggal_mulai: '',
-        tanggal_selesai: ''
+        tanggal_selesai: '',
+        butuh_penyiraman: 'Tidak'
     });
 
     const [transporters, setTransporters] = useState(['']);
@@ -61,11 +61,10 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
     const [loading, setLoading] = useState(false);
     const [modal, setModal] = useState({ isOpen: false, type: 'success', title: '', message: '' });
     
-    // State untuk validasi edit
     const [earliestTruckDate, setEarliestTruckDate] = useState(null);
     const [minStartDate, setMinStartDate] = useState('');
     const [isEditMode, setIsEditMode] = useState(false);
-    const [transportersMetadata, setTransportersMetadata] = useState([]); // Store full metadata
+    const [transportersMetadata, setTransportersMetadata] = useState([]);
 
     const showModal = (type, title, message) => {
         setModal({ isOpen: true, type, title, message });
@@ -81,7 +80,6 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
 
     const fetchTransporters = async () => {
         try {
-            // GUNAKAN API_BASE_URL
             const res = await fetch(`${API_BASE_URL}/api/kegiatan/transporters`);
             const data = await res.json();
             setAvailableTransporters(data);
@@ -103,25 +101,22 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                 no_bl: data.no_bl || '',
                 quantity: data.quantity || '',
                 tanggal_mulai: data.tanggal_mulai ? data.tanggal_mulai.split('T')[0] : '',
-                tanggal_selesai: data.tanggal_selesai ? data.tanggal_selesai.split('T')[0] : ''
+                tanggal_selesai: data.tanggal_selesai ? data.tanggal_selesai.split('T')[0] : '',
+                butuh_penyiraman: data.butuh_penyiraman || 'Tidak'
             });
             
-            // ✅ Simpan metadata lengkap termasuk kegiatan_transporter_id
             if (data.transportersMetadata && data.transportersMetadata.length > 0) {
                 setTransportersMetadata(data.transportersMetadata);
                 setTransporters(data.transportersMetadata.map(t => t.nama));
             } else if (data.transporters && data.transporters.length > 0) {
-                // Fallback jika hanya ada nama
                 setTransporters(data.transporters);
                 setTransportersMetadata(data.transporters.map(name => ({ nama: name })));
             }
 
-            // Set earliest truck date untuk validasi tanggal mulai
             if (data.earliestTruckDate) {
                 const earliestDate = new Date(data.earliestTruckDate);
                 setEarliestTruckDate(earliestDate);
                 
-                // Format untuk input date (YYYY-MM-DD)
                 const year = earliestDate.getFullYear();
                 const month = String(earliestDate.getMonth() + 1).padStart(2, '0');
                 const day = String(earliestDate.getDate()).padStart(2, '0');
@@ -133,7 +128,6 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         
-        // Validasi khusus untuk tanggal_mulai di mode edit
         if (name === 'tanggal_mulai' && isEditMode && earliestTruckDate) {
             const selectedDate = new Date(value);
             if (selectedDate > earliestTruckDate) {
@@ -154,7 +148,6 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
         newTransporters[index] = value;
         setTransporters(newTransporters);
 
-        // Update metadata juga
         const newMetadata = [...transportersMetadata];
         if (newMetadata[index]) {
             newMetadata[index] = {
@@ -172,18 +165,14 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
         setTransportersMetadata([...transportersMetadata, { nama: '' }]);
     };
 
-    // Cek apakah transporter bisa dihapus
     const canRemoveTransporter = (index) => {
         if (mode === 'add') {
-            return transporters.length > 1; // Di mode add, bisa hapus jika > 1
+            return transporters.length > 1;
         }
         
-        // Di mode edit:
-        // - Hanya bisa hapus jika status = Waiting (belum ada truk)
         const metadata = transportersMetadata[index];
         if (!metadata) return false;
 
-        // Jika tidak ada status atau status = Waiting, bisa dihapus
         const status = metadata.status || 'Waiting';
         const jumlahTruk = metadata.jumlah_truk || 0;
         
@@ -220,7 +209,6 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
     };
 
     const handleSubmit = async () => {
-        // Validasi form - semua field wajib diisi untuk mode add
         if (mode === 'add') {
             const requiredFields = {
                 'no_po': 'Nomor PO',
@@ -246,14 +234,12 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                 return;
             }
         } else {
-            // Validasi minimal untuk mode edit
             if (!formData.no_po || !formData.vendor) {
                 showModal('warning', 'Data Tidak Lengkap', 'Nomor PO dan Vendor wajib diisi!');
                 return;
             }
         }
 
-        // Validasi transporter
         const validTransporters = transporters.filter(t => t.trim() !== '');
         if (validTransporters.length === 0) {
             showModal('warning', 'Data Tidak Lengkap', 'Minimal harus ada 1 transporter!');
@@ -262,7 +248,6 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
 
         setLoading(true);
 
-        // Validasi tanggal
         if (formData.tanggal_mulai && formData.tanggal_selesai) {
             if (formData.tanggal_selesai < formData.tanggal_mulai) {
                 showModal('warning', 'Tanggal Tidak Valid', 'Tanggal Selesai tidak boleh kurang dari Tanggal Mulai!');
@@ -271,7 +256,6 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
             }
         }
 
-        // Validasi khusus untuk edit: cek tanggal mulai vs truk pertama
         if (mode === 'edit' && earliestTruckDate && formData.tanggal_mulai) {
             const selectedStartDate = new Date(formData.tanggal_mulai);
             if (selectedStartDate > earliestTruckDate) {
@@ -285,25 +269,21 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
             }
         }
 
-        // GUNAKAN API_BASE_URL
         const url = mode === 'add' 
             ? `${API_BASE_URL}/api/kegiatan` 
             : `${API_BASE_URL}/api/kegiatan/${data.old_no_po || data.no_po}`;
         
         const method = mode === 'add' ? 'POST' : 'PUT';
 
-        // ✅ Prepare transporters dengan metadata untuk edit
         let transportersPayload;
         if (mode === 'edit') {
-            // Kirim dengan format yang include kegiatan_transporter_id
             transportersPayload = transportersMetadata
                 .filter((meta, idx) => transporters[idx]?.trim() !== '')
                 .map((meta, idx) => ({
-                    kegiatan_transporter_id: meta.kegiatan_transporter_id, // Bisa undefined untuk transporter baru
+                    kegiatan_transporter_id: meta.kegiatan_transporter_id,
                     nama: transporters[idx].trim()
                 }));
         } else {
-            // Mode add, kirim array nama saja
             transportersPayload = validTransporters;
         }
 
@@ -371,7 +351,6 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
 
                     <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                         
-                        {/* Info Box jika ada earliest truck date */}
                         {isEditMode && earliestTruckDate && (
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
                                 <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -457,6 +436,7 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                             ></textarea>
                         </div>
 
+                        {/* SECTION TRANSPORTER */}
                         <div className="space-y-2 border-t pt-4">
                             <div className="flex justify-between items-center">
                                 <label className="text-xs font-semibold text-gray-500 uppercase">
@@ -508,7 +488,8 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                             })}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* SECTION TANGGAL */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-gray-500 uppercase">
                                     Tanggal Mulai <span className="text-red-500">*</span>
@@ -537,6 +518,37 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                                     min={formData.tanggal_mulai}
                                     className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm bg-gray-50 border-gray-200 hover:bg-white"
                                 />
+                            </div>
+                        </div>
+
+                        {/* 🔥 SECTION BUTUH PENYIRAMAN - POSISI BARU: DI BAWAH TANGGAL */}
+                        <div className="space-y-2 border-t pt-4">
+                            <label className="text-xs font-semibold text-gray-500 uppercase">
+                                Butuh Penyiraman / Truk Air? <span className="text-red-500">*</span>
+                            </label>
+                            <div className="flex gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="butuh_penyiraman"
+                                        value="Tidak"
+                                        checked={formData.butuh_penyiraman === 'Tidak'}
+                                        onChange={handleChange}
+                                        className="w-4 h-4 text-red-600 focus:ring-2 focus:ring-red-500"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Tidak</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="butuh_penyiraman"
+                                        value="Ya"
+                                        checked={formData.butuh_penyiraman === 'Ya'}
+                                        onChange={handleChange}
+                                        className="w-4 h-4 text-red-600 focus:ring-2 focus:ring-red-500"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Ya</span>
+                                </label>
                             </div>
                         </div>
 

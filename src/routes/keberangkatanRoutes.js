@@ -4,6 +4,7 @@ const {
     cekStatusShiftUser,
     cekPO,
     simpanKeberangkatan,
+    simpanKeberangkatanManual,  // 🔥 IMPORT FUNGSI MANUAL
     getKeberangkatanByDate,
     hapusKeberangkatan,
     verifikasiKeberangkatan,
@@ -16,19 +17,24 @@ router.get('/status-shift', cekStatusShiftUser);
 // 2. Cek PO
 router.post('/cek-po', cekPO);
 
-// 3. Simpan keberangkatan
+// 🔥 3. ROUTE MANUAL - HARUS SEBELUM ROUTE GENERIC '/'
+router.post('/manual', simpanKeberangkatanManual);
+
+// 4. Simpan keberangkatan (route generic)
 router.post('/', simpanKeberangkatan);
 
-// 4. Get data keberangkatan by date
+// 5. Get data keberangkatan by date
 router.get('/', getKeberangkatanByDate);
 
-// 5. Update/Edit data truk - PENTING: Route ini harus ada!
+// 6. Update/Edit data truk
 router.put('/:id', updateTruk);
 
-// 6. Verifikasi keberangkatan (update status Valid/Tolak)
+// 7. Verifikasi keberangkatan (update status Valid/Tolak)
 router.patch('/:id/verifikasi', verifikasiKeberangkatan);
 
-// 7. Hapus keberangkatan
+// 8. Hapus keberangkatan
 router.delete('/:id', hapusKeberangkatan);
+
+console.log('✅ Keberangkatan routes loaded with /manual endpoint');
 
 module.exports = router;

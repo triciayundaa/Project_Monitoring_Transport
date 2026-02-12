@@ -22,7 +22,10 @@ const saveBase64ToFile = (base64String, prefix) => {
         }
 
         const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (!matches || matches.length !== 3) return null;
+        if (!matches || matches.length !== 3) {
+            console.error('❌ Invalid Base64 format');
+            return null;
+        }
         
         const imageBuffer = Buffer.from(matches[2], 'base64');
         
@@ -30,10 +33,11 @@ const saveBase64ToFile = (base64String, prefix) => {
         const filePath = path.join(uploadDir, fileName);
 
         fs.writeFileSync(filePath, imageBuffer);
+        console.log(`✅ File saved: ${filePath}`);
 
         return `/uploads/${fileName}`; 
     } catch (error) {
-        console.error("Gagal save gambar:", error);
+        console.error("❌ Gagal save gambar:", error);
         return null;
     }
 };
@@ -127,7 +131,7 @@ const cekStatusShiftUser = async (req, res) => {
     }
 };
 
-// API 2: CEK PO (DENGAN VALIDASI RENTANG TANGGAL)
+// API 2: CEK PO (DENGAN VALIDASI RENTANG TANGGAL DAN FILTER TRANSPORTER COMPLETE)
 const cekPO = async (req, res) => {
     const { no_po } = req.body;
     try {
@@ -164,15 +168,8 @@ const cekPO = async (req, res) => {
         }
         // -----------------------------------
 
-        // Cek status completed
-        if (kegiatan[0].status === 'Completed') {
-            return res.status(403).json({ 
-                status: 'Error', 
-                message: `Nomor PO ${kegiatan[0].no_po} sudah berstatus COMPLETED (Selesai). Data tidak dapat ditambah lagi.` 
-            });
-        }
-
-        const [transporters] = await db.query(`
+        // Ambil semua transporter untuk kegiatan ini
+        const [allTransporters] = await db.query(`
             SELECT t.id, t.nama_transporter, kt.id as kegiatan_transporter_id,
             kt.status 
             FROM transporter t
@@ -182,44 +179,60 @@ const cekPO = async (req, res) => {
             ORDER BY t.nama_transporter ASC
         `, [kegiatanId]);
 
-        let poStatus = 'On Progress';
-        if (transporters.length > 0) {
-            const allCompleted = transporters.every(t => t.status === 'Completed');
-            if (allCompleted) poStatus = 'Completed';
+        if (allTransporters.length === 0) {
+            return res.status(200).json({ status: 'Success', data: kegiatan[0], transporters: [] });
         }
+
+        // Cek apakah SEMUA transporter sudah Complete
+        const allCompleted = allTransporters.every(t => t.status === 'Completed');
         
-        const finalDataPO = {
-            ...kegiatan[0],
-            status: poStatus 
-        };
-
-        if (transporters.length === 0) {
-            return res.status(200).json({ status: 'Success', data: finalDataPO, transporters: [] });
+        if (allCompleted) {
+            return res.status(403).json({ 
+                status: 'Error', 
+                message: `Kegiatan dengan Nomor PO ${kegiatan[0].no_po} sudah SELESAI. Semua transporter telah menyelesaikan pengiriman. Data tidak dapat ditambah lagi.` 
+            });
         }
 
-        const kegiatanTransporterIds = transporters.map(t => t.kegiatan_transporter_id);
+        // Filter hanya transporter yang statusnya bukan 'Completed'
+        const activeTransporters = allTransporters.filter(t => t.status !== 'Completed');
+
+        if (activeTransporters.length === 0) {
+            return res.status(403).json({ 
+                status: 'Error', 
+                message: `Kegiatan dengan Nomor PO ${kegiatan[0].no_po} sudah SELESAI. Semua transporter telah menyelesaikan pengiriman.` 
+            });
+        }
+
+        // Ambil kendaraan hanya untuk transporter yang aktif
+        const activeKTIds = activeTransporters.map(t => t.kegiatan_transporter_id);
         
         let vehicles = [];
-        if (kegiatanTransporterIds.length > 0) {
+        if (activeKTIds.length > 0) {
             const [vehicleRows] = await db.query(`
                 SELECT k.id, k.plat_nomor, k.transporter_id
                 FROM kendaraan k
                 JOIN kegiatan_kendaraan kk ON k.id = kk.kendaraan_id
                 WHERE kk.kegiatan_transporter_id IN (?)
                 ORDER BY k.plat_nomor ASC
-            `, [kegiatanTransporterIds]);
+            `, [activeKTIds]);
             vehicles = vehicleRows;
         }
 
-        const transporterData = transporters.map(t => {
+        // Return hanya transporter yang aktif (On Progress atau Waiting)
+        const transporterData = activeTransporters.map(t => {
             return {
                 id: t.id,
                 nama_transporter: t.nama_transporter,
+                status: t.status,
                 vehicles: vehicles.filter(v => v.transporter_id === t.id)
             };
         });
 
-        res.status(200).json({ status: 'Success', data: finalDataPO, transporters: transporterData });
+        res.status(200).json({ 
+            status: 'Success', 
+            data: kegiatan[0], 
+            transporters: transporterData 
+        });
 
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -309,27 +322,168 @@ const simpanKeberangkatan = async (req, res) => {
     }
 };
 
-// API 4: UPDATE DATA
-const updateTruk = async (req, res) => {
-    const { id } = req.params; 
-    const { kegiatan_id, transporter_id, no_polisi, no_seri_pengantar, keterangan, status } = req.body;
+
+// API MANUAL INPUT
+const simpanKeberangkatanManual = async (req, res) => {
+    const { 
+        kegiatan_id, 
+        transporter_id, 
+        no_polisi, 
+        nama_personil,
+        shift_id, 
+        tanggal,
+        jam,
+        no_seri_pengantar, 
+        foto_truk,
+        foto_surat, 
+        keterangan, 
+        status 
+    } = req.body;
 
     try {
+        console.log('📥 Manual Input Request:', { ...req.body, foto_truk: foto_truk ? 'Base64' : null, foto_surat: foto_surat ? 'Base64' : null });
+
+        // 1. Validasi Input (Foto tidak wajib)
+        if (!kegiatan_id || !transporter_id || !no_polisi || !nama_personil || !shift_id || !tanggal || !jam) {
+            return res.status(400).json({ 
+                message: 'Data wajib belum lengkap (Kegiatan, Transporter, Nopol, Personil, Shift, Waktu).' 
+            });
+        }
+
+        // 2. Validasi Kendaraan
+        const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
+        if (existingKendaraan.length === 0) {
+            return res.status(400).json({ message: `Plat nomor ${no_polisi} tidak terdaftar.` });
+        }
+        
+        const kendaraanId = existingKendaraan[0].id;
+
+        // 3. Cari email user
+        const [userResult] = await db.query('SELECT email FROM users WHERE nama = ? AND role = ?', [nama_personil, 'personil']);
+        const email_user = userResult.length > 0 ? userResult[0].email : 'admin@system.com';
+
+        // 4. Get/Create Kegiatan Transporter
+        const finalKegiatanTransporterId = await getOrCreateKegiatanTransporterId(kegiatan_id, transporter_id);
+
+        // 5. Cek/Buat Alokasi Kendaraan
+        let alokasiId;
+        const [alokasi] = await db.query(
+            'SELECT id FROM kegiatan_kendaraan WHERE kegiatan_transporter_id = ? AND kendaraan_id = ?',
+            [finalKegiatanTransporterId, kendaraanId]
+        );
+
+        if (alokasi.length === 0) {
+            const [newAlokasi] = await db.query(
+                'INSERT INTO kegiatan_kendaraan (kegiatan_transporter_id, kendaraan_id) VALUES (?, ?)',
+                [finalKegiatanTransporterId, kendaraanId]
+            );
+            alokasiId = newAlokasi.insertId;
+        } else {
+            alokasiId = alokasi[0].id;
+        }
+
+        // 6. Proses Foto (Opsional)
+        let fotoTrukPath = null;
+        let fotoSuratPath = null;
+
+        if (foto_truk) {
+            fotoTrukPath = saveBase64ToFile(foto_truk, 'truk-manual');
+        }
+        if (foto_surat) {
+            fotoSuratPath = saveBase64ToFile(foto_surat, 'surat-manual');
+        }
+
+        // 7. Gabungkan tanggal dan jam
+        const created_at = `${tanggal} ${jam}:00`;
+
+        // 8. Insert Data
+        const finalKeterangan = keterangan || 'Input Manual oleh Admin';
+        const finalStatus = status || 'Valid';
+        const finalNoSeri = no_seri_pengantar || '-';
+
+        const [result] = await db.query(
+            `INSERT INTO keberangkatan_truk 
+             (kegiatan_kendaraan_id, email_user, shift_id, tanggal, no_seri_pengantar, foto_truk, foto_surat, keterangan, status, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [alokasiId, email_user, shift_id, tanggal, finalNoSeri, fotoTrukPath, fotoSuratPath, finalKeterangan, finalStatus, created_at]
+        );
+
+        // 9. Update Status
+        await db.query(
+            'UPDATE kegiatan_transporter SET status = ? WHERE id = ? AND status = ?', 
+            ['On Progress', finalKegiatanTransporterId, 'Waiting']
+        );
+
+        res.status(200).json({ 
+            status: 'Success', 
+            message: 'Data manual berhasil disimpan', 
+            data: { id: result.insertId } 
+        });
+
+    } catch (error) {
+        console.error('❌ MANUAL SAVE ERROR:', error);
+        res.status(500).json({ status: 'Error', message: error.message });
+    }
+};
+
+// 🔥 API 4: UPDATE DATA (DENGAN SUPPORT FOTO)
+const updateTruk = async (req, res) => {
+    const { id } = req.params; 
+    const { 
+        kegiatan_id, 
+        transporter_id, 
+        no_polisi, 
+        nama_personil,
+        shift_id,
+        tanggal,
+        jam,
+        no_seri_pengantar, 
+        foto_truk,
+        foto_surat,
+        keep_existing_truk,
+        keep_existing_surat,
+        keterangan, 
+        status 
+    } = req.body;
+
+    try {
+        console.log('📝 Update Request for ID:', id);
+        console.log('📦 Payload:', { 
+            ...req.body, 
+            foto_truk: foto_truk ? 'Base64 Data' : null,
+            foto_surat: foto_surat ? 'Base64 Data' : null,
+            keep_existing_truk,
+            keep_existing_surat
+        });
+
+        // 1. Get old record
         const [oldRecord] = await db.query(`
-            SELECT kk.kegiatan_transporter_id
+            SELECT kbt.foto_truk as old_foto_truk, kbt.foto_surat as old_foto_surat,
+                   kk.kegiatan_transporter_id
             FROM keberangkatan_truk kbt
             JOIN kegiatan_kendaraan kk ON kbt.kegiatan_kendaraan_id = kk.id
             WHERE kbt.id = ?`, [id]);
 
-        if (oldRecord.length === 0) return res.status(404).json({ message: 'Data keberangkatan tidak ditemukan.' });
+        if (oldRecord.length === 0) {
+            return res.status(404).json({ message: 'Data keberangkatan tidak ditemukan.' });
+        }
+        
         const oldKTId = oldRecord[0].kegiatan_transporter_id;
+        const oldFotoTruk = oldRecord[0].old_foto_truk;
+        const oldFotoSurat = oldRecord[0].old_foto_surat;
 
+        console.log('📁 Old Record:', { oldFotoTruk, oldFotoSurat, oldKTId });
+
+        // 2. Validate kendaraan
         const [existingKendaraan] = await db.query('SELECT id FROM kendaraan WHERE plat_nomor = ?', [no_polisi]);
-        if (existingKendaraan.length === 0) return res.status(400).json({ message: 'Nopol tidak terdaftar.' });
+        if (existingKendaraan.length === 0) {
+            return res.status(400).json({ message: 'Nopol tidak terdaftar.' });
+        }
         
         const kendaraanId = existingKendaraan[0].id;
         const finalKegiatanTransporterId = await getOrCreateKegiatanTransporterId(kegiatan_id, transporter_id);
 
+        // 3. Get/Create alokasi
         const [alokasi] = await db.query(
             'SELECT id FROM kegiatan_kendaraan WHERE kegiatan_transporter_id = ? AND kendaraan_id = ?',
             [finalKegiatanTransporterId, kendaraanId]
@@ -337,28 +491,154 @@ const updateTruk = async (req, res) => {
 
         let targetId;
         if (alokasi.length === 0) {
-            const [ins] = await db.query('INSERT INTO kegiatan_kendaraan (kegiatan_transporter_id, kendaraan_id) VALUES (?, ?)', [finalKegiatanTransporterId, kendaraanId]);
+            const [ins] = await db.query(
+                'INSERT INTO kegiatan_kendaraan (kegiatan_transporter_id, kendaraan_id) VALUES (?, ?)',
+                [finalKegiatanTransporterId, kendaraanId]
+            );
             targetId = ins.insertId;
         } else {
             targetId = alokasi[0].id;
         }
 
+        // 4. Handle foto updates
+        let finalFotoTruk = oldFotoTruk;
+        let finalFotoSurat = oldFotoSurat;
+
+        // 🔥 PERBAIKAN LOGIC FOTO TRUK
+        if (!keep_existing_truk) {
+            console.log('🖼️ User wants to change/remove foto truk');
+            
+            // Delete old file if exists
+            if (oldFotoTruk) {
+                const publicDir = path.join(__dirname, '../../public');
+                const oldPath = path.join(publicDir, oldFotoTruk);
+                if (fs.existsSync(oldPath)) {
+                    console.log('🗑️ Deleting old foto truk:', oldPath);
+                    fs.unlinkSync(oldPath);
+                }
+            }
+            
+            // Save new foto if provided
+            if (foto_truk && foto_truk.includes('base64')) {
+                console.log('💾 Saving new foto truk');
+                finalFotoTruk = saveBase64ToFile(foto_truk, 'truk-edit');
+                
+                if (!finalFotoTruk) {
+                    console.error('❌ Failed to save foto truk!');
+                } else {
+                    console.log('✅ New foto truk saved:', finalFotoTruk);
+                }
+            } else {
+                console.log('⚠️ No new foto truk provided, setting to null');
+                finalFotoTruk = null;
+            }
+        } else {
+            console.log('✅ Keeping existing foto truk:', oldFotoTruk);
+        }
+
+        // 🔥 PERBAIKAN LOGIC FOTO SURAT  
+        if (!keep_existing_surat) {
+            console.log('🖼️ User wants to change/remove foto surat');
+            
+            // Delete old file if exists
+            if (oldFotoSurat) {
+                const publicDir = path.join(__dirname, '../../public');
+                const oldPath = path.join(publicDir, oldFotoSurat);
+                if (fs.existsSync(oldPath)) {
+                    console.log('🗑️ Deleting old foto surat:', oldPath);
+                    fs.unlinkSync(oldPath);
+                }
+            }
+            
+            // Save new foto if provided
+            if (foto_surat && foto_surat.includes('base64')) {
+                console.log('💾 Saving new foto surat');
+                finalFotoSurat = saveBase64ToFile(foto_surat, 'surat-edit');
+                
+                if (!finalFotoSurat) {
+                    console.error('❌ Failed to save foto surat!');
+                } else {
+                    console.log('✅ New foto surat saved:', finalFotoSurat);
+                }
+            } else {
+                console.log('⚠️ No new foto surat provided, setting to null');
+                finalFotoSurat = null;
+            }
+        } else {
+            console.log('✅ Keeping existing foto surat:', oldFotoSurat);
+        }
+
+        console.log('📊 Final Foto Values:', {
+            finalFotoTruk,
+            finalFotoSurat
+        });
+
+        // 5. Get user email
+        const [userResult] = await db.query('SELECT email FROM users WHERE nama = ? AND role = ?', [nama_personil, 'personil']);
+        const email_user = userResult.length > 0 ? userResult[0].email : 'admin@system.com';
+
+        // 6. Combine tanggal and jam for created_at
+        const created_at = tanggal && jam ? `${tanggal} ${jam}:00` : null;
+
+        // 7. Update record
+        console.log('💾 Updating database with:', {
+            targetId,
+            email_user,
+            shift_id,
+            tanggal,
+            no_seri_pengantar,
+            finalFotoTruk,
+            finalFotoSurat,
+            keterangan,
+            status,
+            created_at
+        });
+
         await db.query(
             `UPDATE keberangkatan_truk 
-             SET kegiatan_kendaraan_id = ?, no_seri_pengantar = ?, keterangan = ?, status = ?
+             SET kegiatan_kendaraan_id = ?, 
+                 email_user = ?,
+                 shift_id = ?,
+                 tanggal = ?,
+                 no_seri_pengantar = ?, 
+                 foto_truk = ?,
+                 foto_surat = ?,
+                 keterangan = ?, 
+                 status = ?,
+                 created_at = COALESCE(?, created_at)
              WHERE id = ?`,
-            [targetId, no_seri_pengantar, keterangan || '', status || 'Valid', id]
+            [
+                targetId, 
+                email_user,
+                shift_id,
+                tanggal,
+                no_seri_pengantar, 
+                finalFotoTruk,
+                finalFotoSurat,
+                keterangan || '', 
+                status || 'Valid',
+                created_at,
+                id
+            ]
         );
 
+        // 8. Update status kegiatan_transporter
         await db.query('UPDATE kegiatan_transporter SET status = "On Progress" WHERE id = ?', [finalKegiatanTransporterId]);
 
         if (oldKTId !== finalKegiatanTransporterId) {
-            const [rem] = await db.query('SELECT COUNT(*) as total FROM keberangkatan_truk kt JOIN kegiatan_kendaraan kk ON kt.kegiatan_kendaraan_id = kk.id WHERE kk.kegiatan_transporter_id = ?', [oldKTId]);
-            if (rem[0].total === 0) await db.query('UPDATE kegiatan_transporter SET status = "Waiting" WHERE id = ?', [oldKTId]);
+            const [rem] = await db.query(
+                'SELECT COUNT(*) as total FROM keberangkatan_truk kt JOIN kegiatan_kendaraan kk ON kt.kegiatan_kendaraan_id = kk.id WHERE kk.kegiatan_transporter_id = ?',
+                [oldKTId]
+            );
+            if (rem[0].total === 0) {
+                await db.query('UPDATE kegiatan_transporter SET status = "Waiting" WHERE id = ?', [oldKTId]);
+            }
         }
 
+        console.log('✅ Update successful');
         res.status(200).json({ status: 'Success', message: 'Data berhasil diperbarui' });
     } catch (error) {
+        console.error('❌ UPDATE ERROR:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -433,12 +713,14 @@ const verifikasiKeberangkatan = async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
+
 module.exports = {
     cekStatusShiftUser, 
     cekPO, 
     simpanKeberangkatan, 
+    simpanKeberangkatanManual,
     getKeberangkatanByDate,
     hapusKeberangkatan, 
     verifikasiKeberangkatan, 
-    updateTruk
+    updateTruk,
 };
