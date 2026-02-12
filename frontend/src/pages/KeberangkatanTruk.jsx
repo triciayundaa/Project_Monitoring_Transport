@@ -242,18 +242,18 @@ const KeberangkatanTruk = () => {
             const response = await axios.post(`${API_BASE_URL}/api/keberangkatan/cek-po`, { no_po: noPOTrimmed });
             if (response.data.status === 'Success') {
                 const dataPO = response.data.data;
+                const transporters = response.data.transporters || [];
                 
-                // VALIDASI TANGGAL SUDAH DIHAPUS - DIHANDLE DI BACKEND
-                
-                // Hanya cek status completed
-                if (dataPO.status === 'Completed') {
-                    setWarningMessage(`Nomor PO ${dataPO.no_po} sudah berstatus COMPLETED (Selesai). Data tidak dapat ditambah lagi.`);
+                // Cek apakah ada transporter yang tersedia (tidak Complete)
+                if (transporters.length === 0) {
+                    setWarningMessage(`Kegiatan dengan Nomor PO ${noPOTrimmed} sudah SELESAI. Semua transporter telah menyelesaikan pengiriman. Data tidak dapat ditambah lagi.`);
                     setShowModalWarning(true);
+                    setShowModalPO(false);
                     return;
                 }
                 
                 setPoData(dataPO);
-                setTransporterList(response.data.transporters || []); 
+                setTransporterList(transporters); 
                 setShowModalPO(false);
                 setShowModalForm(true);
             }
@@ -262,7 +262,7 @@ const KeberangkatanTruk = () => {
                 setShowModalPO(false); 
                 setShowModalError(true); 
             } else if (error.response?.status === 403) {
-                // Handle error dari backend (validasi tanggal rentang, dll)
+                // Handle error dari backend (validasi tanggal rentang, transporter complete, dll)
                 setWarningMessage(error.response?.data?.message || 'PO tidak dapat diproses');
                 setShowModalWarning(true);
                 setShowModalPO(false);
