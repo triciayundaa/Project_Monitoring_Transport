@@ -1043,7 +1043,7 @@ useEffect(() => {
                                             }}
                                         />
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-2 font-semibold">Truk Berangkat</p>
+                                    <p className="text-xs text-gray-500 mt-2 font-semibold">Truk</p>
                                 </div>
                             ))}
                         </div>

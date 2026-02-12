@@ -142,11 +142,9 @@ const DaftarKegiatan = () => {
                 statuses: item.transporters?.map(t => t.status || 'Waiting') || []
             }));
             
-            const sortedData = transformedData.sort((a, b) => {
-                const dateA = new Date(a.tanggal_mulai);
-                const dateB = new Date(b.tanggal_mulai);
-                return dateB - dateA;
-            });
+            // Reverse array agar data yang baru ditambahkan (biasanya di akhir array dari backend) 
+            // muncul di posisi paling atas
+            const sortedData = transformedData.reverse();
             
             setData(sortedData);
             setFilteredData(sortedData);
@@ -426,7 +424,7 @@ const DaftarKegiatan = () => {
                                     <th className="px-4 py-3 border-r border-red-500/30">Incoterm</th>
                                     <th className="px-4 py-3 border-r border-red-500/30">No BL</th>
                                     <th className="px-4 py-3 border-r border-red-500/30">Qty</th>
-                                    <th className="px-4 py-3 border-r border-red-500/30">Truk Air</th>
+                                    <th className="px-4 py-3 border-r border-red-500/30">Butuh Patroler/Truk Air</th>
                                     <th className="px-4 py-3 border-r border-red-500/30">Transporter</th>
                                     <th className="px-4 py-3 border-r border-red-500/30">Status</th>
                                     <th className="px-4 py-3 text-center border-r border-red-500/30">Total Truk</th>

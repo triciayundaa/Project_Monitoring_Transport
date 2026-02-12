@@ -128,6 +128,11 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         
+        // Validasi khusus untuk no_po - maksimal 10 karakter
+        if (name === 'no_po' && value.length > 10) {
+            return; // Tidak izinkan input lebih dari 10 karakter
+        }
+        
         if (name === 'tanggal_mulai' && isEditMode && earliestTruckDate) {
             const selectedDate = new Date(value);
             if (selectedDate > earliestTruckDate) {
@@ -233,9 +238,21 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                 showModal('warning', 'Data Tidak Lengkap', `Field berikut wajib diisi: ${emptyFields.join(', ')}`);
                 return;
             }
+            
+            // Validasi panjang Nomor PO harus tepat 10 digit
+            if (formData.no_po.length !== 10) {
+                showModal('warning', 'Nomor PO Tidak Valid', 'Nomor PO harus tepat 10 digit!');
+                return;
+            }
         } else {
             if (!formData.no_po || !formData.vendor) {
                 showModal('warning', 'Data Tidak Lengkap', 'Nomor PO dan Vendor wajib diisi!');
+                return;
+            }
+            
+            // Validasi panjang Nomor PO harus tepat 10 digit
+            if (formData.no_po.length !== 10) {
+                showModal('warning', 'Nomor PO Tidak Valid', 'Nomor PO harus tepat 10 digit!');
                 return;
             }
         }
@@ -371,6 +388,7 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                                 onChange={handleChange} 
                                 required 
                                 placeholder="Masukkan No PO"
+                                maxLength={10}
                             />
 
                             <InputGroup 
@@ -521,10 +539,10 @@ const TambahKegiatan = ({ onClose, onSuccess, mode = 'add', data = {} }) => {
                             </div>
                         </div>
 
-                        {/* 🔥 SECTION BUTUH PENYIRAMAN - POSISI BARU: DI BAWAH TANGGAL */}
+                        {/* SECTION BUTUH PENYIRAMAN */}
                         <div className="space-y-2 border-t pt-4">
                             <label className="text-xs font-semibold text-gray-500 uppercase">
-                                Butuh Penyiraman / Truk Air? <span className="text-red-500">*</span>
+                                Butuh Patroler / Truk Air? <span className="text-red-500">*</span>
                             </label>
                             <div className="flex gap-4">
                                 <label className="flex items-center gap-2 cursor-pointer">
