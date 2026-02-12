@@ -232,8 +232,8 @@ const LaporanDetail = () => {
                             <div className="flex items-center border-b-2 md:border-b-4 border-black pb-3 md:pb-4 mb-6 md:mb-8">
                                 <img src={logoSemenPadang} alt="Logo Semen Padang" className="w-16 md:w-24 h-auto mr-3 md:mr-6" />
                                 <div className="flex-1 text-left">
-                                    <h1 className="text-base md:text-2xl font-black uppercase tracking-tighter leading-tight">Rekapitulasi Pengangkutan & Daftar Unit</h1>
-                                    <p className="text-[10px] md:text-sm font-bold uppercase tracking-wider md:tracking-widest text-gray-600 mt-1">Logistik Transportasi - PT Semen Padang</p>
+                                    <h1 className="text-base md:text-2xl font-black uppercase tracking-tighter leading-tight">Rekapitulasi Keberangkatan Truk Barang Curah</h1>
+                                    <p className="text-[10px] md:text-sm font-bold uppercase tracking-wider md:tracking-widest text-gray-600 mt-1">Curah Transportasi - PT Semen Padang</p>
                                 </div>
                             </div>
 
@@ -252,7 +252,7 @@ const LaporanDetail = () => {
                             {/* Tabel Realisasi */}
                             <div className="mb-6 md:mb-10">
                                 <h3 className="text-xs md:text-sm font-black text-red-600 uppercase italic mb-2 md:mb-3 flex items-center">
-                                    <span className="w-6 md:w-8 h-[2px] bg-red-600 mr-1.5 md:mr-2"></span>Realisasi Keberangkatan (per Ritase)
+                                    <span className="w-6 md:w-8 h-[2px] bg-red-600 mr-1.5 md:mr-2"></span>Realisasi Keberangkatan Truk
                                 </h3>
                                 <div className="overflow-x-auto">
                                     <table className="w-full border-collapse border-2 border-black text-[8px] md:text-[9px] text-left">
