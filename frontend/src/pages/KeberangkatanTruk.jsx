@@ -500,8 +500,10 @@ const KeberangkatanTruk = () => {
                             <button onClick={() => setShowModalInfo(false)} className="bg-white/20 hover:bg-white/30 rounded-full p-1"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
                         <div className="flex-1 overflow-auto p-4 bg-gray-50">
-                            <div className="bg-white rounded shadow border overflow-hidden">
-                                <table className="w-full text-xs sm:text-sm text-left">
+                            {/* PERUBAHAN DISINI: overflow-x-auto untuk scroll horizontal */}
+                            <div className="bg-white rounded shadow border overflow-x-auto">
+                                {/* PERUBAHAN DISINI: min-w-[700px] agar tabel tidak tergencet */}
+                                <table className="w-full text-xs sm:text-sm text-left min-w-[700px]">
                                     <thead className="bg-gray-800 text-white uppercase sticky top-0 z-10"><tr><th className="px-3 py-3 w-16 text-center">Tgl</th><th className="px-3 py-3 w-20">Hari</th><th className="px-3 py-3 text-center">Shift 1</th><th className="px-3 py-3 text-center">Shift 2</th><th className="px-3 py-3 text-center">Shift 3</th><th className="px-3 py-3 text-center">Libur</th></tr></thead>
                                     <tbody className="divide-y divide-gray-200">
                                         {getDaysInMonth(currentMonthInfo.year, currentMonthInfo.month).map(date => {
