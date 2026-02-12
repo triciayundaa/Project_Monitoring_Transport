@@ -5,7 +5,7 @@ import API_BASE_URL from '../config/api'; // <--- IMPORT CONFIG
 
 // Import gambar dari folder assets
 import logoSemen from '../assets/logo-semen-padang.png';
-import bgGudang from '../assets/bg-gudang.jpeg';
+import bgGudang from '../assets/TB.jpeg';
 
 const Login = () => {
     const [email, setEmail] = useState('');
