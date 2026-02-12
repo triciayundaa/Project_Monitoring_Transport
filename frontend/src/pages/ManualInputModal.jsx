@@ -47,7 +47,9 @@ const ManualInputModal = ({
 
     const getCurrentTime = () => {
         const now = new Date();
-        return now.toTimeString().slice(0, 5);
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
     };
 
     const getPhotoUrl = (path) => {
@@ -115,7 +117,7 @@ const ManualInputModal = ({
                     jam: jam,
                     foto_truk: null,
                     foto_surat: null,
-                    keterangan: editData.keterangan || '',
+                    keterangan: editData.keterangan || '', // Kosongkan jika tidak ada
                     status: editData.status || 'Valid'
                 });
 
@@ -136,7 +138,7 @@ const ManualInputModal = ({
                     setKeepExistingSurat(false);
                 }
             } else {
-                // CREATE MODE - Reset form
+                // CREATE MODE - Reset form dengan default keterangan
                 const today = getTodayDate();
                 const nowTime = getCurrentTime();
 
@@ -150,7 +152,7 @@ const ManualInputModal = ({
                     jam: nowTime,
                     foto_truk: null,
                     foto_surat: null,
-                    keterangan: 'Input Manual oleh Admin',
+                    keterangan: 'Input Manual oleh Admin', // Default untuk create
                     status: 'Valid'
                 });
                 
@@ -327,7 +329,7 @@ const ManualInputModal = ({
                 tanggal: formData.tanggal,
                 jam: formData.jam,
                 no_seri_pengantar: formData.no_seri_pengantar || '-',
-                keterangan: formData.keterangan,
+                keterangan: formData.keterangan || '', // Bisa kosong
                 status: formData.status
             };
 
@@ -445,7 +447,7 @@ const ManualInputModal = ({
                     {/* Header */}
                     <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-white">
                         <h2 className="text-xl font-bold text-gray-800">
-                            {editMode ? 'Edit Data Truk' : 'Input Data Manual'}
+                            {editMode ? 'Edit Data Truk' : 'Tambah List Truk'}
                         </h2>
                         <button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors" type="button">
                             <X size={24} />
@@ -504,14 +506,55 @@ const ManualInputModal = ({
 
                             {/* Jam (Max Now if Today) */}
                             <InputGroup label="Jam" required>
-                                <input
-                                    type="time"
-                                    value={formData.jam}
-                                    max={maxTime} 
-                                    onChange={(e) => setFormData({ ...formData, jam: e.target.value })}
-                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm hover:bg-white"
-                                    required
-                                />
+                                <div className="flex gap-2 items-center">
+                                    <select
+                                        value={formData.jam.split(':')[0]}
+                                        onChange={(e) => {
+                                            const currentMinute = formData.jam.split(':')[1] || '00';
+                                            const newTime = `${e.target.value}:${currentMinute}`;
+                                            
+                                            // Validasi jika hari ini
+                                            if (formData.tanggal === getTodayDate() && maxTime) {
+                                                const [maxHour, maxMinute] = maxTime.split(':');
+                                                if (parseInt(e.target.value) > parseInt(maxHour)) {
+                                                    setFormData({ ...formData, jam: maxTime });
+                                                    return;
+                                                }
+                                            }
+                                            setFormData({ ...formData, jam: newTime });
+                                        }}
+                                        className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm hover:bg-white"
+                                        required
+                                    >
+                                        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                            <option key={hour} value={hour}>{hour}</option>
+                                        ))}
+                                    </select>
+                                    <span className="text-gray-500 font-bold">:</span>
+                                    <select
+                                        value={formData.jam.split(':')[1] || '00'}
+                                        onChange={(e) => {
+                                            const currentHour = formData.jam.split(':')[0];
+                                            const newTime = `${currentHour}:${e.target.value}`;
+                                            
+                                            // Validasi jika hari ini
+                                            if (formData.tanggal === getTodayDate() && maxTime) {
+                                                const [maxHour, maxMinute] = maxTime.split(':');
+                                                if (currentHour === maxHour && parseInt(e.target.value) > parseInt(maxMinute)) {
+                                                    setFormData({ ...formData, jam: maxTime });
+                                                    return;
+                                                }
+                                            }
+                                            setFormData({ ...formData, jam: newTime });
+                                        }}
+                                        className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm hover:bg-white"
+                                        required
+                                    >
+                                        {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(minute => (
+                                            <option key={minute} value={minute}>{minute}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </InputGroup>
 
                             {/* Shift (Auto) */}
@@ -552,10 +595,10 @@ const ManualInputModal = ({
                         {/* FOTO - Grid 2 Kolom */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             
-                            {/* 1. Foto Truk (Opsional) */}
+                            {/* 1. Foto Truk */}
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-gray-500 uppercase">
-                                    Foto Truk (Opsional)
+                                    Foto Truk
                                     {editMode && previewTruk && !formData.foto_truk && (
                                         <span className="ml-2 text-blue-600 text-[10px]">• Foto Existing</span>
                                     )}
@@ -581,10 +624,10 @@ const ManualInputModal = ({
                                 )}
                             </div>
 
-                            {/* 2. Foto Surat (Opsional) */}
+                            {/* 2. Foto Surat */}
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-gray-500 uppercase">
-                                    Foto Surat (Opsional)
+                                    Foto Surat
                                     {editMode && previewSurat && !formData.foto_surat && (
                                         <span className="ml-2 text-blue-600 text-[10px]">• Foto Existing</span>
                                     )}
@@ -611,14 +654,13 @@ const ManualInputModal = ({
                             </div>
                         </div>
 
-                        {/* Keterangan */}
-                        <InputGroup label="Keterangan" required>
+                        {/* Keterangan - TIDAK WAJIB */}
+                        <InputGroup label="Keterangan">
                             <textarea
                                 value={formData.keterangan}
                                 onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                                 className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm min-h-[80px] hover:bg-white"
-                                placeholder="Keterangan input manual..."
-                                required
+                                placeholder="Tambahkan keterangan jika diperlukan..."
                             />
                         </InputGroup>
 
@@ -643,7 +685,7 @@ const ManualInputModal = ({
                         </div>
 
                         {/* Footer Buttons */}
-                        <div className="flex justify-end gap-3 pt-6 border-t border-gray-100 mt-6 bg-white sticky bottom-0">
+                        <div className="flex justify-end gap-3 pt-6 border-t border-gray-100 mt-6 bg-white">
                             <button
                                 type="button"
                                 onClick={onClose}
